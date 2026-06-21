@@ -1207,3 +1207,39 @@ async def test_get_universal_tracking_finds_new_number():
     assert result["count"] == 1
     assert result["tracking"][0]["number"] == "1Z999AA10123456784"
     assert result["tracking"][0]["carrier"] == "ups"
+
+
+# ---------------------------------------------------------------------------
+# DPD International carrier tests
+# ---------------------------------------------------------------------------
+
+
+async def test_dpd_out_for_delivery(hass, mock_imap_dpd_out_for_delivery):
+    result = get_count(
+        mock_imap_dpd_out_for_delivery, "dpd_delivering", True, "./", hass
+    )
+    assert result["count"] == 1
+    assert result["tracking"] == ["01234567890123"]
+
+
+async def test_dpd_delivered(hass, mock_imap_dpd_delivered):
+    result = get_count(mock_imap_dpd_delivered, "dpd_delivered", False, "./", hass)
+    assert result["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# GLS International (DE) carrier tests
+# ---------------------------------------------------------------------------
+
+
+async def test_gls_out_for_delivery_de(hass, mock_imap_gls_out_for_delivery_de):
+    result = get_count(
+        mock_imap_gls_out_for_delivery_de, "gls_delivering", True, "./", hass
+    )
+    assert result["count"] == 1
+    assert result["tracking"] == ["12345678901"]
+
+
+async def test_gls_delivered_de(hass, mock_imap_gls_delivered_de):
+    result = get_count(mock_imap_gls_delivered_de, "gls_delivered", False, "./", hass)
+    assert result["count"] == 1

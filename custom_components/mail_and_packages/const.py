@@ -394,13 +394,65 @@ SENSOR_DATA = {
         # https://tracktrace.dpd.com.pl/parcelDetails?p1=13490015284111
         "pattern": ["\\d{13}[A-Z0-9]{1,2}"],
     },
-    # GLS
+    # DPD International (DE / FR / UK / NL / other)
+    "dpd_delivered": {
+        "email": [
+            "noreply@dpd.de",
+            "notification@dpd.de",
+            "noreply@dpd.fr",
+            "notification@dpd.fr",
+            "tracking@dpd.co.uk",
+            "notification@dpd.co.uk",
+            "noreply@dpd.nl",
+            "noreply@dpd.com",
+        ],
+        "subject": [
+            "Ihr DPD Paket wurde zugestellt",
+            "erfolgreich zugestellt",
+            "Your parcel has been delivered",
+            "Votre colis a été livré",
+            "Uw pakket is bezorgd",
+        ],
+    },
+    "dpd_delivering": {
+        "email": [
+            "noreply@dpd.de",
+            "notification@dpd.de",
+            "noreply@dpd.fr",
+            "notification@dpd.fr",
+            "tracking@dpd.co.uk",
+            "notification@dpd.co.uk",
+            "noreply@dpd.nl",
+            "noreply@dpd.com",
+        ],
+        "subject": [
+            "Ihr DPD Paket wird heute zugestellt",
+            "Paketzustellung heute",
+            "Your DPD parcel is out for delivery",
+            "out for delivery today",
+            "Votre colis DPD est en cours de livraison",
+            "Uw pakket wordt vandaag bezorgd",
+        ],
+    },
+    "dpd_packages": {},
+    "dpd_tracking": {
+        # https://www.dpd.com/de/de/empfangen/sendungsverfolgung/
+        "pattern": ["\\d{14}"],
+    },
+    # GLS International (DE / FR / ES / NL + existing PL)
     "gls_delivered": {
         "email": [
             "noreply@gls-group.eu",
+            "noreply@gls-pakete.de",
+            "info@mygls.de",
+            "notification@gls-group.eu",
             "powiadomienia@allegromail.pl",
         ],
         "subject": [
+            "GLS: Ihr Paket wurde zugestellt",
+            "wurde zugestellt",
+            "Your GLS parcel has been delivered",
+            "Votre colis GLS a été livré",
             "informacja o dostawie",
         ],
         "body": ["została dzisiaj dostarczona"],
@@ -408,9 +460,18 @@ SENSOR_DATA = {
     "gls_delivering": {
         "email": [
             "noreply@gls-group.eu",
+            "noreply@gls-pakete.de",
+            "info@mygls.de",
+            "notification@gls-group.eu",
             "powiadomienia@allegromail.pl",
         ],
-        "subject": ["paczka w drodze"],
+        "subject": [
+            "GLS: Ihr Paket wird heute zugestellt",
+            "Paketzustellung durch GLS",
+            "Your GLS parcel is on its way",
+            "Votre colis GLS est en cours de livraison",
+            "paczka w drodze",
+        ],
         "body": ["Zespół GLS"],
     },
     "gls_packages": {},
@@ -692,6 +753,25 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         icon="mdi:package-variant-closed",
         key="dpd_com_pl_packages",
     ),
+    # DPD International
+    "dpd_delivering": SensorEntityDescription(
+        name="Mail DPD Delivering",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:truck-delivery",
+        key="dpd_delivering",
+    ),
+    "dpd_delivered": SensorEntityDescription(
+        name="Mail DPD Delivered",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant",
+        key="dpd_delivered",
+    ),
+    "dpd_packages": SensorEntityDescription(
+        name="Mail DPD Packages",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant-closed",
+        key="dpd_packages",
+    ),
     # GLS
     "gls_delivering": SensorEntityDescription(
         name="Mail GLS Delivering",
@@ -703,7 +783,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="Mail GLS Delivered",
         native_unit_of_measurement="package(s)",
         icon="mdi:package-variant",
-        key="dpd_com_pl_delivered",
+        key="gls_delivered",
     ),
     "gls_packages": SensorEntityDescription(
         name="Mail GLS Packages",
@@ -791,5 +871,6 @@ SHIPPERS = [
     "poczta_polska",
     "inpost_pl",
     "dpd_com_pl",
+    "dpd",
     "gls",
 ]
