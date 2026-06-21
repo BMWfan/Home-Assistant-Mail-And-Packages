@@ -23,6 +23,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_entry_oauth2_flow
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import (
     ConfigEntryAuthFailed,
     DataUpdateCoordinator,
@@ -84,6 +85,8 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         self._file_mtime_cache = {}
         self._hash_cache = {}
         self._in_transit_tracking: dict[str, dict[str, str]] = {}
+        self._tracking_loaded = False
+        self._store: Store = Store(hass, 1, f"{DOMAIN}.tracking")
 
         _LOGGER.debug("Data will be update every %s", self.interval)
 
@@ -179,6 +182,11 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             days = config.get(CONF_CUSTOM_DAYS, DEFAULT_CUSTOM_DAYS)
             since_date = (now - datetime.timedelta(days=days)).strftime("%d-%b-%Y")
 
+            # Load persisted tracking state on first scan after startup
+            if not self._tracking_loaded:
+                await self._async_load_tracking()
+                self._tracking_loaded = True
+
             # Process logic
             shipper_data = await self._update_shippers(
                 account, config, today, since_date, cache
@@ -186,6 +194,9 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             tracking_details = shipper_data.pop("_tracking_details", {})
             data.update(shipper_data)
             self._apply_tracking_state(data, tracking_details, today_iso)
+
+            # Persist updated tracking state so it survives restarts
+            await self._async_save_tracking()
 
             # Aggregate global transit and delivered sensors
             self._aggregate_package_counts(data)
@@ -387,6 +398,20 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         expired = [tid for tid, seen in in_transit.items() if seen < cutoff]
         for tid in expired:
             del in_transit[tid]
+
+    async def _async_load_tracking(self) -> None:
+        """Load persisted in-transit tracking state from storage."""
+        stored = await self._store.async_load()
+        if stored and isinstance(stored.get("in_transit"), dict):
+            self._in_transit_tracking = stored["in_transit"]
+            _LOGGER.debug(
+                "Loaded %d tracked prefix(es) from storage",
+                len(self._in_transit_tracking),
+            )
+
+    async def _async_save_tracking(self) -> None:
+        """Persist current in-transit tracking state to storage."""
+        await self._store.async_save({"in_transit": self._in_transit_tracking})
 
     def _aggregate_package_counts(self, data: dict) -> None:
         """Aggregate global transit and delivered counts from all shippers."""
