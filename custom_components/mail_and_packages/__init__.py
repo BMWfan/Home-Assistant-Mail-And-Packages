@@ -1,5 +1,6 @@
 """Mail and Packages Integration."""
 import asyncio
+import dataclasses
 import logging
 from datetime import timedelta
 
@@ -21,7 +22,6 @@ from .const import (
     CONF_IMAP_TIMEOUT,
     CONF_PATH,
     CONF_SCAN_INTERVAL,
-    COORDINATOR,
     DEFAULT_AMAZON_DAYS,
     DEFAULT_IMAP_TIMEOUT,
     DOMAIN,
@@ -30,7 +30,6 @@ from .const import (
     PACKAGES_IN_TRANSIT,
     PACKAGES_TRACKED,
     PLATFORMS,
-    REGISTRY,
     SERVICE_ADD_PACKAGE,
     SERVICE_CLEAR_ALL_DELIVERED,
     SERVICE_CLEAR_PACKAGE,
@@ -39,6 +38,13 @@ from .const import (
 )
 from .helpers import default_image_path, process_emails
 from .package_registry import PackageRegistry
+
+
+@dataclasses.dataclass
+class _MailEntryData:
+    coordinator: "MailDataUpdateCoordinator"
+    cameras: list = dataclasses.field(default_factory=list)
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +63,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         VERSION,
         ISSUE_URL,
     )
-    hass.data.setdefault(DOMAIN, {})
     updated_config = config_entry.data.copy()
 
     # Set amazon fwd blank if missing
@@ -105,7 +110,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     interval = config.get(CONF_SCAN_INTERVAL)
 
     # Setup the data coordinator
-    coordinator = MailDataUpdateCoordinator(hass, host, the_timeout, interval, config)
+    coordinator = MailDataUpdateCoordinator(
+        hass, config_entry, host, the_timeout, interval, config
+    )
 
     # Load package registry and attach to coordinator
     registry = PackageRegistry(hass, config_entry.entry_id)
@@ -120,10 +127,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         _LOGGER.error("Error updating sensor data: %s", coordinator.last_exception)
         raise ConfigEntryNotReady
 
-    hass.data[DOMAIN][config_entry.entry_id] = {
-        COORDINATOR: coordinator,
-        REGISTRY: registry,
-    }
+    config_entry.runtime_data = _MailEntryData(coordinator=coordinator)
 
     _register_services(hass)
 
@@ -150,7 +154,6 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
 
     if unload_ok:
         _LOGGER.debug("Successfully removed sensors from the %s integration", DOMAIN)
-        hass.data[DOMAIN].pop(config_entry.entry_id)
 
     return unload_ok
 
@@ -250,31 +253,31 @@ def _register_services(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, SERVICE_MARK_DELIVERED):
         return
 
+    def _registries():
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            rd = getattr(entry, "runtime_data", None)
+            if rd is not None and rd.coordinator.registry is not None:
+                yield rd.coordinator.registry
+
     async def _handle_mark_delivered(call):
         tracking_number = call.data["tracking_number"]
-        for entry_data in hass.data.get(DOMAIN, {}).values():
-            if REGISTRY in entry_data:
-                await entry_data[REGISTRY].async_mark_delivered(tracking_number)
+        for reg in _registries():
+            await reg.async_mark_delivered(tracking_number)
 
     async def _handle_clear_package(call):
         tracking_number = call.data["tracking_number"]
-        for entry_data in hass.data.get(DOMAIN, {}).values():
-            if REGISTRY in entry_data:
-                await entry_data[REGISTRY].async_clear_package(tracking_number)
+        for reg in _registries():
+            await reg.async_clear_package(tracking_number)
 
     async def _handle_clear_all_delivered(call):
-        for entry_data in hass.data.get(DOMAIN, {}).values():
-            if REGISTRY in entry_data:
-                await entry_data[REGISTRY].async_clear_all_delivered()
+        for reg in _registries():
+            await reg.async_clear_all_delivered()
 
     async def _handle_add_package(call):
         tracking_number = call.data["tracking_number"]
         carrier = call.data.get("carrier", "unknown")
-        for entry_data in hass.data.get(DOMAIN, {}).values():
-            if REGISTRY in entry_data:
-                await entry_data[REGISTRY].async_add_or_update(
-                    tracking_number, carrier, "in_transit"
-                )
+        for reg in _registries():
+            await reg.async_add_or_update(tracking_number, carrier, "in_transit")
 
     hass.services.async_register(
         DOMAIN,
@@ -308,7 +311,7 @@ def _register_services(hass: HomeAssistant) -> None:
 class MailDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching mail data."""
 
-    def __init__(self, hass, host, the_timeout, interval, config):
+    def __init__(self, hass, config_entry, host, the_timeout, interval, config):
         """Initialize."""
         self.interval = timedelta(minutes=interval)
         self.name = f"Mail and Packages ({host})"
@@ -319,18 +322,25 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
         _LOGGER.debug("Data will be update every %s", self.interval)
 
-        super().__init__(hass, _LOGGER, name=self.name, update_interval=self.interval)
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=self.name,
+            update_interval=self.interval,
+            config_entry=config_entry,
+        )
 
     async def _async_update_data(self):
-        """Fetch data."""
-        async with timeout(self.timeout):
-            try:
-                data = await self.hass.async_add_executor_job(
-                    process_emails, self.hass, self.config
-                )
-            except Exception as error:
-                _LOGGER.error("Problem updating sensors: %s", error)
-                raise UpdateFailed(error) from error
+        """Fetch data, retaining previous values on IMAP timeout."""
+        try:
+            async with timeout(self.timeout):
+                try:
+                    data = await self.hass.async_add_executor_job(
+                        process_emails, self.hass, self.config
+                    )
+                except Exception as error:
+                    _LOGGER.error("Problem updating sensors: %s", error)
+                    raise UpdateFailed(error) from error
 
             if self.registry is not None:
                 await self.registry.async_update_from_data(data)
@@ -339,3 +349,11 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 data[PACKAGES_DELIVERED] = self.registry.count_delivered
 
             return data
+        except asyncio.TimeoutError:
+            if self.data is not None:
+                _LOGGER.warning(
+                    "IMAP connection timed out after %ss — retaining previous sensor values",
+                    self.timeout,
+                )
+                return self.data
+            raise UpdateFailed("IMAP connection timed out on first run")

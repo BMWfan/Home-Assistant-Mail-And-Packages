@@ -71,10 +71,8 @@ ISSUE_URL = "http://github.com/moralmunky/Home-Assistant-Mail-And-Packages"
 PLATFORM = "sensor"
 PLATFORMS = ["camera", "sensor"]
 DATA = "data"
-COORDINATOR = "coordinator_mail"
 OVERLAY = ["overlay.png", "vignette.png", "white.png"]
 SERVICE_UPDATE_FILE_PATH = "update_file_path"
-CAMERA = "cameras"
 
 # Attributes
 ATTR_AMAZON_IMAGE = "amazon_image"
