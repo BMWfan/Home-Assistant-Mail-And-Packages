@@ -514,6 +514,16 @@ async def email_search(  # noqa: C901
     return ("OK", [b" ".join(unique_ids)])
 
 
+async def email_search_since(account: IMAP4_SSL, since_date: str) -> list[bytes]:
+    """Search all emails since since_date with no sender or subject filter.
+
+    Returns a list of email UIDs as bytes.
+    """
+    search_query = f"(SINCE {since_date})"
+    _LOGGER.debug("Universal search query: %s", search_query)
+    return await _execute_single_search(account, search_query)
+
+
 async def email_fetch(account: IMAP4_SSL, num, parts: str = "(RFC822)") -> tuple:
     """Download specified email for parsing asynchronously."""
     if account.host == "imap.mail.me.com":
