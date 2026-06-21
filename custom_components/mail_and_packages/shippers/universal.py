@@ -11,7 +11,10 @@ from aioimaplib import IMAP4_SSL
 
 from custom_components.mail_and_packages.const import ATTR_COUNT, ATTR_TRACKING
 from custom_components.mail_and_packages.utils.cache import EmailCache
-from custom_components.mail_and_packages.utils.imap import email_fetch, email_search_since
+from custom_components.mail_and_packages.utils.imap import (
+    email_fetch,
+    email_search_since,
+)
 
 from .base import Shipper
 
