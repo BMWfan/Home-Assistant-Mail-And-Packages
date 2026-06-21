@@ -27,6 +27,7 @@ from .const import (
     DOMAIN,
     IMAGE_SENSORS,
     SENSOR_TYPES,
+    UNIVERSAL_TRACKING,
     VERSION,
 )
 
@@ -132,6 +133,9 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         elif "_delivering" in self.type and tracking in self.data.keys():
             attr[ATTR_TRACKING_NUM] = data[tracking]
             # TODO: Add Tracking URL when applicable
+        elif self.type == UNIVERSAL_TRACKING:
+            detail_key = f"{UNIVERSAL_TRACKING}_detail"
+            attr[ATTR_TRACKING_NUM] = data.get(detail_key, [])
         return attr
 
 

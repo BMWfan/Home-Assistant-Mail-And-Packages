@@ -6,6 +6,34 @@ from typing import Final
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription
 from homeassistant.helpers.entity import EntityCategory
 
+UNIVERSAL_TRACKING = "universal_tracking"
+
+# Ordered carrier detection patterns for universal scanner.
+# Most-distinctive patterns first to avoid ambiguous digit-only overlaps.
+# Each entry: (carrier_name, regex_pattern, requires_context_check)
+CARRIER_TRACKING_PATTERNS: list = [
+    ("ups", r"\b1Z[0-9A-Z]{16}\b", False),
+    ("usps", r"\b9[2345]\d{15,26}\b", False),
+    ("royal", r"\b[A-Za-z]{2}\d{9}GB\b", False),
+    ("dhl", r"\bJJD\d{14,18}\b", False),
+    ("inpost_pl", r"\b\d{24}\b", True),
+    ("poczta_polska", r"\b\d{20}\b", True),
+    ("dpd", r"\b\d{14}\b", True),
+    ("fedex", r"\b(?:\d{15}|\d{12})\b", True),
+    ("hermes", r"\b\d{16}\b", True),
+    ("gls", r"\b\d{11}\b", True),
+]
+
+# Keywords that must appear within 300 chars of a digit-only tracking number.
+# Not required for patterns with a distinctive alphanumeric prefix/suffix.
+TRACKING_CONTEXT_KEYWORDS: list = [
+    "tracking", "track", "shipped", "shipment", "delivery", "deliver",
+    "package", "parcel", "order", "dispatch",
+    "sendung", "paket", "verfolgen", "lieferung", "sendungsnummer",
+    "zustellung", "versand",
+    "colis", "livraison", "suivi",
+]
+
 DOMAIN = "mail_and_packages"
 DOMAIN_DATA = f"{DOMAIN}_data"
 VERSION = "0.0.0-dev"  # Now updated by release workflow
@@ -652,6 +680,12 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         native_unit_of_measurement="package(s)",
         icon="mdi:package-variant-closed",
         key="gls_packages",
+    ),
+    "universal_tracking": SensorEntityDescription(
+        name="Mail Universal Tracking",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:email-search",
+        key="universal_tracking",
     ),
     ###
     # !!! Insert new sensors above these two !!!

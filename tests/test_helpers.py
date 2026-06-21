@@ -23,11 +23,13 @@ from custom_components.mail_and_packages.helpers import (
     get_formatted_date,
     get_items,
     get_mails,
+    get_universal_tracking,
     hash_file,
     image_file_name,
     login,
     process_emails,
     resize_images,
+    scan_for_tracking_numbers,
     selectfolder,
     update_time,
 )
@@ -1078,3 +1080,130 @@ async def test_amazon_shipped_fwd(hass, mock_imap_amazon_fwd, caplog):
     result = get_items(mock_imap_amazon_fwd, "order")
     assert result == ["123-1234567-1234567"]
     assert "Arrive Date: Tuesday, January 11" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Universal Tracking Scanner tests
+# ---------------------------------------------------------------------------
+
+
+async def test_scan_ups_no_context_required():
+    """UPS 1Z prefix is distinctive — no context keyword needed."""
+    result = scan_for_tracking_numbers("Package 1Z999AA10123456784 on its way.")
+    assert len(result) == 1
+    assert result[0]["carrier"] == "ups"
+    assert result[0]["number"] == "1Z999AA10123456784"
+
+
+async def test_scan_usps_no_context_required():
+    """USPS 9x prefix is distinctive — no context keyword needed."""
+    result = scan_for_tracking_numbers("ID 9261290100830166498130")
+    assert len(result) == 1
+    assert result[0]["carrier"] == "usps"
+
+
+async def test_scan_royal_mail_no_context_required():
+    """Royal Mail GB suffix is distinctive — no context keyword needed."""
+    result = scan_for_tracking_numbers("Number AB123456789GB")
+    assert len(result) == 1
+    assert result[0]["carrier"] == "royal"
+    assert result[0]["number"] == "AB123456789GB"
+
+
+async def test_scan_fedex_with_context():
+    """FedEx 12-digit number is found when context keyword is nearby."""
+    result = scan_for_tracking_numbers(
+        "Your shipment tracking number is 286548999999 — thanks."
+    )
+    assert len(result) == 1
+    assert result[0]["carrier"] == "fedex"
+    assert result[0]["number"] == "286548999999"
+
+
+async def test_scan_digit_only_without_context_ignored():
+    """Digit-only pattern without a context keyword yields no result."""
+    result = scan_for_tracking_numbers("Invoice 286548999999 for your records.")
+    assert result == []
+
+
+async def test_scan_no_double_match():
+    """A span matched by a high-priority pattern is not re-matched."""
+    result = scan_for_tracking_numbers("Tracking: 1Z999AA10123456784")
+    carriers = [r["carrier"] for r in result]
+    assert carriers == ["ups"]
+
+
+async def test_scan_multiple_carriers():
+    """Multiple different carriers in one text are all detected."""
+    text = (
+        "UPS: 1Z999AA10123456784  "
+        "USPS: 9261290100830166498130  "
+        "Your shipment 286548999999 is on its way."
+    )
+    result = scan_for_tracking_numbers(text)
+    found_carriers = {r["carrier"] for r in result}
+    assert "ups" in found_carriers
+    assert "usps" in found_carriers
+    assert "fedex" in found_carriers
+
+
+async def test_scan_empty_string():
+    assert scan_for_tracking_numbers("") == []
+
+
+async def test_get_universal_tracking_no_emails(mock_imap_no_email):
+    """Empty mailbox returns zero count."""
+    mock_imap_no_email.search.return_value = ("OK", [b""])
+    result = get_universal_tracking(mock_imap_no_email, "01-Jan-2024", set())
+    assert result["count"] == 0
+    assert result["tracking"] == []
+
+
+async def test_get_universal_tracking_search_error(caplog):
+    """IMAP search exception → graceful empty result, error logged."""
+    import imaplib
+    from unittest.mock import Mock
+
+    account = Mock(spec=imaplib.IMAP4_SSL)
+    account.search.side_effect = Exception("Connection lost")
+    result = get_universal_tracking(account, "01-Jan-2024", set())
+    assert result["count"] == 0
+    assert result["tracking"] == []
+    assert "Universal tracking IMAP search failed" in caplog.text
+
+
+async def test_get_universal_tracking_deduplicates():
+    """Number already captured by a carrier sensor is excluded."""
+    import imaplib
+    from unittest.mock import Mock
+
+    ups_number = "1Z999AA10123456784"
+    raw = (
+        b"From: shop@example.com\r\nSubject: Your order shipped\r\n\r\n"
+        b"Track your delivery: 1Z999AA10123456784"
+    )
+    account = Mock(spec=imaplib.IMAP4_SSL)
+    account.search.return_value = ("OK", [b"1"])
+    account.fetch.return_value = ("OK", [(b"1 (RFC822 {80})", raw)])
+
+    result = get_universal_tracking(account, "01-Jan-2024", {ups_number})
+    assert result["count"] == 0
+
+
+async def test_get_universal_tracking_finds_new_number():
+    """New tracking number in an email body is returned."""
+    import imaplib
+    from unittest.mock import Mock
+
+    raw = (
+        b"From: shop@example.com\r\nSubject: Your order shipped\r\n\r\n"
+        b"Track your delivery: 1Z999AA10123456784"
+    )
+    account = Mock(spec=imaplib.IMAP4_SSL)
+    account.search.return_value = ("OK", [b"1"])
+    account.fetch.return_value = ("OK", [(b"1 (RFC822 {80})", raw)])
+
+    result = get_universal_tracking(account, "01-Jan-2024", set())
+    assert result["count"] == 1
+    assert result["tracking"][0]["number"] == "1Z999AA10123456784"
+    assert result["tracking"][0]["carrier"] == "ups"

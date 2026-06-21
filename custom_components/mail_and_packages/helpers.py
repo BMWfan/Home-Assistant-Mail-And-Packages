@@ -63,6 +63,7 @@ from .const import (
     ATTR_SUBJECT,
     ATTR_TRACKING,
     ATTR_USPS_MAIL,
+    CARRIER_TRACKING_PATTERNS,
     CONF_ALLOW_EXTERNAL,
     CONF_AMAZON_DAYS,
     CONF_AMAZON_FWDS,
@@ -77,6 +78,8 @@ from .const import (
     SENSOR_DATA,
     SENSOR_TYPES,
     SHIPPERS,
+    TRACKING_CONTEXT_KEYWORDS,
+    UNIVERSAL_TRACKING,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -387,6 +390,14 @@ def fetch(
         info = get_count(account, sensor, True)
         count[sensor] = max(0, info[ATTR_COUNT] - delivered)
         count[f"{prefix}_tracking"] = info[ATTR_TRACKING]
+    elif sensor == UNIVERSAL_TRACKING:
+        known_numbers: set = set()
+        for key, value in data.items():
+            if key.endswith("_tracking") and isinstance(value, list):
+                known_numbers.update(value)
+        result = get_universal_tracking(account, get_formatted_date(), known_numbers)
+        count[sensor] = result[ATTR_COUNT]
+        count[f"{sensor}_detail"] = result[ATTR_TRACKING]
     elif sensor == "zpackages_delivered":
         count[sensor] = 0  # initialize the variable
         for shipper in SHIPPERS:
@@ -1219,6 +1230,96 @@ def amazon_exception(
     info[ATTR_ORDER] = order_number
 
     return info
+
+
+def scan_for_tracking_numbers(text: str) -> list:
+    """Scan arbitrary email text for tracking numbers across all known carriers.
+
+    Returns list of dicts: [{"number": str, "carrier": str}, ...]
+    Patterns are applied in priority order; a matched span is not re-matched.
+    For digit-only patterns a context keyword must appear within 300 chars.
+    """
+    results = []
+    matched_spans = []
+    lower_text = text.lower()
+
+    def _has_context(start: int, end: int) -> bool:
+        window_start = max(0, start - 300)
+        window_end = min(len(lower_text), end + 300)
+        window = lower_text[window_start:window_end]
+        return any(kw in window for kw in TRACKING_CONTEXT_KEYWORDS)
+
+    def _overlaps(start: int, end: int) -> bool:
+        return any(s <= start < e or s < end <= e for s, e in matched_spans)
+
+    for carrier, pattern, needs_context in CARRIER_TRACKING_PATTERNS:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            start, end = match.start(), match.end()
+            if _overlaps(start, end):
+                continue
+            if needs_context and not _has_context(start, end):
+                continue
+            matched_spans.append((start, end))
+            results.append({"number": match.group(), "carrier": carrier})
+
+    return results
+
+
+def get_universal_tracking(
+    account: Type[imaplib.IMAP4_SSL], date: str, known_numbers: set
+) -> dict:
+    """Scan all today's emails for tracking numbers not already known.
+
+    Returns dict with keys ATTR_COUNT and ATTR_TRACKING (list of dicts).
+    """
+    _LOGGER.debug("Universal tracking scan: searching all emails since %s", date)
+
+    try:
+        result, data = account.search(None, f"(SINCE {date})")
+    except Exception as err:
+        _LOGGER.error("Universal tracking IMAP search failed: %s", err)
+        return {ATTR_COUNT: 0, ATTR_TRACKING: []}
+
+    if result != "OK" or not data or data[0] is None:
+        return {ATTR_COUNT: 0, ATTR_TRACKING: []}
+
+    mail_ids = data[0].split()
+    _LOGGER.debug("Universal tracking: %s emails to scan", len(mail_ids))
+
+    found: list = []
+    seen_numbers: set = set(known_numbers)
+
+    for num in mail_ids:
+        try:
+            _, fetch_data = email_fetch(account, num, "(RFC822)")
+        except Exception as err:
+            _LOGGER.debug("Universal tracking fetch error on msg %s: %s", num, err)
+            continue
+
+        for part in fetch_data:
+            if not isinstance(part, tuple):
+                continue
+            msg = email.message_from_bytes(part[1])
+            subject = msg.get("subject", "") or ""
+            body_parts = []
+            for msg_part in msg.walk():
+                if msg_part.get_content_type() in ("text/plain", "text/html"):
+                    try:
+                        payload = msg_part.get_payload(decode=True)
+                        body_parts.append(payload.decode("utf-8", "ignore"))
+                    except Exception:
+                        pass
+            combined = subject + " " + " ".join(body_parts)
+
+            for hit in scan_for_tracking_numbers(combined):
+                if hit["number"] not in seen_numbers:
+                    seen_numbers.add(hit["number"])
+                    found.append(hit)
+
+    _LOGGER.debug(
+        "Universal tracking: %s new tracking numbers found", len(found)
+    )
+    return {ATTR_COUNT: len(found), ATTR_TRACKING: found}
 
 
 def get_items(
