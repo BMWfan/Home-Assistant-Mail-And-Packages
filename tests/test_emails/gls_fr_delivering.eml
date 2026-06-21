@@ -1,0 +1,22 @@
+Delivered-To: recipient@example.fr
+Received: by mail.example.fr with SMTP id gls001;
+        Mon, 10 Jun 2024 07:30:00 +0200 (CEST)
+Date: Mon, 10 Jun 2024 07:30:00 +0200
+From: "GLS France" <noreply@gls-france.fr>
+To: recipient@example.fr
+Subject: Votre colis est en cours de livraison
+Message-ID: <20240610073000.gls001@gls-france.fr>
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Bonjour,
+
+GLS livre votre colis aujourd'hui.
+
+Votre livreur GLS est en route avec votre colis numéro 12345678901.
+
+Suivez votre livraison sur gls-france.fr
+
+Cordialement,
+GLS France

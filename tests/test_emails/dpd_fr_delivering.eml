@@ -1,0 +1,23 @@
+Delivered-To: recipient@example.fr
+Received: by mail.example.fr with SMTP id abc123;
+        Mon, 10 Jun 2024 09:15:00 +0200 (CEST)
+Date: Mon, 10 Jun 2024 09:15:00 +0200
+From: "DPD France" <noreply@dpd.fr>
+To: recipient@example.fr
+Subject: Votre colis est en cours de livraison
+Message-ID: <20240610091500.abc123@dpd.fr>
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Bonjour,
+
+Votre colis numéro de colis 05085100012345 est en cours de livraison aujourd=
+'hui.
+
+Votre livreur est en route. Vous pouvez suivre votre colis en temps réel.
+
+Numéro de suivi: 05085100012345
+
+Cordialement,
+DPD France

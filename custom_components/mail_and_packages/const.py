@@ -651,6 +651,82 @@ SENSOR_DATA = {
             "\\d{11,20}",
         ],
     },
+    # DPD France
+    "dpd_fr_delivered": {
+        "email": [
+            "noreply@dpd.fr",
+            "notification@dpd.fr",
+            "no-reply@dpd.fr",
+        ],
+        "subject": [
+            "Votre colis a été livré",
+            "Votre colis est livré",
+            "livré avec succès",
+            "remis à",
+        ],
+    },
+    "dpd_fr_delivering": {
+        "email": [
+            "noreply@dpd.fr",
+            "notification@dpd.fr",
+            "no-reply@dpd.fr",
+        ],
+        "subject": [
+            "Votre colis est en cours de livraison",
+            "sera livré aujourd'hui",
+            "livraison prévue aujourd'hui",
+            "en route vers vous",
+        ],
+        "body": [
+            "numéro de colis",
+            "votre livreur",
+        ],
+    },
+    "dpd_fr_packages": {},
+    "dpd_fr_tracking": {
+        # https://www.dpd.fr/tracking
+        "pattern": [
+            "\\d{14}",
+        ],
+    },
+    # DPD UK
+    "dpd_uk_delivered": {
+        "email": [
+            "tracking@dpd.co.uk",
+            "notification@dpd.co.uk",
+            "noreply@dpd.co.uk",
+        ],
+        "subject": [
+            "Your DPD parcel has been delivered",
+            "has been delivered",
+            "delivered to your address",
+        ],
+    },
+    "dpd_uk_delivering": {
+        "email": [
+            "tracking@dpd.co.uk",
+            "notification@dpd.co.uk",
+            "noreply@dpd.co.uk",
+        ],
+        "subject": [
+            "Your DPD parcel is on its way",
+            "out for delivery",
+            "arriving today",
+            "delivery expected today",
+        ],
+        "body": [
+            "parcel number",
+            "your driver",
+            "estimated delivery",
+        ],
+    },
+    "dpd_uk_packages": {},
+    "dpd_uk_tracking": {
+        # https://www.dpd.co.uk/apps/tracking/
+        "pattern": [
+            "\\d{14}",
+        ],
+    },
     # GLS
     "gls_delivered": {
         "email": [
@@ -659,12 +735,16 @@ SENSOR_DATA = {
             "no-reply@gls-pakete.de",
             "noreply@gls-group.nl",
             "noreply@gls.nl",
+            "noreply@gls-france.fr",
+            "no-reply@gls-france.fr",
         ],
         "subject": [
             "informacja o dostawie",
             "wurde durch GLS",
             "bezorgd",
             "afgeleverd",
+            "votre colis a été livré",
+            "livré par GLS",
         ],
         "body": [
             "została dzisiaj dostarczona",
@@ -672,6 +752,8 @@ SENSOR_DATA = {
             "Am Wunschort abgestellt",
             "is bezorgd",
             "succesvol afgeleverd",
+            "a bien été livré",
+            "livraison effectuée",
         ],
     },
     "gls_delivering": {
@@ -681,6 +763,8 @@ SENSOR_DATA = {
             "no-reply@gls-pakete.de",
             "noreply@gls-group.nl",
             "noreply@gls.nl",
+            "noreply@gls-france.fr",
+            "no-reply@gls-france.fr",
         ],
         "subject": [
             "paczka w drodze",
@@ -688,6 +772,8 @@ SENSOR_DATA = {
             "kommt heute",
             "pakket onderweg",
             "bezorging vandaag",
+            "votre colis est en cours de livraison",
+            "GLS livre votre colis aujourd",
         ],
         "body": [
             "Zespół GLS",
@@ -695,6 +781,8 @@ SENSOR_DATA = {
             "fast da",
             "wordt vandaag bezorgd",
             "Uw pakket wordt vandaag",
+            "en cours de livraison",
+            "votre livreur GLS",
         ],
     },
     "gls_packages": {},
@@ -1293,6 +1381,44 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         icon="mdi:package-variant-closed",
         key="dpd_packages",
     ),
+    # DPD France
+    "dpd_fr_delivering": SensorEntityDescription(
+        name="Mail DPD FR Delivering",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:truck-delivery",
+        key="dpd_fr_delivering",
+    ),
+    "dpd_fr_delivered": SensorEntityDescription(
+        name="Mail DPD FR Delivered",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant",
+        key="dpd_fr_delivered",
+    ),
+    "dpd_fr_packages": SensorEntityDescription(
+        name="Mail DPD FR Packages",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant-closed",
+        key="dpd_fr_packages",
+    ),
+    # DPD UK
+    "dpd_uk_delivering": SensorEntityDescription(
+        name="Mail DPD UK Delivering",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:truck-delivery",
+        key="dpd_uk_delivering",
+    ),
+    "dpd_uk_delivered": SensorEntityDescription(
+        name="Mail DPD UK Delivered",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant",
+        key="dpd_uk_delivered",
+    ),
+    "dpd_uk_packages": SensorEntityDescription(
+        name="Mail DPD UK Packages",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant-closed",
+        key="dpd_uk_packages",
+    ),
     # GLS
     "gls_delivering": SensorEntityDescription(
         name="Mail GLS Delivering",
@@ -1678,6 +1804,8 @@ SHIPPERS = [
     "post_at",
     "rewe_lieferservice",
     "dpd_nl",
+    "dpd_fr",
+    "dpd_uk",
     "bolcom",
     "poczta_polska",
     "buildinglink",
