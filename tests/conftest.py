@@ -1165,6 +1165,28 @@ def mock_imap_dpd_com_pl_delivering(mock_imap):
 
 
 @pytest.fixture
+def mock_imap_universal_ups(mock_imap):
+    """Mock IMAP with a shop email containing a UPS tracking number."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    mock_imap.search.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/universal_ups.eml").read_text(encoding="utf-8")
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_universal_dpd(mock_imap):
+    """Mock IMAP with a shop email containing a DPD tracking number."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    mock_imap.search.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/universal_dpd.eml").read_text(encoding="utf-8")
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
 def mock_imap_search_error(mock_imap):
     """Mock IMAP search error."""
     mock_imap.select.return_value = ("OK", [b""])

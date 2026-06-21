@@ -1574,6 +1574,13 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         icon="mdi:truck-delivery",
         key="zpackages_transit",
     ),
+    # Universal tracking scanner
+    "universal_packages": SensorEntityDescription(
+        name="Mail Universal Packages",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:text-search",
+        key="universal_packages",
+    ),
 }
 
 BINARY_SENSORS: Final[dict[str, MailandPackagesBinarySensorEntityDescription]] = {
