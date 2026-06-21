@@ -26,12 +26,27 @@ from .const import (
     COORDINATOR,
     DOMAIN,
     IMAGE_SENSORS,
+    PACKAGES_DELIVERED,
+    PACKAGES_IN_TRANSIT,
+    PACKAGES_TRACKED,
     SENSOR_TYPES,
     UNIVERSAL_TRACKING,
     VERSION,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+_IN_TRANSIT_STATUSES = {"detected", "in_transit", "out_for_delivery"}
+
+
+def _package_matches_sensor(status: str, sensor_type: str) -> bool:
+    if sensor_type == PACKAGES_TRACKED:
+        return True
+    if sensor_type == PACKAGES_IN_TRANSIT:
+        return status in _IN_TRANSIT_STATUSES
+    if sensor_type == PACKAGES_DELIVERED:
+        return status == "delivered"
+    return False
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -136,6 +151,13 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         elif self.type == UNIVERSAL_TRACKING:
             detail_key = f"{UNIVERSAL_TRACKING}_detail"
             attr[ATTR_TRACKING_NUM] = data.get(detail_key, [])
+        elif self.type in {PACKAGES_TRACKED, PACKAGES_IN_TRANSIT, PACKAGES_DELIVERED}:
+            registry = self.coordinator.registry
+            if registry is not None:
+                attr["packages"] = [
+                    p for p in registry.active_packages
+                    if _package_matches_sensor(p["status"], self.type)
+                ]
         return attr
 
 

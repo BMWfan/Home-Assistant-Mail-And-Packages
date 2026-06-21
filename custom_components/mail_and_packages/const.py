@@ -8,6 +8,36 @@ from homeassistant.helpers.entity import EntityCategory
 
 UNIVERSAL_TRACKING = "universal_tracking"
 
+# Package Registry
+REGISTRY = "package_registry"
+STORAGE_VERSION = 1
+
+PACKAGE_STATUS_DETECTED = "detected"
+PACKAGE_STATUS_IN_TRANSIT = "in_transit"
+PACKAGE_STATUS_OUT_FOR_DELIVERY = "out_for_delivery"
+PACKAGE_STATUS_DELIVERED = "delivered"
+PACKAGE_STATUS_CLEARED = "cleared"
+
+# Forward-only transition map
+PACKAGE_STATUS_TRANSITIONS: dict = {
+    PACKAGE_STATUS_DETECTED: {PACKAGE_STATUS_IN_TRANSIT, PACKAGE_STATUS_OUT_FOR_DELIVERY, PACKAGE_STATUS_DELIVERED},
+    PACKAGE_STATUS_IN_TRANSIT: {PACKAGE_STATUS_OUT_FOR_DELIVERY, PACKAGE_STATUS_DELIVERED},
+    PACKAGE_STATUS_OUT_FOR_DELIVERY: {PACKAGE_STATUS_DELIVERED},
+    PACKAGE_STATUS_DELIVERED: {PACKAGE_STATUS_CLEARED},
+    PACKAGE_STATUS_CLEARED: set(),
+}
+
+# Sensor keys
+PACKAGES_TRACKED = "packages_tracked"
+PACKAGES_IN_TRANSIT = "packages_in_transit"
+PACKAGES_DELIVERED = "packages_delivered"
+
+# Service names
+SERVICE_MARK_DELIVERED = "mark_delivered"
+SERVICE_CLEAR_PACKAGE = "clear_package"
+SERVICE_CLEAR_ALL_DELIVERED = "clear_all_delivered"
+SERVICE_ADD_PACKAGE = "add_package"
+
 # Ordered carrier detection patterns for universal scanner.
 # Most-distinctive patterns first to avoid ambiguous digit-only overlaps.
 # Each entry: (carrier_name, regex_pattern, requires_context_check)
@@ -680,6 +710,24 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         native_unit_of_measurement="package(s)",
         icon="mdi:package-variant-closed",
         key="gls_packages",
+    ),
+    "packages_tracked": SensorEntityDescription(
+        name="Mail Packages Tracked",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant",
+        key="packages_tracked",
+    ),
+    "packages_in_transit": SensorEntityDescription(
+        name="Mail Packages In Transit",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:truck-delivery",
+        key="packages_in_transit",
+    ),
+    "packages_delivered": SensorEntityDescription(
+        name="Mail Packages Delivered Today",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant-closed-check",
+        key="packages_delivered",
     ),
     "universal_tracking": SensorEntityDescription(
         name="Mail Universal Tracking",

@@ -1,3 +1,50 @@
+mark_delivered:
+  name: Mark Package Delivered
+  description: Manually mark a tracked package as delivered.
+  fields:
+    tracking_number:
+      name: Tracking Number
+      description: The tracking number to mark as delivered.
+      required: true
+      example: "1Z999AA10123456784"
+      selector:
+        text:
+
+clear_package:
+  name: Clear Package
+  description: Remove a specific package from tracking.
+  fields:
+    tracking_number:
+      name: Tracking Number
+      description: The tracking number to remove.
+      required: true
+      example: "1Z999AA10123456784"
+      selector:
+        text:
+
+clear_all_delivered:
+  name: Clear All Delivered
+  description: Remove all delivered packages from tracking.
+
+add_package:
+  name: Add Package
+  description: Manually add a package to tracking.
+  fields:
+    tracking_number:
+      name: Tracking Number
+      description: The tracking number to add.
+      required: true
+      example: "1Z999AA10123456784"
+      selector:
+        text:
+    carrier:
+      name: Carrier
+      description: The carrier name (ups, fedex, dhl, usps, …).
+      required: false
+      example: "ups"
+      selector:
+        text:
+
 update_image:
   name: Refresh the Mail Camera(s)
   description: Refershes the Mail Camera sepcified or all of them at once. Leave blank to refresh them all.

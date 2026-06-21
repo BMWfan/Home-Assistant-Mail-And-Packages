@@ -10,6 +10,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+import voluptuous as vol
+from homeassistant.helpers import config_validation as cv
+
 from .const import (
     CONF_ALLOW_EXTERNAL,
     CONF_AMAZON_DAYS,
@@ -23,10 +26,19 @@ from .const import (
     DEFAULT_IMAP_TIMEOUT,
     DOMAIN,
     ISSUE_URL,
+    PACKAGES_DELIVERED,
+    PACKAGES_IN_TRANSIT,
+    PACKAGES_TRACKED,
     PLATFORMS,
+    REGISTRY,
+    SERVICE_ADD_PACKAGE,
+    SERVICE_CLEAR_ALL_DELIVERED,
+    SERVICE_CLEAR_PACKAGE,
+    SERVICE_MARK_DELIVERED,
     VERSION,
 )
 from .helpers import default_image_path, process_emails
+from .package_registry import PackageRegistry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,6 +107,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     # Setup the data coordinator
     coordinator = MailDataUpdateCoordinator(hass, host, the_timeout, interval, config)
 
+    # Load package registry and attach to coordinator
+    registry = PackageRegistry(hass, config_entry.entry_id)
+    await registry.async_load()
+    coordinator.registry = registry
+
     # Fetch initial data so we have data when entities subscribe
     await coordinator.async_refresh()
 
@@ -105,7 +122,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     hass.data[DOMAIN][config_entry.entry_id] = {
         COORDINATOR: coordinator,
+        REGISTRY: registry,
     }
+
+    _register_services(hass)
 
     for platform in PLATFORMS:
         hass.async_create_task(
@@ -225,6 +245,66 @@ async def async_migrate_entry(hass, config_entry):
     return True
 
 
+def _register_services(hass: HomeAssistant) -> None:
+    """Register package registry services (idempotent — skips if already registered)."""
+    if hass.services.has_service(DOMAIN, SERVICE_MARK_DELIVERED):
+        return
+
+    async def _handle_mark_delivered(call):
+        tracking_number = call.data["tracking_number"]
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            if REGISTRY in entry_data:
+                await entry_data[REGISTRY].async_mark_delivered(tracking_number)
+
+    async def _handle_clear_package(call):
+        tracking_number = call.data["tracking_number"]
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            if REGISTRY in entry_data:
+                await entry_data[REGISTRY].async_clear_package(tracking_number)
+
+    async def _handle_clear_all_delivered(call):
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            if REGISTRY in entry_data:
+                await entry_data[REGISTRY].async_clear_all_delivered()
+
+    async def _handle_add_package(call):
+        tracking_number = call.data["tracking_number"]
+        carrier = call.data.get("carrier", "unknown")
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            if REGISTRY in entry_data:
+                await entry_data[REGISTRY].async_add_or_update(
+                    tracking_number, carrier, "in_transit"
+                )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_MARK_DELIVERED,
+        _handle_mark_delivered,
+        schema=vol.Schema({vol.Required("tracking_number"): cv.string}),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CLEAR_PACKAGE,
+        _handle_clear_package,
+        schema=vol.Schema({vol.Required("tracking_number"): cv.string}),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CLEAR_ALL_DELIVERED,
+        _handle_clear_all_delivered,
+        schema=vol.Schema({}),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ADD_PACKAGE,
+        _handle_add_package,
+        schema=vol.Schema({
+            vol.Required("tracking_number"): cv.string,
+            vol.Optional("carrier", default="unknown"): cv.string,
+        }),
+    )
+
+
 class MailDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching mail data."""
 
@@ -235,6 +315,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         self.timeout = the_timeout
         self.config = config
         self.hass = hass
+        self.registry = None  # set after construction by async_setup_entry
 
         _LOGGER.debug("Data will be update every %s", self.interval)
 
@@ -250,4 +331,11 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             except Exception as error:
                 _LOGGER.error("Problem updating sensors: %s", error)
                 raise UpdateFailed(error) from error
+
+            if self.registry is not None:
+                await self.registry.async_update_from_data(data)
+                data[PACKAGES_TRACKED] = self.registry.count_tracked
+                data[PACKAGES_IN_TRANSIT] = self.registry.count_in_transit
+                data[PACKAGES_DELIVERED] = self.registry.count_delivered
+
             return data
