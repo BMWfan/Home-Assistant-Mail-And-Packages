@@ -1394,6 +1394,54 @@ def mock_imap_amazon_fwd():
         yield mock_conn
 
 
+def _imap_fixture_from_eml(eml_path):
+    """Return a mock IMAP connection that serves a single .eml file."""
+    import imaplib
+
+    with patch("custom_components.mail_and_packages.helpers.imaplib") as mock_imap:
+        mock_conn = mock.Mock(spec=imaplib.IMAP4_SSL)
+        mock_imap.IMAP4_SSL.return_value = mock_conn
+        mock_conn.login.return_value = (
+            "OK",
+            [b"user@fake.email authenticated (Success)"],
+        )
+        mock_conn.list.return_value = (
+            "OK",
+            [b'(\\HasNoChildren) "/" "INBOX"'],
+        )
+        mock_conn.search.return_value = ("OK", [b"1"])
+        mock_conn.uid.return_value = ("OK", [b"1"])
+        mock_conn.select.return_value = ("OK", [])
+        with open(eml_path, "r") as f:
+            email_raw = f.read()
+        mock_conn.fetch.return_value = ("OK", [(b"", email_raw.encode("utf-8"))])
+        yield mock_conn
+
+
+@pytest.fixture()
+def mock_imap_dpd_out_for_delivery():
+    """Mock IMAP returning a DPD out-for-delivery email."""
+    yield from _imap_fixture_from_eml("tests/test_emails/dpd_out_for_delivery.eml")
+
+
+@pytest.fixture()
+def mock_imap_dpd_delivered():
+    """Mock IMAP returning a DPD delivered email."""
+    yield from _imap_fixture_from_eml("tests/test_emails/dpd_delivered.eml")
+
+
+@pytest.fixture()
+def mock_imap_gls_out_for_delivery_de():
+    """Mock IMAP returning a GLS out-for-delivery (DE) email."""
+    yield from _imap_fixture_from_eml("tests/test_emails/gls_out_for_delivery_de.eml")
+
+
+@pytest.fixture()
+def mock_imap_gls_delivered_de():
+    """Mock IMAP returning a GLS delivered (DE) email."""
+    yield from _imap_fixture_from_eml("tests/test_emails/gls_delivered_de.eml")
+
+
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Enable custom integration tests."""

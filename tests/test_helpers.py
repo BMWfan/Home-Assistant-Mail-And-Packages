@@ -1078,3 +1078,39 @@ async def test_amazon_shipped_fwd(hass, mock_imap_amazon_fwd, caplog):
     result = get_items(mock_imap_amazon_fwd, "order")
     assert result == ["123-1234567-1234567"]
     assert "Arrive Date: Tuesday, January 11" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# DPD International carrier tests
+# ---------------------------------------------------------------------------
+
+
+async def test_dpd_out_for_delivery(hass, mock_imap_dpd_out_for_delivery):
+    result = get_count(
+        mock_imap_dpd_out_for_delivery, "dpd_delivering", True, "./", hass
+    )
+    assert result["count"] == 1
+    assert result["tracking"] == ["01234567890123"]
+
+
+async def test_dpd_delivered(hass, mock_imap_dpd_delivered):
+    result = get_count(mock_imap_dpd_delivered, "dpd_delivered", False, "./", hass)
+    assert result["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# GLS International (DE) carrier tests
+# ---------------------------------------------------------------------------
+
+
+async def test_gls_out_for_delivery_de(hass, mock_imap_gls_out_for_delivery_de):
+    result = get_count(
+        mock_imap_gls_out_for_delivery_de, "gls_delivering", True, "./", hass
+    )
+    assert result["count"] == 1
+    assert result["tracking"] == ["12345678901"]
+
+
+async def test_gls_delivered_de(hass, mock_imap_gls_delivered_de):
+    result = get_count(mock_imap_gls_delivered_de, "gls_delivered", False, "./", hass)
+    assert result["count"] == 1
