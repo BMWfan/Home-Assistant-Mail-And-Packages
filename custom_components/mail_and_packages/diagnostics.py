@@ -10,7 +10,7 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntry
 
-from .const import COORDINATOR, DOMAIN
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 REDACT_KEYS = {CONF_PASSWORD, CONF_USERNAME}
@@ -31,7 +31,7 @@ async def async_get_device_diagnostics(
     device: DeviceEntry,  # pylint: disable=unused-argument
 ) -> dict[str, Any]:
     """Return diagnostics for a device."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR]
+    coordinator = config_entry.runtime_data.coordinator
 
     for variable in coordinator.data:
         if "tracking" in variable or "order" in variable:

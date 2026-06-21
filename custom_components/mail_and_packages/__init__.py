@@ -1,5 +1,6 @@
 """Mail and Packages Integration."""
 import asyncio
+import dataclasses
 import logging
 from datetime import timedelta
 
@@ -18,7 +19,6 @@ from .const import (
     CONF_IMAP_TIMEOUT,
     CONF_PATH,
     CONF_SCAN_INTERVAL,
-    COORDINATOR,
     DEFAULT_AMAZON_DAYS,
     DEFAULT_IMAP_TIMEOUT,
     DOMAIN,
@@ -27,6 +27,13 @@ from .const import (
     VERSION,
 )
 from .helpers import default_image_path, process_emails
+
+
+@dataclasses.dataclass
+class _MailEntryData:
+    coordinator: "MailDataUpdateCoordinator"
+    cameras: list = dataclasses.field(default_factory=list)
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +52,6 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         VERSION,
         ISSUE_URL,
     )
-    hass.data.setdefault(DOMAIN, {})
     updated_config = config_entry.data.copy()
 
     # Set amazon fwd blank if missing
@@ -93,7 +99,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     interval = config.get(CONF_SCAN_INTERVAL)
 
     # Setup the data coordinator
-    coordinator = MailDataUpdateCoordinator(hass, host, the_timeout, interval, config)
+    coordinator = MailDataUpdateCoordinator(
+        hass, config_entry, host, the_timeout, interval, config
+    )
 
     # Fetch initial data so we have data when entities subscribe
     await coordinator.async_refresh()
@@ -103,9 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         _LOGGER.error("Error updating sensor data: %s", coordinator.last_exception)
         raise ConfigEntryNotReady
 
-    hass.data[DOMAIN][config_entry.entry_id] = {
-        COORDINATOR: coordinator,
-    }
+    config_entry.runtime_data = _MailEntryData(coordinator=coordinator)
 
     for platform in PLATFORMS:
         hass.async_create_task(
@@ -130,7 +136,6 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> 
 
     if unload_ok:
         _LOGGER.debug("Successfully removed sensors from the %s integration", DOMAIN)
-        hass.data[DOMAIN].pop(config_entry.entry_id)
 
     return unload_ok
 
@@ -228,7 +233,7 @@ async def async_migrate_entry(hass, config_entry):
 class MailDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching mail data."""
 
-    def __init__(self, hass, host, the_timeout, interval, config):
+    def __init__(self, hass, config_entry, host, the_timeout, interval, config):
         """Initialize."""
         self.interval = timedelta(minutes=interval)
         self.name = f"Mail and Packages ({host})"
@@ -238,16 +243,31 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
         _LOGGER.debug("Data will be update every %s", self.interval)
 
-        super().__init__(hass, _LOGGER, name=self.name, update_interval=self.interval)
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=self.name,
+            update_interval=self.interval,
+            config_entry=config_entry,
+        )
 
     async def _async_update_data(self):
-        """Fetch data."""
-        async with timeout(self.timeout):
-            try:
-                data = await self.hass.async_add_executor_job(
-                    process_emails, self.hass, self.config
-                )
-            except Exception as error:
-                _LOGGER.error("Problem updating sensors: %s", error)
-                raise UpdateFailed(error) from error
+        """Fetch data, retaining previous values on IMAP timeout."""
+        try:
+            async with timeout(self.timeout):
+                try:
+                    data = await self.hass.async_add_executor_job(
+                        process_emails, self.hass, self.config
+                    )
+                except Exception as error:
+                    _LOGGER.error("Problem updating sensors: %s", error)
+                    raise UpdateFailed(error) from error
             return data
+        except asyncio.TimeoutError:
+            if self.data is not None:
+                _LOGGER.warning(
+                    "IMAP connection timed out after %ss — retaining previous sensor values",
+                    self.timeout,
+                )
+                return self.data
+            raise UpdateFailed("IMAP connection timed out on first run")

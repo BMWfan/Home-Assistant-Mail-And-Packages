@@ -23,7 +23,6 @@ from .const import (
     ATTR_ORDER,
     ATTR_TRACKING_NUM,
     CONF_PATH,
-    COORDINATOR,
     DOMAIN,
     IMAGE_SENSORS,
     SENSOR_TYPES,
@@ -35,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the sensor entities."""
-    coordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR]
+    coordinator = entry.runtime_data.coordinator
     sensors = []
     resources = entry.data[CONF_RESOURCES]
 
