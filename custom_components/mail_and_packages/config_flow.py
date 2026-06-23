@@ -26,6 +26,7 @@ from .const import (
     AUTH_TYPE_OAUTH_GOOGLE,
     AUTH_TYPE_OAUTH_MICROSOFT,
     AUTH_TYPE_PASSWORD,
+    CONF_17TRACK_API_KEY,
     CONF_ALLOW_EXTERNAL,
     CONF_ALLOW_FORWARDED_EMAILS,
     CONF_AMAZON_CUSTOM_IMG,
@@ -574,6 +575,10 @@ async def _get_schema_step_2(
                 CONF_GENERIC_CUSTOM_IMG,
                 default=_get_default(CONF_GENERIC_CUSTOM_IMG, False),
             ): cv.boolean,
+            vol.Optional(
+                CONF_17TRACK_API_KEY,
+                default=_get_default(CONF_17TRACK_API_KEY, ""),
+            ): cv.string,
         },
     )
 

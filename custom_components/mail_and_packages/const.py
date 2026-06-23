@@ -80,6 +80,7 @@ CONF_ALLOW_FORWARDED_EMAILS = "allow_forwarded_emails"
 CONF_FORWARDED_EMAILS = "forwarded_emails"
 CONF_FORWARDING_HEADER = "forwarding_header"
 CONF_CUSTOM_DAYS = "custom_days"
+CONF_17TRACK_API_KEY = "seventeen_track_api_key"
 
 # Defaults
 DEFAULT_CAMERA_NAME = "Mail USPS Camera"
