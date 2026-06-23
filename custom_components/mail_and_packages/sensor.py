@@ -157,6 +157,9 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         elif self._name == "Mail USPS Mail":
             if image_name := data.get(ATTR_IMAGE_NAME):
                 attr[ATTR_IMAGE] = image_name
+        elif self.type == "universal_packages":
+            if details := data.get("universal_tracking_details"):
+                attr["tracking_details"] = details
 
         return attr
 

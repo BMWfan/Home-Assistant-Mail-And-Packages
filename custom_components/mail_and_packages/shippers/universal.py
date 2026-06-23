@@ -9,7 +9,14 @@ from typing import Any
 
 from aioimaplib import IMAP4_SSL
 
-from custom_components.mail_and_packages.const import ATTR_COUNT, ATTR_TRACKING
+from custom_components.mail_and_packages.const import (
+    ATTR_COUNT,
+    ATTR_TRACKING,
+    CONF_17TRACK_API_KEY,
+)
+from custom_components.mail_and_packages.tracking.seventeen_track import (
+    SeventeenTrackClient,
+)
 from custom_components.mail_and_packages.utils.cache import EmailCache
 from custom_components.mail_and_packages.utils.imap import (
     email_fetch,
@@ -104,7 +111,13 @@ class UniversalTrackingShipper(Shipper):
             len(tracking_list),
             tracking_list,
         )
-        return {ATTR_COUNT: len(tracking_list), ATTR_TRACKING: tracking_list}
+
+        tracking_details = await self._enrich_with_17track(tracking_list, found)
+        return {
+            ATTR_COUNT: len(tracking_list),
+            ATTR_TRACKING: tracking_list,
+            "tracking_details": tracking_details,
+        }
 
     async def process_batch(
         self,
@@ -117,7 +130,30 @@ class UniversalTrackingShipper(Shipper):
         """Process batch – delegates to process() for the universal sensor."""
         result = await self.process(account, date, SENSOR_TYPE, cache, since_date)
         result[SENSOR_TYPE] = result[ATTR_COUNT]
+        result["universal_tracking_details"] = result.pop("tracking_details", [])
         return result
+
+    async def _enrich_with_17track(
+        self,
+        tracking_list: list[str],
+        found: dict[str, str],
+    ) -> list[dict[str, Any]]:
+        """Optionally query 17track for status; always returns a details list."""
+        base_details = [{"number": n, "carrier": found[n]} for n in tracking_list]
+        api_key = self.config.get(CONF_17TRACK_API_KEY, "")
+        if not api_key or not tracking_list:
+            return base_details
+
+        client = SeventeenTrackClient(self.hass, api_key)
+        await client.register(tracking_list)
+        status_map = await client.get_status_batch(tracking_list)
+
+        enriched = []
+        for item in base_details:
+            detail = dict(item)
+            detail.update(status_map.get(item["number"], {}))
+            enriched.append(detail)
+        return enriched
 
     async def _scan_email(
         self,
