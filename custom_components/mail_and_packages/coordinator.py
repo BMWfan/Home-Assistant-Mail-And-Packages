@@ -191,7 +191,16 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             shipper_data = await self._update_shippers(
                 account, config, today, since_date, cache
             )
-            tracking_details = shipper_data.pop("_tracking_details", {})
+            # When a 17track API key is configured, use only the status data
+            # that 17track produced (keyed as _17track_details). This prevents
+            # email-based status classifications from conflicting with the
+            # authoritative 17track status. Without an API key the existing
+            # email-based _tracking_details are used as before.
+            if config.get(const.CONF_17TRACK_API_KEY):
+                tracking_details = shipper_data.pop("_17track_details", {})
+                shipper_data.pop("_tracking_details", None)
+            else:
+                tracking_details = shipper_data.pop("_tracking_details", {})
             data.update(shipper_data)
             self._apply_tracking_state(data, tracking_details, today_iso)
 
