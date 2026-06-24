@@ -10,7 +10,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_RESOURCES
+from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -31,6 +31,7 @@ from .const import (
     ATTR_ORDER,
     ATTR_TRACKING_NUM,
     ATTR_USPS_IMAGE,
+    CONF_AMAZON_ENABLED,
     CONF_PATH,
     DOMAIN,
     IMAGE_SENSORS,
@@ -40,6 +41,17 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Sensors enabled out-of-the-box; everything else starts disabled and can be
+# switched on from the HA entity list without re-running the config wizard.
+_DEFAULT_ENABLED: frozenset[str] = frozenset(
+    {
+        "mail_updated",
+        "zpackages_transit",
+        "zpackages_delivered",
+        "universal_packages",
+    }
+)
+
 
 async def async_setup_entry(
     hass,
@@ -48,12 +60,13 @@ async def async_setup_entry(
 ):
     """Set up the sensor entities."""
     coordinator = entry.runtime_data.coordinator
-    resources = entry.data.get(CONF_RESOURCES, [])
+
+    amazon_enabled = entry.data.get(CONF_AMAZON_ENABLED, False)
 
     sensors = [
-        PackagesSensor(entry, SENSOR_TYPES[variable], coordinator)
-        for variable in resources
-        if variable in SENSOR_TYPES
+        PackagesSensor(entry, description, coordinator)
+        for key, description in SENSOR_TYPES.items()
+        if amazon_enabled or not key.startswith("amazon_")
     ]
 
     sensors.extend(
@@ -88,6 +101,11 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
             self._tracking_key = f"{'_'.join(parts[:-1])}_tracking"
         else:
             self._tracking_key = f"{self.type}_tracking"
+
+    @property
+    def entity_registry_enabled_default(self) -> bool:
+        """Enable only common summary sensors by default; others start disabled."""
+        return self.type in _DEFAULT_ENABLED
 
     @property
     def device_info(self) -> dict:

@@ -16,7 +16,6 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
     CONF_PORT,
-    CONF_RESOURCES,
     CONF_SCAN_INTERVAL,
     CONF_USERNAME,
     CONF_VERIFY_SSL,
@@ -227,8 +226,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             "mail_updated": datetime.datetime.now(datetime.UTC).isoformat(),
             "amazon_delivered_by_others": 0,
         }
-        resources = self.config.get(CONF_RESOURCES, [])
-        for sensor in resources:
+        for sensor in const.SENSOR_TYPES:
             if sensor not in data:
                 data[sensor] = 0
         return data
@@ -311,10 +309,12 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
     ) -> dict:
         """Group and process sensors by shipper."""
         data = {}
-        resources = config.get(CONF_RESOURCES, [])
+        amazon_enabled = config.get(const.CONF_AMAZON_ENABLED, False)
         sensors_by_shipper = {}
 
-        for sensor in resources:
+        for sensor in const.SENSOR_TYPES:
+            if not amazon_enabled and sensor.startswith("amazon_"):
+                continue
             shipper = get_shipper_for_sensor(self.hass, config, sensor)
             if shipper:
                 sensors_by_shipper.setdefault(shipper.name, []).append(
