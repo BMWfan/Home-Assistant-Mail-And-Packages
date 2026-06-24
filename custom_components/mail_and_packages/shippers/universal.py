@@ -57,6 +57,38 @@ _CONTEXT_RE = re.compile(
 
 _CONTEXT_WINDOW = 200
 
+# Maps the carrier name from ORDERED_PATTERNS to the sensor prefix used by
+# existing carrier sensors (e.g. "ups" → ups_delivering / ups_delivered).
+# None = no dedicated sensor exists; number stays in universal_packages only.
+_CARRIER_TO_SENSOR_PREFIX: dict[str, str | None] = {
+    "ups": "ups",
+    "usps": "usps",
+    "fedex": "fedex",
+    "gls": "gls",
+    # DPD has multiple regional variants (de/fr/uk/nl/pl) – can't tell from
+    # number format alone, so we leave it in the universal count.
+    "dpd": None,
+    # No dedicated sensors for these carriers:
+    "royal_mail": None,
+    "auspost": None,
+    "intelcom": None,
+    "bonshaw": None,
+    "post_nl": None,
+    "post_at": None,
+    "evri": None,  # sensor prefix is "hermes" in existing sensors
+}
+
+# Maps 17track event codes to the _tracking_details suffix used by
+# _apply_tracking_state in the coordinator.
+_STATUS_TO_SUFFIX: dict[int, str] = {
+    10: "_delivering",  # In Transit
+    30: "_exception",  # Delivery Alert
+    35: "_exception",  # Undelivered
+    40: "_delivered",  # Delivered
+    50: "_exception",  # Alert
+    # 0 = Unknown (new package, pending first 17track fetch) → treat as delivering
+}
+
 
 class UniversalTrackingShipper(Shipper):
     """Scan all recent emails for tracking numbers regardless of sender."""
@@ -127,10 +159,26 @@ class UniversalTrackingShipper(Shipper):
         cache: EmailCache,
         since_date: str | None = None,
     ) -> dict[str, Any]:
-        """Process batch – delegates to process() for the universal sensor."""
+        """Process batch – delegates to process() and routes results into carrier sensors."""
         result = await self.process(account, date, SENSOR_TYPE, cache, since_date)
+        tracking_details: list[dict[str, Any]] = result.pop("tracking_details", [])
+
+        # Build _tracking_details so the coordinator's _apply_tracking_state
+        # feeds found numbers directly into existing carrier sensors (ups_delivering
+        # etc.) with full F2 persistence and deduplication.
+        coordinator_tracking: dict[str, list[str]] = {}
+        for item in tracking_details:
+            prefix = _CARRIER_TO_SENSOR_PREFIX.get(item["carrier"])
+            if prefix is None:
+                continue
+            suffix = _STATUS_TO_SUFFIX.get(item.get("status_code", 0), "_delivering")
+            key = f"{prefix}{suffix}"
+            coordinator_tracking.setdefault(key, []).append(item["number"])
+
         result[SENSOR_TYPE] = result[ATTR_COUNT]
-        result["universal_tracking_details"] = result.pop("tracking_details", [])
+        result["universal_tracking_details"] = tracking_details
+        if coordinator_tracking:
+            result["_tracking_details"] = coordinator_tracking
         return result
 
     async def _enrich_with_17track(
@@ -138,7 +186,7 @@ class UniversalTrackingShipper(Shipper):
         tracking_list: list[str],
         found: dict[str, str],
     ) -> list[dict[str, Any]]:
-        """Optionally query 17track for status; always returns a details list."""
+        """Query 17track for status if configured; always returns a details list."""
         base_details = [{"number": n, "carrier": found[n]} for n in tracking_list]
         api_key = self.config.get(CONF_17TRACK_API_KEY, "")
         if not api_key or not tracking_list:
