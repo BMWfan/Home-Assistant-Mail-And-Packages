@@ -179,6 +179,10 @@ class UniversalTrackingShipper(Shipper):
         result["universal_tracking_details"] = tracking_details
         if coordinator_tracking:
             result["_tracking_details"] = coordinator_tracking
+            # When 17track is the status source, publish under a separate key so
+            # the coordinator can use it exclusively and ignore email-based status.
+            if self.config.get(CONF_17TRACK_API_KEY):
+                result["_17track_details"] = coordinator_tracking
         return result
 
     async def _enrich_with_17track(
