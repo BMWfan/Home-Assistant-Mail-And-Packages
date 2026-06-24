@@ -5,7 +5,7 @@ import logging
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
-from homeassistant.const import CONF_HOST, CONF_RESOURCES
+from homeassistant.const import CONF_HOST
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -21,12 +21,10 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, entry: MailAndPackagesConfigEntry, async_add_devices):
     """Initialize binary_sensor platform."""
     coordinator = entry.runtime_data.coordinator
-    resources = entry.data.get(CONF_RESOURCES, [])
 
     binary_sensors = [
         PackagesBinarySensor(value, coordinator, entry)
         for value in BINARY_SENSORS.values()
-        if not value.selectable or value.key in resources
     ]
     async_add_devices(binary_sensors, False)
 
@@ -54,6 +52,11 @@ class PackagesBinarySensor(CoordinatorEntity, BinarySensorEntity):
         self._attr_unique_id = (
             f"binary_sensor_{self._host}_{self._type}_{self._unique_id}"
         )
+
+    @property
+    def entity_registry_enabled_default(self) -> bool:
+        """Non-selectable sensors (always-on helpers) start enabled; optional ones start disabled."""
+        return not self.entity_description.selectable
 
     @property
     def device_info(self) -> dict:

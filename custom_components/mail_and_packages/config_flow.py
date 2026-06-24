@@ -33,6 +33,7 @@ from .const import (
     CONF_AMAZON_CUSTOM_IMG_FILE,
     CONF_AMAZON_DAYS,
     CONF_AMAZON_DOMAIN,
+    CONF_AMAZON_ENABLED,
     CONF_AMAZON_FWDS,
     CONF_AUTH_TYPE,
     CONF_CUSTOM_DAYS,
@@ -92,7 +93,6 @@ from .const import (
     OAUTH_IMAP_DEFAULTS,
     OAUTH_SCOPES,
 )
-from .helpers import get_resources
 from .utils.email import generate_service_email_domains, validate_email_address
 from .utils.image import _check_ffmpeg
 from .utils.imap import InvalidAuth, decode_imap_utf7, login, logout
@@ -515,10 +515,10 @@ async def _get_schema_step_2(
             vol.Required(CONF_FOLDER, default=default_folder): multi_folder_select(
                 {m: m for m in mailboxes}
             ),
-            vol.Required(
-                CONF_RESOURCES,
-                default=_get_default(CONF_RESOURCES),
-            ): cv.multi_select(get_resources()),
+            vol.Optional(
+                CONF_AMAZON_ENABLED,
+                default=_get_default(CONF_AMAZON_ENABLED, False),
+            ): cv.boolean,
             vol.Optional(
                 CONF_SCAN_INTERVAL,
                 default=_get_default(CONF_SCAN_INTERVAL),
@@ -961,9 +961,7 @@ class MailAndPackagesFlowHandler(
             if len(self._errors) == 0:
                 if self._data[CONF_ALLOW_FORWARDED_EMAILS]:
                     return await self.async_step_config_forwarded_emails()
-                if any(
-                    sensor in self._data[CONF_RESOURCES] for sensor in AMAZON_SENSORS
-                ):
+                if self._data.get(CONF_AMAZON_ENABLED):
                     return await self.async_step_config_amazon()
                 has_custom_image = (
                     self._data.get(CONF_CUSTOM_IMG)
@@ -1095,11 +1093,9 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
-                if any(
-                    sensor in self._data[CONF_RESOURCES] for sensor in AMAZON_SENSORS
-                ):
+                if self._data.get(CONF_AMAZON_ENABLED):
                     return await self.async_step_config_amazon()
-                if self._data[CONF_CUSTOM_IMG]:
+                if self._data.get(CONF_CUSTOM_IMG):
                     return await self.async_step_config_3()
 
                 return await self.async_step_config_storage()
@@ -1235,10 +1231,7 @@ class MailAndPackagesFlowHandler(
                 if self._data.get(CONF_ALLOW_FORWARDED_EMAILS, False):
                     return await self.async_step_reconfig_forwarded_emails()
 
-                if any(
-                    sensor in self._data.get(CONF_RESOURCES, [])
-                    for sensor in AMAZON_SENSORS
-                ):
+                if self._data.get(CONF_AMAZON_ENABLED):
                     return await self.async_step_reconfig_amazon()
                 has_custom_image = (
                     self._data.get(CONF_CUSTOM_IMG)
@@ -1350,10 +1343,7 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
-                if any(
-                    sensor in self._data.get(CONF_RESOURCES, [])
-                    for sensor in AMAZON_SENSORS
-                ):
+                if self._data.get(CONF_AMAZON_ENABLED):
                     return await self.async_step_reconfig_amazon()
                 if self._data.get(CONF_CUSTOM_IMG, False):
                     return await self.async_step_reconfig_3()
