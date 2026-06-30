@@ -36,6 +36,8 @@ from .const import (
     CONF_ALLOW_EXTERNAL,
     CONF_AUTH_TYPE,
     CONF_CUSTOM_DAYS,
+    CONF_DHL_BRIEF_ENABLED,
+    CONF_DHL_BRIEF_TOKENS,
     CONF_FOLDER,
     CONF_IMAP_SECURITY,
     CONF_IMAP_TIMEOUT,
@@ -46,6 +48,7 @@ from .const import (
 )
 from .helpers import copy_images
 from .shippers import get_shipper_for_sensor
+from .shippers.dhl_briefankundigung import DHLBriefankundigungClient
 from .utils.cache import EmailCache
 from .utils.image import default_image_path, hash_file, image_file_name
 from .utils.imap import InvalidAuth, login, logout, selectfolder
@@ -211,6 +214,10 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         finally:
             await logout(account)
 
+        # Fetch DHL Briefankündigung (letter previews) if configured
+        if config.get(CONF_DHL_BRIEF_ENABLED):
+            await self._fetch_dhl_brief(hass, data)
+
         # Post-process external images
         if config.get(CONF_ALLOW_EXTERNAL):
             try:
@@ -229,6 +236,9 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         for sensor in const.SENSOR_TYPES:
             if sensor not in data:
                 data[sensor] = 0
+        # DHL brief sensors start as None (no letters yet) rather than 0
+        data["dhl_brief_naechster"] = None
+        data["dhl_brief_letters"] = []
         return data
 
     async def _setup_image_config(self, hass: HomeAssistant, config: dict) -> dict:
@@ -479,6 +489,81 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 shippers_counted.add(shipper)
 
         return transit
+
+    async def _fetch_dhl_brief(self, hass: HomeAssistant, data: dict) -> None:
+        """Fetch DHL Briefankündigung letters and update data dict."""
+        if not self.config_entry:
+            return
+
+        tokens = self.config_entry.data.get(CONF_DHL_BRIEF_TOKENS)
+        if not tokens:
+            _LOGGER.warning("DHL Briefankündigung: keine Tokens gespeichert")
+            return
+
+        client = DHLBriefankundigungClient(hass, tokens)
+        letters = await client.fetch_letters()
+
+        if not letters:
+            data["dhl_brief_anzahl"] = 0
+            data["dhl_brief_naechster"] = None
+            data["dhl_brief_letters"] = []
+            return
+
+        # Image storage: <ha_config>/www/mail_and_packages/dhl_letters/
+        letters_dir = (
+            Path(hass.config.path()) / "www" / "mail_and_packages" / "dhl_letters"
+        )
+
+        letter_details: list[dict] = []
+        earliest_date: datetime.date | None = None
+
+        for letter in letters:
+            letter_id = str(letter.get("id", letter.get("adviceId", "")))
+            # Normalize the planned delivery date across possible field names
+            raw_date = (
+                letter.get("plannedDeliveryDate")
+                or letter.get("deliveryDate")
+                or letter.get("date")
+                or letter.get("expectedDelivery")
+            )
+            letter_date: datetime.date | None = None
+            if raw_date:
+                try:
+                    letter_date = datetime.date.fromisoformat(str(raw_date)[:10])
+                    if earliest_date is None or letter_date < earliest_date:
+                        earliest_date = letter_date
+                except ValueError:
+                    pass
+
+            image_url = (
+                letter.get("imageUrl")
+                or letter.get("image_url")
+                or letter.get("previewUrl")
+            )
+            image_path: str | None = None
+            if image_url and letter_id:
+                save_path = str(letters_dir / f"{letter_id}.jpg")
+                image_path = await client.fetch_and_decrypt_image(image_url, save_path)
+
+            letter_details.append(
+                {
+                    "id": letter_id,
+                    "date": raw_date,
+                    "image_path": image_path,
+                }
+            )
+
+        data["dhl_brief_anzahl"] = len(letters)
+        data["dhl_brief_naechster"] = earliest_date
+        data["dhl_brief_letters"] = letter_details
+
+        # Persist refreshed tokens if they changed
+        if client.tokens != tokens:
+            new_entry_data = dict(self.config_entry.data)
+            new_entry_data[CONF_DHL_BRIEF_TOKENS] = client.tokens
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, data=new_entry_data
+            )
 
     async def _binary_sensor_update(self):
         """Update binary sensor states."""
