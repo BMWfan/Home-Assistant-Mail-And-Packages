@@ -55,7 +55,10 @@
           "fedex_custom_img": "Use custom 'no FedEx delivery' image?",
           "generic_custom_img": "Use custom 'no Generic delivery' image?",
           "generate_grid": "Create image grid for LLM vision models",
-          "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)"
+          "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
+          "amazon_enabled": "Enable Amazon package sensors",
+          "seventeen_track_api_key": "17track.net API key (optional)",
+          "dhl_brief_enabled": "Enable DHL Briefankündigung (letter preview)"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster."
@@ -121,7 +124,10 @@
           "fedex_custom_img": "Use custom 'no FedEx delivery' image?",
           "generic_custom_img": "Use custom 'no Generic delivery' image?",
           "generate_grid": "Create image grid for LLM vision models",
-          "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)"
+          "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
+          "amazon_enabled": "Enable Amazon package sensors",
+          "seventeen_track_api_key": "17track.net API key (optional)",
+          "dhl_brief_enabled": "Enable DHL Briefankündigung (letter preview)"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster."
@@ -162,6 +168,20 @@
         },
         "description": "Please enter the directory you'd like your images to be stored in.\nThe default is auto populated.",
         "title": "Image storage location"
+      },
+      "config_dhl_brief_auth": {
+        "data": {
+          "dhl_brief_code": "DHL authorization code"
+        },
+        "description": "**DHL Briefankündigung – Login**\n\n1. Open the following link and sign in with your DHL account:\n\n`{auth_url}`\n\n2. After login your browser will be redirected to a URL starting with `dhllogin://`. Copy the value of the `code=...` parameter from that URL.\n\n3. Paste the copied code below and click Submit.",
+        "title": "DHL Briefankündigung"
+      },
+      "reconfig_dhl_brief_auth": {
+        "data": {
+          "dhl_brief_code": "DHL authorization code"
+        },
+        "description": "**DHL Briefankündigung – Renew Login**\n\n1. Open the following link and sign in with your DHL account:\n\n`{auth_url}`\n\n2. After login your browser will be redirected to a URL starting with `dhllogin://`. Copy the value of the `code=...` parameter from that URL.\n\n3. Paste the copied code below and click Submit.",
+        "title": "DHL Briefankündigung"
       },
       "config_forwarded_emails": {
         "data": {
