@@ -16,7 +16,8 @@
     "beautifulsoup4",
     "Pillow>=9.0",
     "dateparser",
-    "aioimaplib"
+    "aioimaplib",
+    "cryptography>=41.0"
   ],
   "version": "0.0.0-dev"
 }

@@ -82,6 +82,8 @@ CONF_FORWARDING_HEADER = "forwarding_header"
 CONF_CUSTOM_DAYS = "custom_days"
 CONF_17TRACK_API_KEY = "seventeen_track_api_key"
 CONF_AMAZON_ENABLED = "amazon_enabled"
+CONF_DHL_BRIEF_ENABLED = "dhl_brief_enabled"
+CONF_DHL_BRIEF_TOKENS = "dhl_brief_tokens"
 
 # Defaults
 DEFAULT_CAMERA_NAME = "Mail USPS Camera"
@@ -1686,6 +1688,19 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         native_unit_of_measurement="package(s)",
         icon="mdi:package-variant-closed",
         key="bolcom_packages",
+    ),
+    # DHL Briefankündigung
+    "dhl_brief_anzahl": SensorEntityDescription(
+        name="DHL Briefankündigung",
+        native_unit_of_measurement="piece(s)",
+        icon="mdi:email-open",
+        key="dhl_brief_anzahl",
+    ),
+    "dhl_brief_naechster": SensorEntityDescription(
+        name="DHL Brief Nächste Lieferung",
+        icon="mdi:calendar",
+        key="dhl_brief_naechster",
+        device_class=SensorDeviceClass.DATE,
     ),
     ###
     # !!! Insert new sensors above these two !!!

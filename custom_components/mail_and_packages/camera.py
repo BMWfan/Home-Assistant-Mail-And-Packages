@@ -21,6 +21,7 @@ from .const import (
     CAMERA_DATA,
     CONF_CUSTOM_IMG,
     CONF_CUSTOM_IMG_FILE,
+    CONF_DHL_BRIEF_ENABLED,
     CONF_DURATION,
     DOMAIN,
     SENSOR_NAME,
@@ -76,6 +77,9 @@ async def async_setup_entry(
             },
         ),
     )
+
+    if config.data.get(CONF_DHL_BRIEF_ENABLED):
+        camera.append(DhlBriefCamera(hass, config, coordinator))
 
     async_add_entities(camera)
 
@@ -652,4 +656,74 @@ class MailCam(CoordinatorEntity, Camera):
     async def _async_handle_coordinator_update(self) -> None:
         """Update file path then write state so the frontend gets the correct image URL."""
         await self.update_file_path()
+        self.async_write_ha_state()
+
+
+class DhlBriefCamera(CoordinatorEntity, Camera):
+    """Camera entity that shows the latest DHL letter preview image."""
+
+    def __init__(self, hass, config: MailAndPackagesConfigEntry, coordinator) -> None:
+        """Initialize."""
+        CoordinatorEntity.__init__(self, coordinator)
+        Camera.__init__(self)
+        self.hass = hass
+        self._config = config
+        self._host = config.data.get(CONF_HOST)
+        self._unique_id = config.entry_id
+        self._attr_name = "DHL Briefankündigung Vorschau"
+        self._attr_unique_id = f"camera_{self._host}_dhl_brief_{self._unique_id}"
+        self._file_path: str | None = None
+
+    @property
+    def device_info(self) -> dict:
+        """Return device information."""
+        return {
+            "connections": {(DOMAIN, self._unique_id)},
+            "name": self._host,
+            "manufacturer": "IMAP E-Mail",
+            "sw_version": VERSION,
+        }
+
+    @property
+    def should_poll(self) -> bool:
+        """Coordinator pushes updates."""
+        return False
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.data is not None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return camera attributes."""
+        letters = (self.coordinator.data or {}).get("dhl_brief_letters", [])
+        return {
+            "letter_count": len(letters),
+            "file_path": self._file_path,
+        }
+
+    async def async_camera_image(
+        self,
+        width: int | None = None,
+        height: int | None = None,
+    ) -> bytes | None:
+        """Return the latest DHL letter image bytes."""
+        letters = (self.coordinator.data or {}).get("dhl_brief_letters", [])
+        for letter in letters:
+            img_path = letter.get("image_path")
+            if img_path and await anyio.Path(img_path).exists():
+                self._file_path = img_path
+
+                def _read(p: str) -> bytes:
+                    return Path(p).read_bytes()
+
+                try:
+                    return await self.hass.async_add_executor_job(_read, img_path)
+                except OSError:
+                    pass
+        return None
+
+    def _handle_coordinator_update(self) -> None:
+        """Push updated state to HA when coordinator data changes."""
         self.async_write_ha_state()

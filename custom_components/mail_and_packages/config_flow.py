@@ -16,7 +16,6 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
     CONF_PORT,
-    CONF_RESOURCES,
     CONF_USERNAME,
 )
 from homeassistant.core import HomeAssistant
@@ -39,6 +38,8 @@ from .const import (
     CONF_CUSTOM_DAYS,
     CONF_CUSTOM_IMG,
     CONF_CUSTOM_IMG_FILE,
+    CONF_DHL_BRIEF_ENABLED,
+    CONF_DHL_BRIEF_TOKENS,
     CONF_DURATION,
     CONF_FEDEX_CUSTOM_IMG,
     CONF_FEDEX_CUSTOM_IMG_FILE,
@@ -93,6 +94,7 @@ from .const import (
     OAUTH_IMAP_DEFAULTS,
     OAUTH_SCOPES,
 )
+from .shippers.dhl_briefankundigung import exchange_code, extract_code, get_auth_url
 from .utils.email import generate_service_email_domains, validate_email_address
 from .utils.image import _check_ffmpeg
 from .utils.imap import InvalidAuth, decode_imap_utf7, login, logout
@@ -579,6 +581,10 @@ async def _get_schema_step_2(
                 CONF_17TRACK_API_KEY,
                 default=_get_default(CONF_17TRACK_API_KEY, ""),
             ): cv.string,
+            vol.Optional(
+                CONF_DHL_BRIEF_ENABLED,
+                default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
+            ): cv.boolean,
         },
     )
 
@@ -957,7 +963,6 @@ class MailAndPackagesFlowHandler(
         if user_input is not None:
             self._errors, user_input = await _validate_user_input(user_input)
             self._data.update(user_input)
-            _LOGGER.debug("RESOURCES: %s", self._data[CONF_RESOURCES])
             if len(self._errors) == 0:
                 if self._data[CONF_ALLOW_FORWARDED_EMAILS]:
                     return await self.async_step_config_forwarded_emails()
@@ -1124,6 +1129,8 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
+                if self._data.get(CONF_DHL_BRIEF_ENABLED):
+                    return await self.async_step_dhl_brief_auth()
                 return self.async_create_entry(
                     title=f"Mail and Packages ({self._data[CONF_HOST]})",
                     data=self._data,
@@ -1369,6 +1376,8 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
+                if self._data.get(CONF_DHL_BRIEF_ENABLED):
+                    return await self.async_step_reconfig_dhl_brief_auth()
                 self.hass.config_entries.async_update_entry(
                     self._entry,
                     data=self._data,
@@ -1386,5 +1395,64 @@ class MailAndPackagesFlowHandler(
         return self.async_show_form(
             step_id="reconfig_storage",
             data_schema=_get_schema_step_storage(user_input, self._data),
+            errors=self._errors,
+        )
+
+    # ------------------------------------------------------------------ DHL --
+
+    async def async_step_dhl_brief_auth(self, user_input=None):
+        """Exchange DHL authorization code for tokens (new setup)."""
+        self._errors = {}
+        if user_input is not None:
+            raw = user_input.get("dhl_brief_code", "").strip()
+            code = extract_code(raw)
+            if not code:
+                self._errors["dhl_brief_code"] = "invalid_auth"
+            else:
+                try:
+                    tokens = await exchange_code(self.hass, code)
+                    self._data[CONF_DHL_BRIEF_TOKENS] = tokens
+                except Exception:  # noqa: BLE001
+                    self._errors["dhl_brief_code"] = "invalid_auth"
+            if not self._errors:
+                return self.async_create_entry(
+                    title=f"Mail and Packages ({self._data[CONF_HOST]})",
+                    data=self._data,
+                )
+
+        return self.async_show_form(
+            step_id="config_dhl_brief_auth",
+            data_schema=vol.Schema({vol.Required("dhl_brief_code"): cv.string}),
+            description_placeholders={"auth_url": get_auth_url()},
+            errors=self._errors,
+        )
+
+    async def async_step_reconfig_dhl_brief_auth(self, user_input=None):
+        """Exchange DHL authorization code for tokens (reconfigure)."""
+        self._errors = {}
+        if user_input is not None:
+            raw = user_input.get("dhl_brief_code", "").strip()
+            code = extract_code(raw)
+            if not code:
+                self._errors["dhl_brief_code"] = "invalid_auth"
+            else:
+                try:
+                    tokens = await exchange_code(self.hass, code)
+                    self._data[CONF_DHL_BRIEF_TOKENS] = tokens
+                except Exception:  # noqa: BLE001
+                    self._errors["dhl_brief_code"] = "invalid_auth"
+            if not self._errors:
+                self.hass.config_entries.async_update_entry(
+                    self._entry,
+                    data=self._data,
+                )
+                await self.hass.config_entries.async_reload(self._entry.entry_id)
+                _LOGGER.debug("%s reconfigured (DHL).", DOMAIN)
+                return self.async_abort(reason="reconfigure_successful")
+
+        return self.async_show_form(
+            step_id="reconfig_dhl_brief_auth",
+            data_schema=vol.Schema({vol.Required("dhl_brief_code"): cv.string}),
+            description_placeholders={"auth_url": get_auth_url()},
             errors=self._errors,
         )

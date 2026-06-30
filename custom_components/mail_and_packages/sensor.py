@@ -32,6 +32,7 @@ from .const import (
     ATTR_TRACKING_NUM,
     ATTR_USPS_IMAGE,
     CONF_AMAZON_ENABLED,
+    CONF_DHL_BRIEF_ENABLED,
     CONF_PATH,
     DOMAIN,
     IMAGE_SENSORS,
@@ -49,6 +50,9 @@ _DEFAULT_ENABLED: frozenset[str] = frozenset(
         "zpackages_transit",
         "zpackages_delivered",
         "universal_packages",
+        # DHL Briefankündigung – enabled when the feature is on
+        "dhl_brief_anzahl",
+        "dhl_brief_naechster",
     }
 )
 
@@ -62,11 +66,13 @@ async def async_setup_entry(
     coordinator = entry.runtime_data.coordinator
 
     amazon_enabled = entry.data.get(CONF_AMAZON_ENABLED, False)
+    dhl_brief_enabled = entry.data.get(CONF_DHL_BRIEF_ENABLED, False)
 
     sensors = [
         PackagesSensor(entry, description, coordinator)
         for key, description in SENSOR_TYPES.items()
-        if amazon_enabled or not key.startswith("amazon_")
+        if (amazon_enabled or not key.startswith("amazon_"))
+        and (dhl_brief_enabled or not key.startswith("dhl_brief_"))
     ]
 
     sensors.extend(
@@ -178,8 +184,18 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         elif self.type == "universal_packages":
             if details := data.get("universal_tracking_details"):
                 attr["tracking_details"] = details
+        elif self.type == "dhl_brief_anzahl":
+            self._add_dhl_brief_attributes(attr, data)
 
         return attr
+
+    def _add_dhl_brief_attributes(self, attr: dict, data: dict) -> None:
+        """Add DHL Briefankündigung letter list to attributes."""
+        if letters := data.get("dhl_brief_letters"):
+            attr["letters"] = [
+                {"id": entry.get("id"), "date": str(entry.get("date", ""))}
+                for entry in letters
+            ]
 
     def _add_amazon_attributes(self, attr: dict, data: dict) -> None:
         """Add Amazon specific attributes to the sensor."""
