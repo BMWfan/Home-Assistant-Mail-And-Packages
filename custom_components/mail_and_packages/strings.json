@@ -56,7 +56,7 @@
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
           "amazon_enabled": "Enable Amazon package sensors",
           "seventeen_track_api_key": "17track.net API key (optional)",
-          "dhl_brief_enabled": "DHL Briefankündigung aktivieren (benötigt DHL-Account)"
+          "dhl_brief_enabled": "Enable DHL Briefankündigung (letter preview)"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster."
@@ -130,7 +130,7 @@
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
           "amazon_enabled": "Enable Amazon package sensors",
           "seventeen_track_api_key": "17track.net API key (optional)",
-          "dhl_brief_enabled": "DHL Briefankündigung aktivieren (benötigt DHL-Account)"
+          "dhl_brief_enabled": "Enable DHL Briefankündigung (letter preview)"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster."
