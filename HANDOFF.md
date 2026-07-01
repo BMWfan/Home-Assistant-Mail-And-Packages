@@ -1,7 +1,7 @@
 # Handoff – Mail and Packages (branch `test/all-features`)
 
-Stand: 2026-07-01  
-Aktuelles Release: **v0.5.4-test12** (prerelease auf GitHub)
+Stand: 2026-07-01 (aktualisiert)  
+Aktuelles Release: **v0.5.4-test13** (prerelease auf GitHub)
 
 ---
 
@@ -24,6 +24,7 @@ Aktuelles Release: **v0.5.4-test12** (prerelease auf GitHub)
 | IMAP Search-Cache (Deduplizierung innerhalb eines Scans) | `0d11194` | fertig |
 | **Batch IMAP Pre-Fetch** (Kern-Fix für Timeout) | `dbd0ac6` | in Test |
 | Timing-Diagnostik im Pre-Fetch | `54e3e74` | in Test |
+| **LOGOUT-Cleanup mit eigenem Kurz-Timeout** (behebt 120s-statt-60s-Doppel-Timeout) | `ae2c695` | in Test (test13) |
 
 ---
 
@@ -50,26 +51,34 @@ Resultat: **13 SELECTs** statt 390.
 ### Stand nach test12
 Der Fehler im Log (`CancelledError`, 99 s) war **kein Timeout** – HA wurde während des ersten Scans gestoppt (log-Zeile: "Home Assistant is stopping"). Die 99 s sind die Laufzeit bis zum externen Abbruch.
 
-**Was noch unklar ist:**  
-Wie viele unique Queries gibt es tatsächlich? Wenn z. B. 40 unique Queries × 13 Ordner = 520 SEARCHes, und jeder SEARCH auf dem großen INBOX ~250 ms dauert → ~130 s. Immer noch grenzwertig.
+### Live-Diagnose per HA-MCP (2026-07-01, beantwortet die alte "was noch unklar ist"-Frage)
+
+Direkt aus der laufenden Instanz (`homeassistant.mackcloud.de`) ausgelesen:
+
+- **N = 93 unique Queries über 14 Ordner** – deutlich unter den befürchteten 520. Das Query-Volumen selbst ist **nicht** das Problem.
+- In **keinem** von 36 beobachteten Scan-Versuchen erschien je die Zeile `Batch pre-fetch: folder %s — %d queries in %.1fs` ([utils/imap.py:533](custom_components/mail_and_packages/utils/imap.py:533)) oder `Pre-fetch complete`. Der Pre-Fetch hängt sich also **beim allerersten Ordner** auf.
+- Jeder Scan brach nach exakt **120,0 s** ab, obwohl `imap_timeout` = **60 s** konfiguriert war – identisch bei allen 35 aufgezeichneten Vorkommen. Kein Zufall, sondern ein deterministischer Doppel-Timeout.
+- Der Config-Entry (`01KVNWJJBRTHRCW43KA383KS6K`) hing deswegen dauerhaft in `setup_in_progress` fest (HA-Bootstrap-Log zeigte 2361 s Wartezeit beim Neustart).
+
+### Root Cause gefunden (nicht mehr spekulativ)
+
+1. [utils/imap.py:127-130](custom_components/mail_and_packages/utils/imap.py:127) setzt den **aioimaplib-Client-Timeout** (`account.timeout`) auf denselben Wert wie das ganze Scan-Budget (`self.timeout`, i.d.R. 60 s). Jeder einzelne IMAP-Befehl (SELECT, SEARCH, LOGOUT) darf also bis zu 60 s hängen, bevor sein eigener interner Timeout greift.
+2. Hängt eine `uid_search()`-Query im ersten Ordner des Pre-Fetch-Loops, wird sie erst nach ~60 s vom äußeren `asyncio.timeout(self.timeout)` in [coordinator.py:120](custom_components/mail_and_packages/coordinator.py:120) gecancelt.
+3. Der `finally`-Block in [coordinator.py:214-215](custom_components/mail_and_packages/coordinator.py:214) ruft **immer** `await logout(account)` auf – auch bei Cancellation. `logout()` machte bis test13 selbst wieder einen ungebremsten Netzwerk-Roundtrip auf derselben (vermutlich toten) Verbindung, mit demselben 60s-Timeout → **zwei serielle 60s-Timeouts = 120 s**, exakt wie beobachtet.
+
+**Fix (test13, Commit `ae2c695`):** `logout()` in [utils/imap.py](custom_components/mail_and_packages/utils/imap.py) kappt den LOGOUT-Roundtrip jetzt mit einem eigenen, unabhängigen `LOGOUT_TIMEOUT` (5 s) statt das volle Scan-Budget zu erben. Cleanup nach einem bereits fehlgeschlagenen Scan kann das Budget dadurch nicht mehr ein zweites Mal verbrennen.
+
+**Wichtig:** Das behebt die *Verdopplung*, nicht die *Ursache* des ersten Hängers (warum ein einzelner IMAP-Befehl gegen `outlook.office365.com` überhaupt >60 s braucht). Option C aus Abschnitt 3b (Timeout erhöhen) macht mit dem Fix jetzt tatsächlich das, was sie verspricht – vorher hätte ein auf 180 s erhöhter Timeout real bis zu 360 s gedauert.
 
 ---
 
 ## 3. Nächste Schritte
 
-### 3a. Diagnose mit test12 auswerten
+### 3a. Diagnose mit test12 auswerten — ✅ erledigt (siehe Abschnitt 2)
 
-Nach Installation und sauberem HA-Neustart (kein zwischenzeitliches Stoppen):
+N = 93 unique Queries über 14 Ordner. Die Gesamtzeit `XX.X` ließ sich nicht ermitteln, weil der Pre-Fetch nie eine einzige `Batch pre-fetch: folder ...`-Zeile loggte – er hing im ersten Ordner fest, bis der (verdoppelte) Timeout griff. Root Cause siehe Abschnitt 2.
 
-```
-DEBUG ... Pre-fetching N unique queries across 13 folder(s) (M total before dedup)
-DEBUG ... Batch pre-fetch: folder INBOX — 40 queries in X.Xs
-DEBUG ... Batch pre-fetch: folder Pakete — 40 queries in X.Xs
-...
-DEBUG ... Pre-fetch complete in XX.Xs (13 SELECTs + up to 520 SEARCHes)
-```
-
-→ `N` (unique Queries) und `XX.X` (Gesamtzeit Pre-Fetch) sind die entscheidenden Zahlen.
+**Nach test13 erneut prüfen:** Mit dem LOGOUT-Fix sollte entweder (a) der Scan durchlaufen, oder (b) bei echtem Hänger jetzt eine saubere `Batch pre-fetch: folder ...`-Zeile für mindestens den ersten Ordner erscheinen, bevor der Timeout greift – das würde bestätigen, welcher Ordner/welche Query tatsächlich hängt.
 
 ### 3b. Falls Pre-Fetch immer noch zu lang
 
@@ -121,6 +130,8 @@ git tag v0.5.4-test13 && git push origin v0.5.4-test13
 # Release auf GitHub: über Web-UI oder gh CLI anlegen und zip hochladen
 ```
 
+**test13 Status:** ✅ erstellt (Fix-Commit `ae2c695`, Tag `v0.5.4-test13`, Prerelease auf GitHub). Enthält nur den LOGOUT-Timeout-Fix aus Abschnitt 2, sonst identisch zu test12.
+
 ---
 
 ## 4. Schlüsseldateien
@@ -136,15 +147,22 @@ git tag v0.5.4-test13 && git push origin v0.5.4-test13
 | `camera.py` | `"DHL Letter Preview"` (Kamera-Entitätsname) |
 | `manifest.json` | `"version": "0.5.4"` (war `"0.0.0-dev"`, blockierte HACS-Updates) |
 | `shippers/dhl_briefankundigung.py` | Neuer Shipper für DHL Briefankündigung |
+| `utils/imap.py` | `logout()` kappt LOGOUT jetzt mit eigenem `LOGOUT_TIMEOUT` (5s) statt dem vollen Scan-Budget zu erben (test13, siehe Abschnitt 2) |
 
 ---
 
 ## 5. Bekannte offene Punkte / Risiken
 
-- **Test-Environment kaputt**: `uv run pytest` schlägt mit `ModuleNotFoundError: No module named 'pkg_resources'` fehl – Python-Versions-Mismatch (.venv ist 3.9, Code zielt auf 3.13/3.14). Unabhängig von unseren Änderungen.
-- `tests/shippers/test_dpd_gls_international.py` und `uv.lock` haben unstaged Changes – nicht committen, bis der Test-Stand klar ist.
+- **Test-Environment ist strukturell kaputt, nicht nur ein Python-Versions-Mismatch:**
+  - `conftest.py` erzwingt global `pytest_plugins = "pytest_homeassistant_custom_component"`. Dessen letzte PyPI-Version (0.9.17) pinnt zwingend `homeassistant==2022.6.7` + `pytest==7.1.1`.
+  - Der Code selbst (z. B. `utils/imap.py` Zeile ~254) nutzt verschachtelte f-String-Quotes (PEP 701) → **erfordert Python ≥3.12** zum Parsen.
+  - `homeassistant` 2022.x pinnt wiederum `ciso8601==2.2.0`, das **keine Windows-Wheels** hat und ohne MSVC Build Tools nicht kompiliert.
+  - Auf Python 3.13/3.14 crasht stattdessen `pytest`s eigener Assertion-Rewriter (`TypeError: required field "lineno" missing from alias`) beim Laden des `pytest_homeassistant_custom_component`-Plugins – ein bekanntes Kompatibilitätsproblem alter pytest-Internals mit neueren Python-AST-Validierungen.
+  - **Kurz:** Es gibt aktuell keine Python-Version, unter der `uv run pytest` in diesem Repo durchläuft, ohne entweder MSVC Build Tools zu installieren oder `pytest-homeassistant-custom-component` durch etwas Aktuelles zu ersetzen. Das ist unabhängig von unseren Änderungen und eine eigene, größere Aufgabe.
+  - Der test13-LOGOUT-Fix wurde deshalb per Stand-alone-Skript verifiziert (Homeassistant-Module gestubbt, `utils/imap.py` direkt per `importlib` geladen) statt über die Testsuite.
+- `uv.lock` hatte unstaged Changes durch Venv-Experimente – zurückgesetzt, nicht committet.
 - **`collect_queries` deckt nicht 100 % der Shipper ab**: Nur `GenericShipper` implementiert `collect_queries`. Shipper ohne diese Methode (z. B. `DHLBriefankundigungShipper`) fallen durch in den normalen Per-Sensor-IMAP-Flow. Das ist korrekt – sie nutzen einfach keinen Pre-Fetch.
-- **Ob Pre-Fetch schnell genug ist**, hängt von den test12-Logs ab (siehe Abschnitt 3a).
+- **Ob Pre-Fetch nach dem LOGOUT-Fix schnell genug ist**, ist weiterhin offen – siehe "Nach test13 erneut prüfen" in Abschnitt 3a.
 
 ---
 
