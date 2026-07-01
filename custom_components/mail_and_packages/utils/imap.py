@@ -349,17 +349,31 @@ def _parse_esearch_line(line_bytes: bytes) -> list[bytes]:
     return [f"{mailbox}/{uid}".encode() for uid in uids]
 
 
+def _get_search_cache(account: IMAP4_SSL) -> dict:
+    """Return the per-scan search-result cache attached to this connection."""
+    if not hasattr(account, "_search_cache"):
+        account._search_cache = {}  # noqa: SLF001
+    return account._search_cache  # noqa: SLF001
+
+
 async def _execute_single_search(account: IMAP4_SSL, search_query: str) -> list[bytes]:  # noqa: C901
     """Execute search query. If single folder, use standard search. If multiple, use hybrid ESEARCH/fallback."""
     folders = getattr(account, "_folders", ["INBOX"])
+    search_cache = _get_search_cache(account)
 
     if len(folders) <= 1:
+        folder = folders[0] if folders else "INBOX"
+        cache_key = (folder, search_query)
+        if cache_key in search_cache:
+            return search_cache[cache_key]
         res = await account.search(search_query, charset=None)
+        result: list[bytes] = []
         if res.result == "OK" and res.lines:
-            return parse_search_response(res.lines)
-        return []
+            result = parse_search_response(res.lines)
+        search_cache[cache_key] = result
+        return result
 
-    all_uids = []
+    all_uids: list[bytes] = []
 
     # Check for MULTISEARCH capability safely (handling mock/AsyncMock in tests)
     is_multisearch = False
@@ -375,7 +389,10 @@ async def _execute_single_search(account: IMAP4_SSL, search_query: str) -> list[
             pass
 
     if is_multisearch:
-        # ESEARCH IN ("folder1" "folder2") query - encode and quote folders
+        # ESEARCH IN ("folder1" "folder2") query - cache under a combined key
+        cache_key = (tuple(folders), search_query)
+        if cache_key in search_cache:
+            return search_cache[cache_key]
         folder_list = " ".join([quote_folder(encode_imap_utf7(f)) for f in folders])
         args = ("IN", f"({folder_list})", search_query)
         try:
@@ -399,23 +416,34 @@ async def _execute_single_search(account: IMAP4_SSL, search_query: str) -> list[
             raise
         except (AioImapException, OSError) as err:
             _LOGGER.error("Error executing ESEARCH: %s", err)
+        search_cache[cache_key] = all_uids
     else:
-        # Sequential select and search fallback - no limits on configured folders
+        # Sequential select and search fallback - cache per (folder, query)
         for folder in folders:
+            cache_key = (folder, search_query)
+            if cache_key in search_cache:
+                all_uids.extend(search_cache[cache_key])
+                continue
             select_ok = await selectfolder(account, folder)
             if not select_ok:
+                search_cache[cache_key] = []
                 continue
             try:
                 res = await account.uid_search(search_query, charset=None)
                 if res.result == "OK" and res.lines:
                     parsed = parse_search_response(res.lines)
-                    all_uids.extend(
+                    folder_uids = [
                         f"{folder}/{uid.decode()}".encode() for uid in parsed
-                    )
+                    ]
+                else:
+                    folder_uids = []
             except TimeoutError:
                 raise
             except (AioImapException, OSError) as err:
                 _LOGGER.error("Error searching folder %s: %s", folder, err)
+                folder_uids = []
+            search_cache[cache_key] = folder_uids
+            all_uids.extend(folder_uids)
 
     return all_uids
 
@@ -446,10 +474,17 @@ async def email_search(  # noqa: C901
         is_yahoo = "yahoo" in host_lower or "aol" in host_lower
 
     if len(folders) <= 1:
+        folder = folders[0] if folders else "INBOX"
+        search_cache = _get_search_cache(account)
+
         if not isinstance(subject, list) or len(subject) <= 10:
             _unused, search = build_search(
                 address, date, subject, header, is_yahoo=is_yahoo
             )
+            cache_key = (folder, search)
+            if cache_key in search_cache:
+                parsed = search_cache[cache_key]
+                return ("OK", [b" ".join(parsed)])
             try:
                 res = await account.search(search, charset=None)
             except TimeoutError:
@@ -459,6 +494,8 @@ async def email_search(  # noqa: C901
                 return ("BAD", str(err))
             else:
                 parsed = parse_search_response(res.lines)
+                if res.result == "OK":
+                    search_cache[cache_key] = parsed
                 return (res.result, [b" ".join(parsed)])
 
         # Batch subjects in groups of 10
@@ -468,10 +505,15 @@ async def email_search(  # noqa: C901
             _unused, search = build_search(
                 address, date, batch, header, is_yahoo=is_yahoo
             )
+            cache_key = (folder, search)
+            if cache_key in search_cache:
+                all_matched_ids.extend(search_cache[cache_key])
+                continue
             try:
                 res = await account.search(search, charset=None)
                 if res.result == "OK" and res.lines:
                     parsed = parse_search_response(res.lines)
+                    search_cache[cache_key] = parsed
                     all_matched_ids.extend(parsed)
             except TimeoutError:
                 raise
