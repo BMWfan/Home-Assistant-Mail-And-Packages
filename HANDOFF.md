@@ -78,6 +78,24 @@ Mail and Packages scan exceeded its 60s time budget (elapsed 65.0s).
 
 **65,0 s statt 120,0 s** – der Doppel-Timeout ist weg, bestätigt auf der echten Instanz direkt nach dem Update. Die verbleibenden ~5 s über dem 60s-Budget sind der (jetzt gebremste) LOGOUT-Cleanup, nicht mehr ein zweiter voller Timeout. Der Scan schlägt weiterhin fehl (`setup_retry`), weil der **ursprüngliche** Hänger im ersten Ordner/erster Query weiterhin besteht – das ist die in Abschnitt 3b beschriebene, noch offene Ursache. Nächster Schritt: welcher Ordner/welche Query genau hängt, per zusätzlichem Logging oder Option D (ESEARCH IN) eingrenzen.
 
+### ✅ Genauer Hänger gefunden (test14, per-Query-Logging, 2026-07-01 21:12–21:17)
+
+Drei unabhängige Scan-Versuche (eigene TCP-Verbindung/Login pro Versuch, ~2,5 Min Abstand) hängen **exakt an derselben Stelle**: Ordner `INBOX`, Query **40 von 93**:
+
+```
+FROM "noreply@service.dpd.de" OR SUBJECT "Bald ist ihr DPD Paket da" SUBJECT "kommt Ihr DPD Paket" SINCE 28-Jun-2026
+```
+
+Query 39 wird in allen drei Läufen noch geloggt, Query 41 nie – der `uid_search()`-Call für #40 bekommt nie eine Antwort (`utils/imap.py:492`). Die Query selbst ist unauffällig (kurz, keine Sonderzeichen), was gegen ein Problem mit dem Query-*Inhalt* spricht.
+
+**Wahrscheinlichste Ursache:** Microsoft/Exchange-Online drosselt IMAP-Verbindungen, die sehr viele Befehle in kurzer Zeit hintereinander schicken (hier: ~40 SEARCHes in <1 s auf derselben Connection, siehe Timestamps – alle Queries 1–39 werden in Sekundenbruchteilen durchgereicht). Das würde erklären, warum immer dieselbe *Positions-Nummer* hängt, unabhängig vom konkreten Query-Inhalt – ein bekanntes, undokumentiertes Throttling-Verhalten von Exchange-Online-IMAP.
+
+**Auswirkung auf Abschnitt 3b:**
+- Option A (parallele Queries) würde das Problem vermutlich verschlimmern (mehr Befehle, noch schneller).
+- Option D (ESEARCH IN) reduziert Ordner-Roundtrips, aber nicht die Gesamtzahl an Befehlen (~93) –träfe vermutlich denselben Trigger.
+- **Option B (ein SEARCH `ALL SINCE` pro Ordner + client-seitiges Filtern)** ist jetzt die aussichtsreichste Option: senkt die Befehlsanzahl auf ~14 (ein Befehl pro Ordner) statt 93 – das würde eine vermutete Drossel-Schwelle um Faktor ~7 unterschreiten.
+- Nicht implementiert (noch keine Freigabe): Das ist ein echter Design-Wechsel der Suchstrategie (mehr Rohdaten client-seitig verarbeiten), keine kleine Bugfix-Änderung mehr.
+
 ---
 
 ## 3. Nächste Schritte
