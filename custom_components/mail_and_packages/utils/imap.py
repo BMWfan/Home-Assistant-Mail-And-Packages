@@ -481,13 +481,21 @@ async def _batch_search_one_folder(
     search_cache: dict,
 ) -> None:
     """SELECT one folder and run all pending queries against it."""
+    _LOGGER.debug("Batch pre-fetch: SELECT folder %s", folder)
     select_ok = await selectfolder(account, folder)
     if not select_ok:
         for q in pending:
             search_cache[(folder, q)] = []
         return
-    for query in pending:
+    for i, query in enumerate(pending, start=1):
         cache_key = (folder, query)
+        _LOGGER.debug(
+            "Batch pre-fetch: folder %s query %d/%d: %s",
+            folder,
+            i,
+            len(pending),
+            query,
+        )
         try:
             res = await account.uid_search(query, charset=None)
             if res.result == "OK" and res.lines:
