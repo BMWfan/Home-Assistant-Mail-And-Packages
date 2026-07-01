@@ -772,16 +772,81 @@ async def test_logout_hang_bounded_by_own_timeout(caplog, monkeypatch):
     assert "Error logging out of IMAP Server" in caplog.text
 
 
+def _fetch_response(lines):
+    return MagicMock(result="OK", lines=lines)
+
+
 @pytest.mark.asyncio
-async def test_batch_search_reconnects_on_stalled_command(monkeypatch):
-    """A stalled uid_search must trigger a reconnect-and-retry, not a hang.
+async def test_batch_search_classifies_via_one_broad_search_and_fetch(monkeypatch):
+    """One broad SEARCH + one batched FETCH must replace one SEARCH per query.
+
+    Regression test for the fix that replaced per-query SEARCHes (which hit a
+    fixed per-connection command limit on Exchange Online at ~40 commands,
+    see HANDOFF.md section 2) with a single SINCE search per folder plus
+    client-side classification against each query's own criteria -- including
+    its own since_date, which may be later than the broad search's date.
+    """
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_PACING", 0)
+
+    account = MagicMock()
+    account._current_folder = "INBOX"
+    account.uid_search = AsyncMock(
+        return_value=_fetch_response([b"SEARCH 101 102 103"])
+    )
+    account.uid = AsyncMock(
+        return_value=_fetch_response(
+            [
+                b'1 FETCH (UID 101 INTERNALDATE "01-Jul-2026 08:00:00 +0000" '
+                b"BODY[HEADER.FIELDS (FROM SUBJECT)] {50}",
+                b"From: DPD <noreply@service.dpd.de>\r\nSubject: Paket ist da\r\n\r\n",
+                b")",
+                b'2 FETCH (UID 102 INTERNALDATE "30-Jun-2026 10:00:00 +0000" '
+                b"BODY[HEADER.FIELDS (FROM SUBJECT)] {45}",
+                b"From: UPS <mcinfo@ups.com>\r\nSubject: Package delivered\r\n\r\n",
+                b")",
+                b'3 FETCH (UID 103 INTERNALDATE "25-Jun-2026 10:00:00 +0000" '
+                b"BODY[HEADER.FIELDS (FROM SUBJECT)] {45}",
+                b"From: noreply@service.dpd.de\r\nSubject: Old DPD mail\r\n\r\n",
+                b")",
+            ]
+        )
+    )
+
+    dpd_spec = imap_module.QuerySpec(
+        query='FROM "noreply@service.dpd.de" SINCE 28-Jun-2026',
+        addresses=("noreply@service.dpd.de",),
+        subjects=(),
+        since_date="28-Jun-2026",
+    )
+    ups_spec = imap_module.QuerySpec(
+        query='FROM "mcinfo@ups.com" SINCE 28-Jun-2026',
+        addresses=("mcinfo@ups.com",),
+        subjects=(),
+        since_date="28-Jun-2026",
+    )
+
+    search_cache = {}
+    result_account = await _batch_search_one_folder(
+        account, "INBOX", [dpd_spec, ups_spec], search_cache
+    )
+
+    assert result_account is account
+    assert account.uid_search.call_count == 1, "expected exactly one broad SEARCH"
+    assert account.uid.call_count == 1, "expected exactly one batched FETCH"
+    assert search_cache[("INBOX", dpd_spec.query)] == [b"INBOX/101"]
+    assert search_cache[("INBOX", ups_spec.query)] == [b"INBOX/102"]
+
+
+@pytest.mark.asyncio
+async def test_batch_search_reconnects_on_stalled_broad_search(monkeypatch):
+    """A stalled broad SEARCH must trigger a reconnect-and-retry, not a hang.
 
     Live diagnostics against Exchange Online showed a connection silently
     stops responding to further commands after enough have been issued,
     regardless of pacing (ruled out separately). _batch_search_one_folder
     must detect this via IMAP_COMMAND_TIMEOUT, open a fresh connection,
-    re-select the folder, and retry the same query -- returning the new
-    account so the caller doesn't keep using the dead one.
+    re-select the folder, and retry -- returning the new account so the
+    caller doesn't keep using the dead one.
     """
     monkeypatch.setattr(imap_module, "IMAP_COMMAND_TIMEOUT", 0.2)
     monkeypatch.setattr(imap_module, "IMAP_COMMAND_PACING", 0)
@@ -798,11 +863,19 @@ async def test_batch_search_reconnects_on_stalled_command(monkeypatch):
         await asyncio.sleep(60)
 
     stale_account.uid_search = AsyncMock(side_effect=hang_forever)
-    ok_result = MagicMock(result="OK", lines=[b"SEARCH 101 102"])
-    fresh_account.uid_search = AsyncMock(return_value=ok_result)
+    fresh_account.uid_search = AsyncMock(return_value=_fetch_response([b"SEARCH 101"]))
+    fresh_account.uid = AsyncMock(
+        return_value=_fetch_response(
+            [
+                b'1 FETCH (UID 101 INTERNALDATE "01-Jul-2026 08:00:00 +0000" '
+                b"BODY[HEADER.FIELDS (FROM SUBJECT)] {50}",
+                b"From: DPD <noreply@service.dpd.de>\r\nSubject: Paket ist da\r\n\r\n",
+                b")",
+            ]
+        )
+    )
 
     logout_calls = []
-    login_calls = []
 
     async def fake_logout(account):
         logout_calls.append(account)
@@ -812,25 +885,30 @@ async def test_batch_search_reconnects_on_stalled_command(monkeypatch):
         return True
 
     async def fake_login(hass, **kwargs):
-        login_calls.append(kwargs)
         return fresh_account
 
     monkeypatch.setattr(imap_module, "logout", fake_logout)
     monkeypatch.setattr(imap_module, "selectfolder", fake_selectfolder)
     monkeypatch.setattr(imap_module, "login", fake_login)
 
+    dpd_spec = imap_module.QuerySpec(
+        query='FROM "noreply@service.dpd.de" SINCE 28-Jun-2026',
+        addresses=("noreply@service.dpd.de",),
+        subjects=(),
+        since_date="28-Jun-2026",
+    )
+
     search_cache = {}
     start = asyncio.get_event_loop().time()
     result_account = await _batch_search_one_folder(
-        stale_account, "INBOX", ["query1"], search_cache
+        stale_account, "INBOX", [dpd_spec], search_cache
     )
     elapsed = asyncio.get_event_loop().time() - start
 
     assert elapsed < 2, f"took too long: {elapsed:.2f}s"
     assert result_account is fresh_account
     assert logout_calls == [stale_account]
-    assert len(login_calls) == 1
-    assert search_cache[("INBOX", "query1")] == [b"INBOX/101", b"INBOX/102"]
+    assert search_cache[("INBOX", dpd_spec.query)] == [b"INBOX/101"]
     assert fresh_account._current_folder == "INBOX"
 
 

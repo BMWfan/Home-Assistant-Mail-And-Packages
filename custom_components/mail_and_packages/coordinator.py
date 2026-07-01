@@ -51,7 +51,14 @@ from .shippers import get_shipper_for_sensor
 from .shippers.dhl_briefankundigung import DHLBriefankundigungClient
 from .utils.cache import EmailCache
 from .utils.image import default_image_path, hash_file, image_file_name
-from .utils.imap import InvalidAuth, batch_search_folders, login, logout, selectfolder
+from .utils.imap import (
+    InvalidAuth,
+    QuerySpec,
+    batch_search_folders,
+    login,
+    logout,
+    selectfolder,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -341,7 +348,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         Returns the account to use for the rest of the scan -- batch_search_folders
         may return a new connection object if a stalled command forced a reconnect.
         """
-        all_queries: list[str] = []
+        all_queries: list[QuerySpec] = []
         for shipper_group in sensors_by_shipper.values():
             shipper_instance = shipper_group[0][0]
             sensors = [s[1] for s in shipper_group]
@@ -357,10 +364,10 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
         if all_queries:
             n_folders = len(getattr(account, "_folders", ["INBOX"]))
-            n_unique = len(set(all_queries))
+            n_unique = len({spec.query for spec in all_queries})
             _LOGGER.debug(
                 "Pre-fetching %d unique queries across %d folder(s) "
-                "(%d total before dedup)",
+                "(%d total before dedup) via one broad search per folder",
                 n_unique,
                 n_folders,
                 len(all_queries),
@@ -368,10 +375,9 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             prefetch_start = monotonic()
             account = await batch_search_folders(account, all_queries)
             _LOGGER.debug(
-                "Pre-fetch complete in %.1fs (%d SELECTs + up to %d SEARCHes)",
+                "Pre-fetch complete in %.1fs (%d broad SEARCHes + batched FETCHes)",
                 monotonic() - prefetch_start,
                 n_folders,
-                n_unique * n_folders,
             )
         return account
 

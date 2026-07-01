@@ -30,6 +30,7 @@ from custom_components.mail_and_packages.const import (
 from custom_components.mail_and_packages.utils.cache import EmailCache
 from custom_components.mail_and_packages.utils.email import find_text, find_text_matches
 from custom_components.mail_and_packages.utils.imap import (
+    QuerySpec,
     build_search,
     email_fetch,
     email_fetch_headers,
@@ -209,19 +210,22 @@ class GenericShipper(Shipper):
         date: str,
         sensors: list[str],
         since_date: str | None = None,
-    ) -> list[str]:
-        """Return all IMAP search query strings for sensors without executing them.
+    ) -> list[QuerySpec]:
+        """Return structured search criteria for sensors without executing them.
 
         Called by the coordinator to pre-populate the search cache via
-        batch_search_folders so that each IMAP folder is SELECTed only once
-        for all sensors combined.
+        batch_search_folders, which classifies one broad per-folder fetch
+        against each entry's criteria instead of running one SEARCH per entry.
+        Each entry's `query` string is still the exact string build_search()
+        would produce, so the normal per-sensor email_search() path (which
+        builds and looks up that same string) gets cache hits either way.
         """
         is_yahoo = False
         if hasattr(account, "host") and isinstance(account.host, str):
             host_lower = account.host.lower()
             is_yahoo = "yahoo" in host_lower or "aol" in host_lower
 
-        queries: list[str] = []
+        queries: list[QuerySpec] = []
         for sensor_type in sensors:
             cfg = SENSOR_DATA.get(sensor_type, {})
             email_addresses = cfg.get(ATTR_EMAIL, [])
@@ -258,7 +262,15 @@ class GenericShipper(Shipper):
                 _, q = build_search(
                     resolved, search_date, batch, forwarding_header, is_yahoo=is_yahoo
                 )
-                queries.append(q)
+                queries.append(
+                    QuerySpec(
+                        query=q,
+                        addresses=tuple(resolved),
+                        subjects=tuple(batch),
+                        since_date=search_date,
+                        header=forwarding_header,
+                    )
+                )
 
             # _delivered sensors also search with today's date
             if (
@@ -271,7 +283,15 @@ class GenericShipper(Shipper):
                     _, q = build_search(
                         resolved, date, batch, forwarding_header, is_yahoo=is_yahoo
                     )
-                    queries.append(q)
+                    queries.append(
+                        QuerySpec(
+                            query=q,
+                            addresses=tuple(resolved),
+                            subjects=tuple(batch),
+                            since_date=date,
+                            header=forwarding_header,
+                        )
+                    )
 
         return queries
 

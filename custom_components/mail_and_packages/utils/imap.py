@@ -2,8 +2,12 @@
 
 import asyncio
 import binascii
+import datetime
+import email
 import logging
 import re
+from dataclasses import dataclass
+from email.header import decode_header
 
 import aioimaplib
 from aioimaplib import (
@@ -24,6 +28,26 @@ from homeassistant.util import ssl
 from custom_components.mail_and_packages.const import DEFAULT_IMAP_TIMEOUT
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class QuerySpec:
+    """Structured criteria for one collect_queries() entry.
+
+    `query` is the exact IMAP SEARCH string build_search() would produce --
+    kept as the search-cache key so the normal per-sensor email_search() path
+    (which builds and looks up that same string) still gets cache hits after
+    a client-side classification pass. The other fields let the batch
+    pre-fetch classify messages from one broad per-folder fetch instead of
+    running `query` itself as a real SEARCH command.
+    """
+
+    query: str
+    addresses: tuple[str, ...]
+    subjects: tuple[str, ...]
+    since_date: str
+    header: str = ""
+
 
 # Register ESEARCH command if not already present in aioimaplib
 if "ESEARCH" not in aioimaplib.Commands:
@@ -448,33 +472,6 @@ async def _execute_single_search(account: IMAP4_SSL, search_query: str) -> list[
     return all_uids
 
 
-async def _batch_search_single_folder(
-    account: IMAP4_SSL,
-    folder: str,
-    queries: list[str],
-    search_cache: dict,
-) -> None:
-    """Run pending queries against the already-selected single folder."""
-    for query in queries:
-        cache_key = (folder, query)
-        if cache_key in search_cache:
-            continue
-        await asyncio.sleep(IMAP_COMMAND_PACING)
-        try:
-            res = await account.search(query, charset=None)
-            result: list[bytes] = (
-                parse_search_response(res.lines)
-                if res.result == "OK" and res.lines
-                else []
-            )
-            search_cache[cache_key] = result
-        except TimeoutError:
-            raise
-        except (AioImapException, OSError) as err:
-            _LOGGER.debug("Batch search error (single folder): %s", err)
-            search_cache[cache_key] = []
-
-
 IMAP_COMMAND_PACING = 0.1
 """Delay between successive IMAP commands on one connection during batch pre-fetch.
 
@@ -489,9 +486,215 @@ IMAP_COMMAND_TIMEOUT = 10
 Live diagnostics against Exchange Online / outlook.office365.com showed a
 connection silently stops responding to further commands after a certain
 number have been issued, regardless of pacing between them (ruling out a
-time-based rate limit). This bounds each individual SELECT/SEARCH and
+time-based rate limit). This bounds each individual SELECT/SEARCH/FETCH and
 triggers a reconnect-and-retry instead of hanging for the whole scan budget.
 """
+
+FETCH_CHUNK_SIZE = 200
+"""Max UIDs per batched header FETCH, purely as a safety cap on command size.
+
+Not a throughput lever like the old per-query design -- one broad SEARCH plus
+a handful of these chunked FETCHes replaces what used to be one SEARCH per
+sensor query (see HANDOFF.md section 2 for why that didn't scale).
+"""
+
+_FETCH_BOUNDARY_RE = re.compile(rb"^\d+ FETCH \(")
+_UID_RE = re.compile(rb"UID (\d+)")
+_INTERNALDATE_RE = re.compile(rb'INTERNALDATE "([^"]+)"')
+
+
+def _parse_date_prefix(date_str: str) -> datetime.date | None:
+    """Parse the DD-Mon-YYYY prefix of an IMAP date string into a date object."""
+    try:
+        return datetime.datetime.strptime(date_str[:11], "%d-%b-%Y").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def _decode_mime_header(value: str) -> str:
+    """Decode a possibly MIME-encoded (RFC 2047) header value to plain text."""
+    if not value:
+        return ""
+    decoded = []
+    for part_bytes, encoding in decode_header(value):
+        if isinstance(part_bytes, bytes):
+            try:
+                decoded.append(part_bytes.decode(encoding or "utf-8", "ignore"))
+            except (LookupError, UnicodeError):
+                decoded.append(part_bytes.decode("utf-8", "ignore"))
+        else:
+            decoded.append(part_bytes)
+    return "".join(decoded)
+
+
+@dataclass
+class _FetchRecord:
+    """One message's classification-relevant fields, decoded and ready to match."""
+
+    from_header: str
+    subject: str
+    header_values: dict[str, str]
+    internal_date: datetime.date | None
+
+
+def _parse_fetch_records(lines: list) -> dict[bytes, _FetchRecord]:
+    """Parse a batched UID FETCH response into {uid: _FetchRecord}.
+
+    Each message's response starts with a line like `<seq> FETCH (UID <uid>
+    INTERNALDATE "..." BODY[HEADER.FIELDS (...)] {N}` followed by the raw
+    header bytes and a closing `)`. email.message_from_bytes() tolerates the
+    boundary/closing lines mixed in (they just yield no recognizable headers),
+    so this only needs to track which UID the in-between bytes belong to.
+    """
+    records: dict[bytes, _FetchRecord] = {}
+    current_uid: bytes | None = None
+    current_date: datetime.date | None = None
+    buffer: list[bytes] = []
+
+    def flush() -> None:
+        if current_uid is not None:
+            msg = email.message_from_bytes(b"".join(buffer))
+            from_val = _decode_mime_header(msg.get("from") or "")
+            subject_val = _decode_mime_header(msg.get("subject") or "")
+            header_values = {
+                name.lower(): _decode_mime_header(value)
+                for name, value in msg.items()
+                if name.lower() not in ("from", "subject")
+            }
+            records[current_uid] = _FetchRecord(
+                from_val, subject_val, header_values, current_date
+            )
+
+    for line in lines:
+        if not isinstance(line, (bytes, bytearray)):
+            continue
+        line = bytes(line)
+        if _FETCH_BOUNDARY_RE.match(line):
+            flush()
+            uid_match = _UID_RE.search(line)
+            current_uid = uid_match.group(1) if uid_match else None
+            date_match = _INTERNALDATE_RE.search(line)
+            current_date = (
+                _parse_date_prefix(date_match.group(1).decode()) if date_match else None
+            )
+            buffer = []
+        else:
+            buffer.append(line)
+    flush()
+    return records
+
+
+def _query_matches_record(spec: QuerySpec, record: _FetchRecord) -> bool:
+    """Check whether one fetched message matches one query's criteria.
+
+    Mirrors build_search()'s FROM/HEADER/SUBJECT/SINCE semantics (all
+    case-insensitive substring matches, SINCE by day granularity) so
+    classifying client-side produces the same matches the original per-query
+    SEARCH would have.
+    """
+    since = _parse_date_prefix(spec.since_date)
+    if since and record.internal_date and record.internal_date < since:
+        return False
+
+    from_lower = record.from_header.lower()
+    header_lower = (
+        record.header_values.get(spec.header.lower(), "").lower() if spec.header else ""
+    )
+    addr_match = any(
+        addr.lower() in from_lower or (spec.header and addr.lower() in header_lower)
+        for addr in spec.addresses
+    )
+    if not addr_match:
+        return False
+
+    if not spec.subjects:
+        return True
+    subject_lower = record.subject.lower()
+    return any(s.lower() in subject_lower for s in spec.subjects)
+
+
+async def _fetch_and_classify(
+    account: IMAP4_SSL,
+    folder: str,
+    uids: list[bytes],
+    pending: list[QuerySpec],
+    search_cache: dict,
+) -> IMAP4_SSL:
+    """FETCH headers for `uids` in chunks and classify them against `pending`.
+
+    Populates search_cache[(folder, spec.query)] for every spec in `pending`.
+    """
+    header_names = sorted({spec.header for spec in pending if spec.header})
+    fetch_fields = "FROM SUBJECT" + (
+        " " + " ".join(header_names) if header_names else ""
+    )
+    parts = f"(INTERNALDATE BODY[HEADER.FIELDS ({fetch_fields})])"
+
+    records: dict[bytes, tuple[str, str, datetime.date | None]] = {}
+    for i in range(0, len(uids), FETCH_CHUNK_SIZE):
+        chunk = uids[i : i + FETCH_CHUNK_SIZE]
+        uid_list_str = ",".join(
+            uid.decode() if isinstance(uid, bytes) else str(uid) for uid in chunk
+        )
+        await asyncio.sleep(IMAP_COMMAND_PACING)
+        try:
+            try:
+                async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                    res = await account.uid("FETCH", uid_list_str, parts)
+            except TimeoutError:
+                account = await _reconnect(account)
+                select_ok, account = await _select_with_reconnect(account, folder)
+                if not select_ok:
+                    continue
+                async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                    res = await account.uid("FETCH", uid_list_str, parts)
+
+            if res.result == "OK" and res.lines:
+                records.update(_parse_fetch_records(res.lines))
+        except TimeoutError:
+            raise
+        except (AioImapException, OSError) as err:
+            _LOGGER.debug("Batch pre-fetch FETCH error (%s): %s", folder, err)
+
+    for spec in pending:
+        matched = [
+            f"{folder}/{uid.decode()}".encode()
+            for uid, record in records.items()
+            if _query_matches_record(spec, record)
+        ]
+        search_cache[(folder, spec.query)] = matched
+
+    return account
+
+
+async def _batch_search_single_folder(
+    account: IMAP4_SSL,
+    folder: str,
+    pending: list[QuerySpec],
+    search_cache: dict,
+) -> IMAP4_SSL:
+    """Classify the already-selected single folder against all pending queries."""
+    since_dates = [d for spec in pending if (d := _parse_date_prefix(spec.since_date))]
+    since_str = min(since_dates).strftime("%d-%b-%Y") if since_dates else None
+    search_query = f"SINCE {since_str}" if since_str else "ALL"
+
+    try:
+        res = await account.search(search_query, charset=None)
+        uids = (
+            parse_search_response(res.lines) if res.result == "OK" and res.lines else []
+        )
+    except TimeoutError:
+        raise
+    except (AioImapException, OSError) as err:
+        _LOGGER.debug("Batch pre-fetch broad search error (single folder): %s", err)
+        uids = []
+
+    if not uids:
+        for spec in pending:
+            search_cache[(folder, spec.query)] = []
+        return account
+
+    return await _fetch_and_classify(account, folder, uids, pending, search_cache)
 
 
 async def _reconnect(account: IMAP4_SSL) -> IMAP4_SSL:
@@ -538,67 +741,77 @@ async def _select_with_reconnect(
 async def _batch_search_one_folder(
     account: IMAP4_SSL,
     folder: str,
-    pending: list[str],
+    pending: list[QuerySpec],
     search_cache: dict,
 ) -> IMAP4_SSL:
-    """SELECT one folder and run all pending queries against it.
+    """SELECT one folder, then classify it against all pending queries.
 
-    May reconnect the IMAP connection if a command stalls (see
-    IMAP_COMMAND_TIMEOUT) -- callers must use the returned account for
-    anything afterward, since the original connection may now be closed.
+    Replaces one SEARCH per query with one broad SEARCH (SINCE the earliest
+    date any pending query needs) plus a handful of batched header FETCHes,
+    classified client-side per query -- see HANDOFF.md section 2 for why
+    per-query SEARCHes don't scale on this provider. May reconnect the IMAP
+    connection if a command stalls (see IMAP_COMMAND_TIMEOUT) -- callers must
+    use the returned account for anything afterward.
     """
     _LOGGER.debug("Batch pre-fetch: SELECT folder %s", folder)
     select_ok, account = await _select_with_reconnect(account, folder)
     if not select_ok:
-        for q in pending:
-            search_cache[(folder, q)] = []
+        for spec in pending:
+            search_cache[(folder, spec.query)] = []
         return account
-    for i, query in enumerate(pending, start=1):
-        cache_key = (folder, query)
-        _LOGGER.debug(
-            "Batch pre-fetch: folder %s query %d/%d: %s",
-            folder,
-            i,
-            len(pending),
-            query,
-        )
-        await asyncio.sleep(IMAP_COMMAND_PACING)
+
+    since_dates = [d for spec in pending if (d := _parse_date_prefix(spec.since_date))]
+    since_str = min(since_dates).strftime("%d-%b-%Y") if since_dates else None
+    search_query = f"SINCE {since_str}" if since_str else "ALL"
+    _LOGGER.debug(
+        "Batch pre-fetch: folder %s broad search (%d quer%s) %s",
+        folder,
+        len(pending),
+        "y" if len(pending) == 1 else "ies",
+        search_query,
+    )
+
+    try:
         try:
-            try:
-                async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
-                    res = await account.uid_search(query, charset=None)
-            except TimeoutError:
-                account = await _reconnect(account)
-                select_ok, account = await _select_with_reconnect(account, folder)
-                if not select_ok:
-                    search_cache[cache_key] = []
-                    continue
-                async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
-                    res = await account.uid_search(query, charset=None)
-
-            if res.result == "OK" and res.lines:
-                parsed = parse_search_response(res.lines)
-                folder_uids: list[bytes] = [
-                    f"{folder}/{uid.decode()}".encode() for uid in parsed
-                ]
-            else:
-                folder_uids = []
+            async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                res = await account.uid_search(search_query, charset=None)
         except TimeoutError:
-            raise
-        except (AioImapException, OSError) as err:
-            _LOGGER.debug("Batch search error (%s): %s", folder, err)
-            folder_uids = []
-        search_cache[cache_key] = folder_uids
-    return account
+            account = await _reconnect(account)
+            select_ok, account = await _select_with_reconnect(account, folder)
+            if not select_ok:
+                for spec in pending:
+                    search_cache[(folder, spec.query)] = []
+                return account
+            async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                res = await account.uid_search(search_query, charset=None)
+
+        uids = (
+            parse_search_response(res.lines) if res.result == "OK" and res.lines else []
+        )
+    except TimeoutError:
+        raise
+    except (AioImapException, OSError) as err:
+        _LOGGER.debug("Batch pre-fetch broad search error (%s): %s", folder, err)
+        uids = []
+
+    if not uids:
+        for spec in pending:
+            search_cache[(folder, spec.query)] = []
+        return account
+
+    return await _fetch_and_classify(account, folder, uids, pending, search_cache)
 
 
-async def batch_search_folders(account: IMAP4_SSL, queries: list[str]) -> IMAP4_SSL:
-    """Pre-populate the search cache: SELECT each folder once, run all queries.
+async def batch_search_folders(
+    account: IMAP4_SSL, queries: list[QuerySpec]
+) -> IMAP4_SSL:
+    """Pre-populate the search cache: SELECT each folder once, classify once.
 
     This inverts the normal per-sensor → per-folder loop so that each folder
-    is SELECTed exactly once regardless of how many sensor queries need it.
-    Results are stored in the search cache and subsequent email_search /
-    _execute_single_search calls return immediately from cache.
+    needs one broad SEARCH plus a few FETCHes for the entire scan, instead of
+    one SEARCH per sensor query. Results are stored in the search cache and
+    subsequent email_search / _execute_single_search calls return immediately
+    from cache using the same query string build_search() would produce.
 
     Returns the account to use for the rest of the scan -- it may be a new
     connection object if a stalled command forced a reconnect.
@@ -607,23 +820,31 @@ async def batch_search_folders(account: IMAP4_SSL, queries: list[str]) -> IMAP4_
         return account
     folders = getattr(account, "_folders", ["INBOX"])
     search_cache = _get_search_cache(account)
-    unique_queries = list(dict.fromkeys(queries))
+    unique_specs: dict[str, QuerySpec] = {}
+    for spec in queries:
+        unique_specs.setdefault(spec.query, spec)
+    unique_queries = list(unique_specs.values())
 
     if len(folders) <= 1:
         folder = folders[0] if folders else "INBOX"
-        await _batch_search_single_folder(account, folder, unique_queries, search_cache)
+        pending = [s for s in unique_queries if (folder, s.query) not in search_cache]
+        if pending:
+            account = await _batch_search_single_folder(
+                account, folder, pending, search_cache
+            )
         return account
 
     for folder in folders:
-        pending = [q for q in unique_queries if (folder, q) not in search_cache]
+        pending = [s for s in unique_queries if (folder, s.query) not in search_cache]
         if not pending:
             continue
         t0 = asyncio.get_event_loop().time()
         account = await _batch_search_one_folder(account, folder, pending, search_cache)
         _LOGGER.debug(
-            "Batch pre-fetch: folder %s — %d queries in %.1fs",
+            "Batch pre-fetch: folder %s — %d quer%s in %.1fs",
             folder,
             len(pending),
+            "y" if len(pending) == 1 else "ies",
             asyncio.get_event_loop().time() - t0,
         )
     return account
