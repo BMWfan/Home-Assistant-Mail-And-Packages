@@ -478,13 +478,61 @@ async def _batch_search_single_folder(
 IMAP_COMMAND_PACING = 0.1
 """Delay between successive IMAP commands on one connection during batch pre-fetch.
 
-Some IMAP providers (observed with Exchange Online / outlook.office365.com)
-silently stall a command once enough commands have been issued on one
-connection in a short burst, rather than returning an error — a single
-pre-fetch scan issuing dozens of SEARCHes back-to-back with no gap between
-them can trip this and hang indefinitely. Spacing commands out keeps the
-burst rate below whatever threshold triggers it.
+Verified NOT to be the root cause of the stall below (a live test with this
+pacing active stalled at the identical command position as without it), but
+left in place as cheap insurance against separate rate-based throttling.
 """
+
+IMAP_COMMAND_TIMEOUT = 10
+"""Per-command timeout during batch pre-fetch, before assuming a stall.
+
+Live diagnostics against Exchange Online / outlook.office365.com showed a
+connection silently stops responding to further commands after a certain
+number have been issued, regardless of pacing between them (ruling out a
+time-based rate limit). This bounds each individual SELECT/SEARCH and
+triggers a reconnect-and-retry instead of hanging for the whole scan budget.
+"""
+
+
+async def _reconnect(account: IMAP4_SSL) -> IMAP4_SSL:
+    """Close a stalled connection and open a fresh one for the same mailbox.
+
+    Preserves the folder list and accumulated search cache across the
+    reconnect. Requires _login_kwargs/_hass to have been stashed on the
+    account by the caller at initial login time.
+    """
+    login_kwargs = getattr(account, "_login_kwargs", None)
+    if not login_kwargs:
+        raise AioImapException("Cannot reconnect: no stored login parameters")
+    hass = getattr(account, "_hass", None)
+    folders = getattr(account, "_folders", ["INBOX"])
+    search_cache = getattr(account, "_search_cache", {})
+
+    _LOGGER.warning(
+        "Batch pre-fetch: IMAP connection stalled past %ss, reconnecting",
+        IMAP_COMMAND_TIMEOUT,
+    )
+    await logout(account)
+    new_account = await login(hass, **login_kwargs)
+    new_account._folders = folders  # noqa: SLF001
+    new_account._search_cache = search_cache  # noqa: SLF001
+    new_account._login_kwargs = login_kwargs  # noqa: SLF001
+    new_account._hass = hass  # noqa: SLF001
+    new_account._current_folder = None  # noqa: SLF001
+    return new_account
+
+
+async def _select_with_reconnect(
+    account: IMAP4_SSL, folder: str
+) -> tuple[bool, IMAP4_SSL]:
+    """SELECT a folder, reconnecting once and retrying if it stalls."""
+    try:
+        async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+            return await selectfolder(account, folder), account
+    except TimeoutError:
+        account = await _reconnect(account)
+        async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+            return await selectfolder(account, folder), account
 
 
 async def _batch_search_one_folder(
@@ -492,14 +540,19 @@ async def _batch_search_one_folder(
     folder: str,
     pending: list[str],
     search_cache: dict,
-) -> None:
-    """SELECT one folder and run all pending queries against it."""
+) -> IMAP4_SSL:
+    """SELECT one folder and run all pending queries against it.
+
+    May reconnect the IMAP connection if a command stalls (see
+    IMAP_COMMAND_TIMEOUT) -- callers must use the returned account for
+    anything afterward, since the original connection may now be closed.
+    """
     _LOGGER.debug("Batch pre-fetch: SELECT folder %s", folder)
-    select_ok = await selectfolder(account, folder)
+    select_ok, account = await _select_with_reconnect(account, folder)
     if not select_ok:
         for q in pending:
             search_cache[(folder, q)] = []
-        return
+        return account
     for i, query in enumerate(pending, start=1):
         cache_key = (folder, query)
         _LOGGER.debug(
@@ -511,7 +564,18 @@ async def _batch_search_one_folder(
         )
         await asyncio.sleep(IMAP_COMMAND_PACING)
         try:
-            res = await account.uid_search(query, charset=None)
+            try:
+                async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                    res = await account.uid_search(query, charset=None)
+            except TimeoutError:
+                account = await _reconnect(account)
+                select_ok, account = await _select_with_reconnect(account, folder)
+                if not select_ok:
+                    search_cache[cache_key] = []
+                    continue
+                async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                    res = await account.uid_search(query, charset=None)
+
             if res.result == "OK" and res.lines:
                 parsed = parse_search_response(res.lines)
                 folder_uids: list[bytes] = [
@@ -525,18 +589,22 @@ async def _batch_search_one_folder(
             _LOGGER.debug("Batch search error (%s): %s", folder, err)
             folder_uids = []
         search_cache[cache_key] = folder_uids
+    return account
 
 
-async def batch_search_folders(account: IMAP4_SSL, queries: list[str]) -> None:
+async def batch_search_folders(account: IMAP4_SSL, queries: list[str]) -> IMAP4_SSL:
     """Pre-populate the search cache: SELECT each folder once, run all queries.
 
     This inverts the normal per-sensor → per-folder loop so that each folder
     is SELECTed exactly once regardless of how many sensor queries need it.
     Results are stored in the search cache and subsequent email_search /
     _execute_single_search calls return immediately from cache.
+
+    Returns the account to use for the rest of the scan -- it may be a new
+    connection object if a stalled command forced a reconnect.
     """
     if not queries:
-        return
+        return account
     folders = getattr(account, "_folders", ["INBOX"])
     search_cache = _get_search_cache(account)
     unique_queries = list(dict.fromkeys(queries))
@@ -544,20 +612,21 @@ async def batch_search_folders(account: IMAP4_SSL, queries: list[str]) -> None:
     if len(folders) <= 1:
         folder = folders[0] if folders else "INBOX"
         await _batch_search_single_folder(account, folder, unique_queries, search_cache)
-        return
+        return account
 
     for folder in folders:
         pending = [q for q in unique_queries if (folder, q) not in search_cache]
         if not pending:
             continue
         t0 = asyncio.get_event_loop().time()
-        await _batch_search_one_folder(account, folder, pending, search_cache)
+        account = await _batch_search_one_folder(account, folder, pending, search_cache)
         _LOGGER.debug(
             "Batch pre-fetch: folder %s — %d queries in %.1fs",
             folder,
             len(pending),
             asyncio.get_event_loop().time() - t0,
         )
+    return account
 
 
 async def email_search(  # noqa: C901

@@ -15,6 +15,7 @@ from custom_components.mail_and_packages.utils.email import (
 )
 from custom_components.mail_and_packages.utils.imap import (
     InvalidAuth,
+    _batch_search_one_folder,
     _execute_single_search,
     _parse_esearch_line,
     build_search,
@@ -769,6 +770,68 @@ async def test_logout_hang_bounded_by_own_timeout(caplog, monkeypatch):
 
     assert elapsed < 1
     assert "Error logging out of IMAP Server" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_batch_search_reconnects_on_stalled_command(monkeypatch):
+    """A stalled uid_search must trigger a reconnect-and-retry, not a hang.
+
+    Live diagnostics against Exchange Online showed a connection silently
+    stops responding to further commands after enough have been issued,
+    regardless of pacing (ruled out separately). _batch_search_one_folder
+    must detect this via IMAP_COMMAND_TIMEOUT, open a fresh connection,
+    re-select the folder, and retry the same query -- returning the new
+    account so the caller doesn't keep using the dead one.
+    """
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_TIMEOUT", 0.2)
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_PACING", 0)
+
+    stale_account = MagicMock()
+    stale_account._login_kwargs = {"host": "imap.example.com"}
+    stale_account._hass = None
+    stale_account._current_folder = "INBOX"
+
+    fresh_account = MagicMock()
+    fresh_account._current_folder = None
+
+    async def hang_forever(*args, **kwargs):
+        await asyncio.sleep(60)
+
+    stale_account.uid_search = AsyncMock(side_effect=hang_forever)
+    ok_result = MagicMock(result="OK", lines=[b"SEARCH 101 102"])
+    fresh_account.uid_search = AsyncMock(return_value=ok_result)
+
+    logout_calls = []
+    login_calls = []
+
+    async def fake_logout(account):
+        logout_calls.append(account)
+
+    async def fake_selectfolder(account, folder):
+        account._current_folder = folder
+        return True
+
+    async def fake_login(hass, **kwargs):
+        login_calls.append(kwargs)
+        return fresh_account
+
+    monkeypatch.setattr(imap_module, "logout", fake_logout)
+    monkeypatch.setattr(imap_module, "selectfolder", fake_selectfolder)
+    monkeypatch.setattr(imap_module, "login", fake_login)
+
+    search_cache = {}
+    start = asyncio.get_event_loop().time()
+    result_account = await _batch_search_one_folder(
+        stale_account, "INBOX", ["query1"], search_cache
+    )
+    elapsed = asyncio.get_event_loop().time() - start
+
+    assert elapsed < 2, f"took too long: {elapsed:.2f}s"
+    assert result_account is fresh_account
+    assert logout_calls == [stale_account]
+    assert len(login_calls) == 1
+    assert search_cache[("INBOX", "query1")] == [b"INBOX/101", b"INBOX/102"]
+    assert fresh_account._current_folder == "INBOX"
 
 
 def test_build_search_list_subject():

@@ -190,7 +190,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 self._tracking_loaded = True
 
             # Process logic
-            shipper_data = await self._update_shippers(
+            shipper_data, account = await self._update_shippers(
                 account, config, today, since_date, cache
             )
             # When a 17track API key is configured, use only the status data
@@ -281,6 +281,22 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error logging into IMAP: %s", err)
             raise UpdateFailed(f"Login failed: {err}") from err
 
+        # Stashed so utils.imap can transparently reconnect if a command
+        # stalls mid-scan (observed against Exchange Online: a connection
+        # stops responding to further commands after enough have been
+        # issued, regardless of pacing between them).
+        account._login_kwargs = {  # noqa: SLF001
+            "host": config.get(CONF_HOST),
+            "port": config.get(CONF_PORT),
+            "user": config.get(CONF_USERNAME),
+            "pwd": config.get(CONF_PASSWORD),
+            "security": config.get(CONF_IMAP_SECURITY),
+            "verify": config.get(CONF_VERIFY_SSL),
+            "oauth_token": config.get("oauth_token"),
+            "timeout": self.timeout,
+        }
+        account._hass = self.hass  # noqa: SLF001
+
         folders = config.get(CONF_FOLDER)
         if not folders:
             folders = ["INBOX"]
@@ -315,12 +331,15 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         sensors_by_shipper: dict,
         today: str,
         since_date: str,
-    ) -> None:
+    ) -> IMAP4_SSL:
         """Collect all IMAP queries from all shippers and batch-execute per folder.
 
         This ensures each IMAP folder is SELECTed exactly once for the entire
         scan instead of once per sensor, cutting SELECT round-trips from
         N_sensors × N_folders down to N_folders.
+
+        Returns the account to use for the rest of the scan -- batch_search_folders
+        may return a new connection object if a stalled command forced a reconnect.
         """
         all_queries: list[str] = []
         for shipper_group in sensors_by_shipper.values():
@@ -347,13 +366,14 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 len(all_queries),
             )
             prefetch_start = monotonic()
-            await batch_search_folders(account, all_queries)
+            account = await batch_search_folders(account, all_queries)
             _LOGGER.debug(
                 "Pre-fetch complete in %.1fs (%d SELECTs + up to %d SEARCHes)",
                 monotonic() - prefetch_start,
                 n_folders,
                 n_unique * n_folders,
             )
+        return account
 
     async def _update_shippers(
         self,
@@ -362,8 +382,13 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         today: str,
         since_date: str,
         cache: EmailCache,
-    ) -> dict:
-        """Group and process sensors by shipper."""
+    ) -> tuple[dict, IMAP4_SSL]:
+        """Group and process sensors by shipper.
+
+        Returns (data, account) -- the account may be a new connection object
+        if pre-fetch had to reconnect after a stalled command; the cache is
+        re-pointed at it so subsequent fetches don't use the dead connection.
+        """
         data = {}
         amazon_enabled = config.get(const.CONF_AMAZON_ENABLED, False)
         sensors_by_shipper: dict[str, list[tuple]] = {}
@@ -377,9 +402,10 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                     (shipper, sensor)
                 )
 
-        await self._prefetch_imap_searches(
+        account = await self._prefetch_imap_searches(
             account, sensors_by_shipper, today, since_date
         )
+        cache.account = account
 
         for shipper_name, shipper_group in sensors_by_shipper.items():
             shipper_instance = shipper_group[0][0]
@@ -404,7 +430,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                     monotonic() - shipper_start,
                 )
 
-        return data
+        return data, account
 
     def _apply_tracking_state(
         self,
