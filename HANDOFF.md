@@ -1,7 +1,7 @@
 # Handoff – Mail and Packages (branch `test/all-features`)
 
 Stand: 2026-07-02 (aktualisiert)  
-Aktuelles Release: **v0.5.4-test16** (prerelease auf GitHub)
+Aktuelles Release: **v0.5.4-test17** (prerelease auf GitHub)
 
 ---
 
@@ -116,6 +116,21 @@ Query 39 wird in allen drei Läufen noch geloggt, Query 41 nie – der `uid_sear
 
 **Konsequenz:** Der Hänger-Bug ist behoben (kein permanentes Einfrieren mehr), aber `imap_timeout` muss jetzt zwingend deutlich höher gesetzt werden (z. B. 480-600s), damit ein Scan überhaupt durchlaufen kann – das lässt sich nicht automatisiert setzen (kein Options-Flow, nur mehrstufiger Reconfigure-Dialog mit Zugangsdaten, siehe unten). Alternativ bleibt Option B (Befehlsvolumen fundamental senken statt nur den Hänger zu umschiffen) weiterhin die Option mit dem größten Hebel auf die tatsächliche Scan-Dauer.
 
+### ✅ Option B umgesetzt (test17, Commit `d7a7340`, 2026-07-02)
+
+Statt einer echten `SEARCH`-Anfrage pro Query (bis zu 93 pro Ordner) macht `batch_search_folders` pro Ordner jetzt nur noch:
+1. **Eine breite** `SEARCH SINCE <frühestes benötigtes Datum>` über alle anstehenden Queries dieses Ordners.
+2. **Ein paar gebündelte** `UID FETCH ... (INTERNALDATE BODY[HEADER.FIELDS (FROM SUBJECT ...)])` für die gefundenen UIDs (in Chunks von 200 als reine Sicherheitsgrenze, kein Skalierungshebel).
+3. **Client-seitiges Klassifizieren** jeder Nachricht gegen die Kriterien jeder einzelnen Query (From/Subject/Header-Substring-Matches wie `build_search()`, SINCE mit Tagesgranularität über `INTERNALDATE` – nicht über den fälschungsanfälligen `Date:`-Header).
+
+**Wichtige Design-Entscheidung:** `GenericShipper.collect_queries()` gibt jetzt `QuerySpec`-Objekte zurück (Adressen, Betreffs, since_date, Forwarding-Header) statt fertiger Query-Strings. Das `query`-Feld jedes `QuerySpec` enthält aber weiterhin exakt den String, den `build_search()` produzieren würde – das ist der Cache-Key, den der normale Pro-Sensor-Suchpfad (`email_search()`) unverändert selbst baut und nachschlägt. Dadurch bleiben Cache-Hits nach dem Pre-Fetch erhalten, ohne den bestehenden Suchpfad anfassen zu müssen.
+
+**Jede Query behält ihr eigenes `since_date`**, auch wenn die breite Suche das früheste Datum über alle Queries hinweg nutzt – eine Nachricht, die inhaltlich zu einer Query passt, aber vor deren `since_date` liegt, wird beim Klassifizieren korrekt ausgeschlossen (per Test abgesichert, siehe unten).
+
+**Verifiziert per Standalone-Skript** (reale Testsuite weiterhin kaputt, siehe Abschnitt 5): simulierte, realistische Mehrfach-Nachrichten-FETCH-Antworten von aioimaplib (inkl. MIME-kodierter Betreffs), Klassifizierung korrekt, nur 1 SEARCH + 1 FETCH für 2 Queries (statt 2 SEARCHes), Reconnect-Schutz (test16) funktioniert unverändert auch um die neue breite Suche/FETCH herum. Auch als echte Tests in `tests/utils/test_imap_email.py` committet.
+
+**Noch zu verifizieren:** Live-Test nach Installation – reduziert das die Scan-Zeit tatsächlich auf wenige Sekunden pro Ordner (Ziel: alle 14 Ordner deutlich unter 60s)?
+
 ---
 
 ## 3. Nächste Schritte
@@ -202,6 +217,8 @@ gh release create v0.5.4-testN mail_and_packages.zip --repo BMWfan/Home-Assistan
 | `utils/imap.py` | `logout()` kappt LOGOUT jetzt mit eigenem `LOGOUT_TIMEOUT` (5s) statt dem vollen Scan-Budget zu erben (test13, siehe Abschnitt 2) |
 | `utils/imap.py` | `IMAP_COMMAND_PACING`, `IMAP_COMMAND_TIMEOUT`, `_reconnect()`, `_select_with_reconnect()`; `_batch_search_one_folder`/`batch_search_folders` geben jetzt die (ggf. neue) Connection zurück (test15/test16, siehe Abschnitt 2) |
 | `coordinator.py` | `_get_imap_connection` speichert `_login_kwargs`/`_hass` auf dem `account`-Objekt; `_prefetch_imap_searches`/`_update_shippers`/`process_emails` reichen die (ggf. neue) Connection durch bis zum finalen `logout()` (test16) |
+| `utils/imap.py` | `QuerySpec`, `_parse_fetch_records`, `_query_matches_record`, `_fetch_and_classify`; `batch_search_folders`/`_batch_search_one_folder`/`_batch_search_single_folder` machen jetzt 1 breite SEARCH + gebündelte FETCHes statt 1 SEARCH pro Query (test17, Option B, siehe Abschnitt 2) |
+| `shippers/generic.py` | `collect_queries()` gibt `list[QuerySpec]` statt `list[str]` zurück (test17) |
 
 ---
 
