@@ -51,7 +51,7 @@ from .shippers import get_shipper_for_sensor
 from .shippers.dhl_briefankundigung import DHLBriefankundigungClient
 from .utils.cache import EmailCache
 from .utils.image import default_image_path, hash_file, image_file_name
-from .utils.imap import InvalidAuth, login, logout, selectfolder
+from .utils.imap import InvalidAuth, batch_search_folders, login, logout, selectfolder
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -309,6 +309,42 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
         return account
 
+    async def _prefetch_imap_searches(
+        self,
+        account: IMAP4_SSL,
+        sensors_by_shipper: dict,
+        today: str,
+        since_date: str,
+    ) -> None:
+        """Collect all IMAP queries from all shippers and batch-execute per folder.
+
+        This ensures each IMAP folder is SELECTed exactly once for the entire
+        scan instead of once per sensor, cutting SELECT round-trips from
+        N_sensors × N_folders down to N_folders.
+        """
+        all_queries: list[str] = []
+        for shipper_group in sensors_by_shipper.values():
+            shipper_instance = shipper_group[0][0]
+            sensors = [s[1] for s in shipper_group]
+            if hasattr(shipper_instance, "collect_queries"):
+                try:
+                    all_queries.extend(
+                        shipper_instance.collect_queries(
+                            account, today, sensors, since_date
+                        )
+                    )
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Could not collect queries for pre-fetch: %s", err)
+
+        if all_queries:
+            n_folders = len(getattr(account, "_folders", ["INBOX"]))
+            _LOGGER.debug(
+                "Pre-fetching %d unique queries across %d folder(s)",
+                len(set(all_queries)),
+                n_folders,
+            )
+            await batch_search_folders(account, all_queries)
+
     async def _update_shippers(
         self,
         account: IMAP4_SSL,
@@ -320,7 +356,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         """Group and process sensors by shipper."""
         data = {}
         amazon_enabled = config.get(const.CONF_AMAZON_ENABLED, False)
-        sensors_by_shipper = {}
+        sensors_by_shipper: dict[str, list[tuple]] = {}
 
         for sensor in const.SENSOR_TYPES:
             if not amazon_enabled and sensor.startswith("amazon_"):
@@ -330,6 +366,10 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 sensors_by_shipper.setdefault(shipper.name, []).append(
                     (shipper, sensor)
                 )
+
+        await self._prefetch_imap_searches(
+            account, sensors_by_shipper, today, since_date
+        )
 
         for shipper_name, shipper_group in sensors_by_shipper.items():
             shipper_instance = shipper_group[0][0]

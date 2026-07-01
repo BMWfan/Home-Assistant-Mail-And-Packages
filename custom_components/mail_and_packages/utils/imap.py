@@ -448,6 +448,89 @@ async def _execute_single_search(account: IMAP4_SSL, search_query: str) -> list[
     return all_uids
 
 
+async def _batch_search_single_folder(
+    account: IMAP4_SSL,
+    folder: str,
+    queries: list[str],
+    search_cache: dict,
+) -> None:
+    """Run pending queries against the already-selected single folder."""
+    for query in queries:
+        cache_key = (folder, query)
+        if cache_key in search_cache:
+            continue
+        try:
+            res = await account.search(query, charset=None)
+            result: list[bytes] = (
+                parse_search_response(res.lines)
+                if res.result == "OK" and res.lines
+                else []
+            )
+            search_cache[cache_key] = result
+        except TimeoutError:
+            raise
+        except (AioImapException, OSError) as err:
+            _LOGGER.debug("Batch search error (single folder): %s", err)
+            search_cache[cache_key] = []
+
+
+async def _batch_search_one_folder(
+    account: IMAP4_SSL,
+    folder: str,
+    pending: list[str],
+    search_cache: dict,
+) -> None:
+    """SELECT one folder and run all pending queries against it."""
+    select_ok = await selectfolder(account, folder)
+    if not select_ok:
+        for q in pending:
+            search_cache[(folder, q)] = []
+        return
+    for query in pending:
+        cache_key = (folder, query)
+        try:
+            res = await account.uid_search(query, charset=None)
+            if res.result == "OK" and res.lines:
+                parsed = parse_search_response(res.lines)
+                folder_uids: list[bytes] = [
+                    f"{folder}/{uid.decode()}".encode() for uid in parsed
+                ]
+            else:
+                folder_uids = []
+        except TimeoutError:
+            raise
+        except (AioImapException, OSError) as err:
+            _LOGGER.debug("Batch search error (%s): %s", folder, err)
+            folder_uids = []
+        search_cache[cache_key] = folder_uids
+
+
+async def batch_search_folders(account: IMAP4_SSL, queries: list[str]) -> None:
+    """Pre-populate the search cache: SELECT each folder once, run all queries.
+
+    This inverts the normal per-sensor → per-folder loop so that each folder
+    is SELECTed exactly once regardless of how many sensor queries need it.
+    Results are stored in the search cache and subsequent email_search /
+    _execute_single_search calls return immediately from cache.
+    """
+    if not queries:
+        return
+    folders = getattr(account, "_folders", ["INBOX"])
+    search_cache = _get_search_cache(account)
+    unique_queries = list(dict.fromkeys(queries))
+
+    if len(folders) <= 1:
+        folder = folders[0] if folders else "INBOX"
+        await _batch_search_single_folder(account, folder, unique_queries, search_cache)
+        return
+
+    for folder in folders:
+        pending = [q for q in unique_queries if (folder, q) not in search_cache]
+        if not pending:
+            continue
+        await _batch_search_one_folder(account, folder, pending, search_cache)
+
+
 async def email_search(  # noqa: C901
     account: IMAP4_SSL,
     address: list,

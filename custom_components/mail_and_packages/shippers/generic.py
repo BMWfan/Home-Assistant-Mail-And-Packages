@@ -30,6 +30,7 @@ from custom_components.mail_and_packages.const import (
 from custom_components.mail_and_packages.utils.cache import EmailCache
 from custom_components.mail_and_packages.utils.email import find_text, find_text_matches
 from custom_components.mail_and_packages.utils.imap import (
+    build_search,
     email_fetch,
     email_fetch_headers,
     email_search,
@@ -201,6 +202,78 @@ class GenericShipper(Shipper):
         if forwarded_emails:
             email_addresses = forwarded_emails + email_addresses
         return forwarding_header, email_addresses
+
+    def collect_queries(
+        self,
+        account: IMAP4_SSL,
+        date: str,
+        sensors: list[str],
+        since_date: str | None = None,
+    ) -> list[str]:
+        """Return all IMAP search query strings for sensors without executing them.
+
+        Called by the coordinator to pre-populate the search cache via
+        batch_search_folders so that each IMAP folder is SELECTed only once
+        for all sensors combined.
+        """
+        is_yahoo = False
+        if hasattr(account, "host") and isinstance(account.host, str):
+            host_lower = account.host.lower()
+            is_yahoo = "yahoo" in host_lower or "aol" in host_lower
+
+        queries: list[str] = []
+        for sensor_type in sensors:
+            cfg = SENSOR_DATA.get(sensor_type, {})
+            email_addresses = cfg.get(ATTR_EMAIL, [])
+            subjects = cfg.get(ATTR_SUBJECT, [])
+            if (
+                sensor_type.endswith("_packages")
+                and not email_addresses
+                and not subjects
+            ):
+                continue
+
+            _, resolved = self._resolve_forwarding(email_addresses)
+            forwarding_header = self.config.get(CONF_FORWARDING_HEADER, "")
+            if not forwarding_header or forwarding_header == "(none)":
+                forwarding_header = ""
+
+            search_date = date
+            if (
+                since_date
+                and sensor_type.endswith(
+                    ("_delivering", "_exception", "_delivered", "_packages")
+                )
+                and sensor_type != "post_de_delivering"
+            ):
+                search_date = since_date
+
+            subject_list = (
+                subjects
+                if isinstance(subjects, list)
+                else ([subjects] if subjects else [])
+            )
+            for i in range(0, max(len(subject_list), 1), 10):
+                batch = subject_list[i : i + 10]
+                _, q = build_search(
+                    resolved, search_date, batch, forwarding_header, is_yahoo=is_yahoo
+                )
+                queries.append(q)
+
+            # _delivered sensors also search with today's date
+            if (
+                sensor_type.endswith("_delivered")
+                and since_date
+                and search_date != date
+            ):
+                for i in range(0, max(len(subject_list), 1), 10):
+                    batch = subject_list[i : i + 10]
+                    _, q = build_search(
+                        resolved, date, batch, forwarding_header, is_yahoo=is_yahoo
+                    )
+                    queries.append(q)
+
+        return queries
 
     async def process_batch(
         self,
