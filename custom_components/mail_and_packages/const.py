@@ -1689,15 +1689,15 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         icon="mdi:package-variant-closed",
         key="bolcom_packages",
     ),
-    # DHL Briefankündigung
+    # DHL Letter Preview
     "dhl_brief_anzahl": SensorEntityDescription(
-        name="DHL Briefankündigung",
+        name="DHL Letter Preview",
         native_unit_of_measurement="piece(s)",
         icon="mdi:email-open",
         key="dhl_brief_anzahl",
     ),
     "dhl_brief_naechster": SensorEntityDescription(
-        name="DHL Brief Nächste Lieferung",
+        name="DHL Letter Next Delivery",
         icon="mdi:calendar",
         key="dhl_brief_naechster",
         device_class=SensorDeviceClass.DATE,

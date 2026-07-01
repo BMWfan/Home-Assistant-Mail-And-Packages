@@ -56,7 +56,7 @@
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
           "amazon_enabled": "Enable Amazon package sensors",
           "seventeen_track_api_key": "17track.net API key (optional)",
-          "dhl_brief_enabled": "Enable DHL Briefankündigung (letter preview)"
+          "dhl_brief_enabled": "Enable DHL letter preview"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster."
@@ -130,7 +130,7 @@
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
           "amazon_enabled": "Enable Amazon package sensors",
           "seventeen_track_api_key": "17track.net API key (optional)",
-          "dhl_brief_enabled": "Enable DHL Briefankündigung (letter preview)"
+          "dhl_brief_enabled": "Enable DHL letter preview"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster."
@@ -167,10 +167,10 @@
       },
       "config_dhl_brief_auth": {
         "data": {
-          "dhl_brief_code": "DHL Autorisierungscode"
+          "dhl_brief_code": "Authorization Code"
         },
-        "description": "**DHL Briefankündigung – Login**\n\n1. Öffne den folgenden Link und melde dich mit deinem DHL-Konto an:\n\n`{auth_url}`\n\n2. Nach dem Login wird dein Browser zu einer URL weitergeleitet, die mit `dhllogin://` beginnt. Kopiere den Wert des Parameters `code=...` aus dieser URL.\n\n3. Füge den kopierten Code unten ein und klicke auf „Weiter".",
-        "title": "DHL Briefankündigung"
+        "description": "**DHL Letter Preview – Login**\n\n1. Open the following link and sign in with your DHL account:\n\n`{auth_url}`\n\n2. After login your browser will be redirected to a URL starting with `dhllogin://`. Copy the value of the `code=...` parameter from that URL.\n\n3. Paste the copied code below and click Submit.",
+        "title": "DHL Letter Preview"
       },
       "reconfig_storage": {
         "data": {
@@ -181,10 +181,10 @@
       },
       "reconfig_dhl_brief_auth": {
         "data": {
-          "dhl_brief_code": "DHL Autorisierungscode"
+          "dhl_brief_code": "Authorization Code"
         },
-        "description": "**DHL Briefankündigung – Login erneuern**\n\n1. Öffne den folgenden Link und melde dich mit deinem DHL-Konto an:\n\n`{auth_url}`\n\n2. Nach dem Login wird dein Browser zu einer URL weitergeleitet, die mit `dhllogin://` beginnt. Kopiere den Wert des Parameters `code=...` aus dieser URL.\n\n3. Füge den kopierten Code unten ein und klicke auf „Weiter".",
-        "title": "DHL Briefankündigung"
+        "description": "**DHL Letter Preview – Renew Login**\n\n1. Open the following link and sign in with your DHL account:\n\n`{auth_url}`\n\n2. After login your browser will be redirected to a URL starting with `dhllogin://`. Copy the value of the `code=...` parameter from that URL.\n\n3. Paste the copied code below and click Submit.",
+        "title": "DHL Letter Preview"
       },
       "reconfig_forwarded_emails": {
         "data": {

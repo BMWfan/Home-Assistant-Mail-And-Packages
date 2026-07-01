@@ -670,7 +670,7 @@ class DhlBriefCamera(CoordinatorEntity, Camera):
         self._config = config
         self._host = config.data.get(CONF_HOST)
         self._unique_id = config.entry_id
-        self._attr_name = "DHL Briefankündigung Vorschau"
+        self._attr_name = "DHL Letter Preview"
         self._attr_unique_id = f"camera_{self._host}_dhl_brief_{self._unique_id}"
         self._file_path: str | None = None
 
