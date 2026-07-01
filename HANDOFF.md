@@ -110,27 +110,33 @@ Der Code hat bereits einen ESEARCH-Pfad (`_execute_single_search` → Zeile ~391
 
 ### 3c. Test-Release erstellen
 
-Wenn weitere Änderungen nötig: `v0.5.4-test13`, gleicher Ablauf:
+**⚠️ Zip-Struktur-Bug (gefunden und gefixt bei test13):** `hacs.json` setzt `"zip_release": true, "filename": "mail_and_packages.zip"` — HACS lädt bei dieser Konfiguration **genau dieses Release-Asset** herunter und entpackt es so, dass der Inhalt direkt im Zip-Root liegen muss (`manifest.json`, `__init__.py`, … auf oberster Ebene), NICHT unter `custom_components/mail_and_packages/`. Die alte Build-Anleitung unten (und der committete Zip bis einschließlich test13-Erstversion) hatte die Dateien fälschlich unter dem vollen Pfad `custom_components/mail_and_packages/...` – das führte dazu, dass ein HACS-`download` zwar "erfolgreich" meldete, HA danach aber `Setup failed for 'mail_and_packages': Integration not found.` loggte, weil kein `manifest.json` im erwarteten Wurzelverzeichnis lag. Vermutlich war dieser Bug schon in test1–test12 vorhanden, ist aber nie aufgefallen, weil HACS dort nie tatsächlich per `download`-Aktion gegen den zip-Release lief.
+
+Korrigierter Build-Befehl (Dateien relativ zu `custom_components/mail_and_packages/`, nicht mit vollem Pfad):
 
 ```bash
 # Code ändern
 ruff check . && ruff format .
 python3 -c "
 import zipfile, os
+base = 'custom_components/mail_and_packages'
 with zipfile.ZipFile('mail_and_packages.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
-    for root, dirs, files in os.walk('custom_components/mail_and_packages'):
+    for root, dirs, files in os.walk(base):
         dirs[:] = [d for d in dirs if d != '__pycache__']
         for file in files:
-            if not file.endswith('.pyc'): zf.write(os.path.join(root, file))
+            if file.endswith('.pyc'):
+                continue
+            full = os.path.join(root, file)
+            zf.write(full, os.path.relpath(full, base))
 "
 git add custom_components/mail_and_packages/ mail_and_packages.zip
 git commit -m "..."
 git push origin test/all-features
-git tag v0.5.4-test13 && git push origin v0.5.4-test13
-# Release auf GitHub: über Web-UI oder gh CLI anlegen und zip hochladen
+git tag v0.5.4-testN && git push origin v0.5.4-testN
+gh release create v0.5.4-testN mail_and_packages.zip --repo BMWfan/Home-Assistant-Mail-And-Packages --prerelease --notes "..."
 ```
 
-**test13 Status:** ✅ erstellt (Fix-Commit `ae2c695`, Tag `v0.5.4-test13`, Prerelease auf GitHub). Enthält nur den LOGOUT-Timeout-Fix aus Abschnitt 2, sonst identisch zu test12.
+**test13 Status:** ✅ erstellt (Fix-Commit `ae2c695`, Tag `v0.5.4-test13`, Prerelease auf GitHub). Enthält den LOGOUT-Timeout-Fix aus Abschnitt 2. Der Zip-Struktur-Bug wurde direkt in derselben Session entdeckt (HACS-Install brach danach mit "Integration not found" ab) und mit einem korrigierten, neu hochgeladenen Zip behoben — siehe Warnung oben.
 
 ---
 
