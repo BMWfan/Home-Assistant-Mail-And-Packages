@@ -1,7 +1,7 @@
 # Handoff – Mail and Packages (branch `test/all-features`)
 
-Stand: 2026-07-01 (aktualisiert)  
-Aktuelles Release: **v0.5.4-test13** (prerelease auf GitHub)
+Stand: 2026-07-02 (aktualisiert)  
+Aktuelles Release: **v0.5.4-test16** (prerelease auf GitHub)
 
 ---
 
@@ -106,6 +106,16 @@ Query 39 wird in allen drei Läufen noch geloggt, Query 41 nie – der `uid_sear
 
 **Nächster Kandidat: periodischer Reconnect.** Alle ~30 Befehle (oder bei einem kurzen Command-Timeout, z. B. 10s) die IMAP-Verbindung schließen und neu aufbauen (frisches Login), dann mit der nächsten Query weitermachen. Das würde die exakte Such-Semantik unangetastet lassen (kein Risiko wie bei Option B), erfordert aber eine invasivere Änderung: `batch_search_folders`/`_batch_search_one_folder` müssten die (ggf. neue) Connection zurückgeben, und `coordinator.py` müsste sie durch `_prefetch_imap_searches` → `_update_shippers` → `process_emails` (inkl. des finalen `logout()` im `finally`-Block) durchreichen, damit der Rest des Scans nicht mit einer toten Connection weiterläuft. Nicht implementiert – das ist ein echter Architektur-Eingriff über zwei Dateien hinweg, noch keine Freigabe.
 
+### ✅ Reconnect-Fix umgesetzt und live bestätigt (test16, Commit `33eda65`, 2026-07-02 01:09–01:14)
+
+`IMAP_COMMAND_TIMEOUT = 10` in [utils/imap.py](custom_components/mail_and_packages/utils/imap.py): jeder SELECT/SEARCH wird einzeln mit 10s begrenzt. Bei Stall: Verbindung schließen, neu einloggen (Login-Parameter werden beim initialen Login auf dem `account`-Objekt gespeichert), aktuellen Ordner neu selecten, dieselbe Query einmal erneut versuchen. Da sich das Connection-Objekt dabei ändern kann, geben `batch_search_folders`/`_prefetch_imap_searches` es jetzt zurück, und `coordinator.py` (`_update_shippers`, `process_emails`, inkl. `EmailCache` und finalem `logout()`) reicht es durch.
+
+**Live-Verifikation nach Neustart:** In derselben Sitzung feuerten **7 Reconnects** (`Batch pre-fetch: IMAP connection stalled past 10s, reconnecting`), und der Scan kam dadurch erstmals **über Ordner INBOX hinaus** – bis in einen Unterordner (`INBOX/Online-Shops/ABOUT YOU`). Vorher war bei JEDEM Versuch bei Query 40 im ALLERERSTEN Ordner endgültig Schluss. Der Reconnect-Mechanismus funktioniert also nachweislich.
+
+**Aber:** Jeder einzelne Scan-Versuch bricht weiterhin bei exakt **65,0s** ab (`scan exceeded its 60s time budget`) – nicht mehr wegen eines permanenten Hängers, sondern weil die **Gesamtmenge an Arbeit** (bis zu 93 Queries × 14 Ordner = 1.302 Befehle, plus ein Reconnect-Zyklus alle ~40 Befehle à ca. 10-15s inkl. Stall-Erkennung) schlicht länger dauert als 60s. Grobe Hochrechnung aus den beobachteten Reconnect-Intervallen: ein kompletter Scan bräuchte bei diesem Tempo geschätzt **~7-8 Minuten**.
+
+**Konsequenz:** Der Hänger-Bug ist behoben (kein permanentes Einfrieren mehr), aber `imap_timeout` muss jetzt zwingend deutlich höher gesetzt werden (z. B. 480-600s), damit ein Scan überhaupt durchlaufen kann – das lässt sich nicht automatisiert setzen (kein Options-Flow, nur mehrstufiger Reconfigure-Dialog mit Zugangsdaten, siehe unten). Alternativ bleibt Option B (Befehlsvolumen fundamental senken statt nur den Hänger zu umschiffen) weiterhin die Option mit dem größten Hebel auf die tatsächliche Scan-Dauer.
+
 ---
 
 ## 3. Nächste Schritte
@@ -190,6 +200,8 @@ gh release create v0.5.4-testN mail_and_packages.zip --repo BMWfan/Home-Assistan
 | `manifest.json` | `"version": "0.5.4"` (war `"0.0.0-dev"`, blockierte HACS-Updates) |
 | `shippers/dhl_briefankundigung.py` | Neuer Shipper für DHL Briefankündigung |
 | `utils/imap.py` | `logout()` kappt LOGOUT jetzt mit eigenem `LOGOUT_TIMEOUT` (5s) statt dem vollen Scan-Budget zu erben (test13, siehe Abschnitt 2) |
+| `utils/imap.py` | `IMAP_COMMAND_PACING`, `IMAP_COMMAND_TIMEOUT`, `_reconnect()`, `_select_with_reconnect()`; `_batch_search_one_folder`/`batch_search_folders` geben jetzt die (ggf. neue) Connection zurück (test15/test16, siehe Abschnitt 2) |
+| `coordinator.py` | `_get_imap_connection` speichert `_login_kwargs`/`_hass` auf dem `account`-Objekt; `_prefetch_imap_searches`/`_update_shippers`/`process_emails` reichen die (ggf. neue) Connection durch bis zum finalen `logout()` (test16) |
 
 ---
 
