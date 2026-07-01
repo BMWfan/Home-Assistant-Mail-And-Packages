@@ -808,9 +808,21 @@ async def email_fetch_batch(  # noqa: C901
     return (overall_result, all_results)
 
 
+LOGOUT_TIMEOUT = 5
+"""Cap on the LOGOUT round-trip during cleanup.
+
+Deliberately independent of the account's own command timeout (which mirrors
+the scan-wide time budget): if a command hung long enough for the caller to
+give up and cancel, the same connection's LOGOUT is equally likely to hang.
+Without this cap, cleanup after a timed-out scan could itself stall for the
+full scan budget again, doubling the time until the failure is reported.
+"""
+
+
 async def logout(account: IMAP4_SSL | IMAP4) -> None:
     """Logout from IMAP server asynchronously."""
     try:
-        await account.logout()
+        async with asyncio.timeout(LOGOUT_TIMEOUT):
+            await account.logout()
     except (TimeoutError, AioImapException, OSError, asyncio.CancelledError) as err:
         _LOGGER.debug("Error logging out of IMAP Server: %s", err)

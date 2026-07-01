@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aioimaplib import AUTH, NONAUTH, AioImapException
 
+import custom_components.mail_and_packages.utils.imap as imap_module
 from custom_components.mail_and_packages.utils.email import (
     find_text,
     find_text_matches,
@@ -739,6 +740,34 @@ async def test_logout_oserror(caplog):
     caplog.set_level("DEBUG")
 
     await logout(mock_acc)
+    assert "Error logging out of IMAP Server" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_logout_hang_bounded_by_own_timeout(caplog, monkeypatch):
+    """A hung LOGOUT round-trip must not block past its own short timeout.
+
+    Regression test: logout() previously awaited account.logout() with no
+    timeout of its own, inheriting the connection's command timeout (which
+    mirrors the whole-scan budget). Cleanup after an already-timed-out scan
+    could then re-consume the full budget a second time before the caller's
+    finally block returned. LOGOUT_TIMEOUT bounds cleanup independently.
+    """
+    monkeypatch.setattr(imap_module, "LOGOUT_TIMEOUT", 0.05)
+
+    mock_acc = AsyncMock()
+
+    async def hang_forever(*args, **kwargs):
+        await asyncio.sleep(10)
+
+    mock_acc.logout.side_effect = hang_forever
+    caplog.set_level("DEBUG")
+
+    start = asyncio.get_event_loop().time()
+    await logout(mock_acc)
+    elapsed = asyncio.get_event_loop().time() - start
+
+    assert elapsed < 1
     assert "Error logging out of IMAP Server" in caplog.text
 
 
