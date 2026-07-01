@@ -96,6 +96,16 @@ Query 39 wird in allen drei Läufen noch geloggt, Query 41 nie – der `uid_sear
 - **Option B (ein SEARCH `ALL SINCE` pro Ordner + client-seitiges Filtern)** ist jetzt die aussichtsreichste Option: senkt die Befehlsanzahl auf ~14 (ein Befehl pro Ordner) statt 93 – das würde eine vermutete Drossel-Schwelle um Faktor ~7 unterschreiten.
 - Nicht implementiert (noch keine Freigabe): Das ist ein echter Design-Wechsel der Suchstrategie (mehr Rohdaten client-seitig verarbeiten), keine kleine Bugfix-Änderung mehr.
 
+### ❌ Pacing-Fix getestet (test15) – Zeit-/Burst-Theorie widerlegt (2026-07-01 21:34–21:35)
+
+`IMAP_COMMAND_PACING = 0.1` (100ms Pause vor jedem `uid_search`) live installiert und neu gestartet. Ergebnis: **exakt derselbe Hänger** – Ordner INBOX, Query 40/93, Elapsed **65,0s**, identisch zu test13/test14 ohne Pacing. Die Query-Abstände zwischen den Log-Zeilen zeigen die Pause aktiv (~113ms statt vorher <20ms), trotzdem hängt es an derselben Position.
+
+**Das widerlegt die Zeit-/Burst-Theorie:** Wäre es ein Rate-Limit (Befehle pro Sekunde), hätte das Pacing die Hänge-Position nach hinten verschieben oder das Problem ganz vermeiden müssen. Stattdessen identisch bei #40 – das spricht für ein **festes Befehls-Limit pro IMAP-Verbindung** (Count-basiert, nicht zeitbasiert): Nach ca. 40 Befehlen (SELECT + ~39 SEARCHes) reagiert diese Exchange-Online-Verbindung schlicht nicht mehr, unabhängig vom Tempo.
+
+**Neue Konsequenz:** Auch Option C (Timeout erhöhen) hilft NICHT – das ist kein "langsamer" Befehl, der irgendwann doch antwortet, sondern ein endgültiges Verstummen der Verbindung. Ein höheres Budget würde nur länger auf denselben permanenten Hänger warten.
+
+**Nächster Kandidat: periodischer Reconnect.** Alle ~30 Befehle (oder bei einem kurzen Command-Timeout, z. B. 10s) die IMAP-Verbindung schließen und neu aufbauen (frisches Login), dann mit der nächsten Query weitermachen. Das würde die exakte Such-Semantik unangetastet lassen (kein Risiko wie bei Option B), erfordert aber eine invasivere Änderung: `batch_search_folders`/`_batch_search_one_folder` müssten die (ggf. neue) Connection zurückgeben, und `coordinator.py` müsste sie durch `_prefetch_imap_searches` → `_update_shippers` → `process_emails` (inkl. des finalen `logout()` im `finally`-Block) durchreichen, damit der Rest des Scans nicht mit einer toten Connection weiterläuft. Nicht implementiert – das ist ein echter Architektur-Eingriff über zwei Dateien hinweg, noch keine Freigabe.
+
 ---
 
 ## 3. Nächste Schritte
