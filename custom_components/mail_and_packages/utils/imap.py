@@ -459,6 +459,7 @@ async def _batch_search_single_folder(
         cache_key = (folder, query)
         if cache_key in search_cache:
             continue
+        await asyncio.sleep(IMAP_COMMAND_PACING)
         try:
             res = await account.search(query, charset=None)
             result: list[bytes] = (
@@ -472,6 +473,18 @@ async def _batch_search_single_folder(
         except (AioImapException, OSError) as err:
             _LOGGER.debug("Batch search error (single folder): %s", err)
             search_cache[cache_key] = []
+
+
+IMAP_COMMAND_PACING = 0.1
+"""Delay between successive IMAP commands on one connection during batch pre-fetch.
+
+Some IMAP providers (observed with Exchange Online / outlook.office365.com)
+silently stall a command once enough commands have been issued on one
+connection in a short burst, rather than returning an error — a single
+pre-fetch scan issuing dozens of SEARCHes back-to-back with no gap between
+them can trip this and hang indefinitely. Spacing commands out keeps the
+burst rate below whatever threshold triggers it.
+"""
 
 
 async def _batch_search_one_folder(
@@ -496,6 +509,7 @@ async def _batch_search_one_folder(
             len(pending),
             query,
         )
+        await asyncio.sleep(IMAP_COMMAND_PACING)
         try:
             res = await account.uid_search(query, charset=None)
             if res.result == "OK" and res.lines:
