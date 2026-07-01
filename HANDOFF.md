@@ -70,6 +70,14 @@ Direkt aus der laufenden Instanz (`homeassistant.mackcloud.de`) ausgelesen:
 
 **Wichtig:** Das behebt die *Verdopplung*, nicht die *Ursache* des ersten Hängers (warum ein einzelner IMAP-Befehl gegen `outlook.office365.com` überhaupt >60 s braucht). Option C aus Abschnitt 3b (Timeout erhöhen) macht mit dem Fix jetzt tatsächlich das, was sie verspricht – vorher hätte ein auf 180 s erhöhter Timeout real bis zu 360 s gedauert.
 
+### ✅ Live bestätigt (2026-07-01, 20:24:59, nach test13-Install + Neustart)
+
+```
+Mail and Packages scan exceeded its 60s time budget (elapsed 65.0s).
+```
+
+**65,0 s statt 120,0 s** – der Doppel-Timeout ist weg, bestätigt auf der echten Instanz direkt nach dem Update. Die verbleibenden ~5 s über dem 60s-Budget sind der (jetzt gebremste) LOGOUT-Cleanup, nicht mehr ein zweiter voller Timeout. Der Scan schlägt weiterhin fehl (`setup_retry`), weil der **ursprüngliche** Hänger im ersten Ordner/erster Query weiterhin besteht – das ist die in Abschnitt 3b beschriebene, noch offene Ursache. Nächster Schritt: welcher Ordner/welche Query genau hängt, per zusätzlichem Logging oder Option D (ESEARCH IN) eingrenzen.
+
 ---
 
 ## 3. Nächste Schritte
