@@ -657,12 +657,30 @@ async def _fetch_and_classify(
             _LOGGER.debug("Batch pre-fetch FETCH error (%s): %s", folder, err)
 
     for spec in pending:
-        matched = [
-            f"{folder}/{uid.decode()}".encode()
+        matched_uids = [
+            uid
             for uid, record in records.items()
             if _query_matches_record(spec, record)
         ]
-        search_cache[(folder, spec.query)] = matched
+        if matched_uids:
+            _LOGGER.debug(
+                "Batch pre-fetch: folder %s classified %d match(es) for query %s: %s",
+                folder,
+                len(matched_uids),
+                spec.query,
+                [
+                    (
+                        uid.decode(),
+                        records[uid].from_header,
+                        records[uid].subject,
+                        records[uid].internal_date,
+                    )
+                    for uid in matched_uids
+                ],
+            )
+        search_cache[(folder, spec.query)] = [
+            f"{folder}/{uid.decode()}".encode() for uid in matched_uids
+        ]
 
     return account
 
