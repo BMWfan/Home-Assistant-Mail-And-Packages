@@ -528,7 +528,14 @@ async def batch_search_folders(account: IMAP4_SSL, queries: list[str]) -> None:
         pending = [q for q in unique_queries if (folder, q) not in search_cache]
         if not pending:
             continue
+        t0 = asyncio.get_event_loop().time()
         await _batch_search_one_folder(account, folder, pending, search_cache)
+        _LOGGER.debug(
+            "Batch pre-fetch: folder %s — %d queries in %.1fs",
+            folder,
+            len(pending),
+            asyncio.get_event_loop().time() - t0,
+        )
 
 
 async def email_search(  # noqa: C901

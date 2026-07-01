@@ -338,12 +338,22 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
         if all_queries:
             n_folders = len(getattr(account, "_folders", ["INBOX"]))
+            n_unique = len(set(all_queries))
             _LOGGER.debug(
-                "Pre-fetching %d unique queries across %d folder(s)",
-                len(set(all_queries)),
+                "Pre-fetching %d unique queries across %d folder(s) "
+                "(%d total before dedup)",
+                n_unique,
                 n_folders,
+                len(all_queries),
             )
+            prefetch_start = monotonic()
             await batch_search_folders(account, all_queries)
+            _LOGGER.debug(
+                "Pre-fetch complete in %.1fs (%d SELECTs + up to %d SEARCHes)",
+                monotonic() - prefetch_start,
+                n_folders,
+                n_unique * n_folders,
+            )
 
     async def _update_shippers(
         self,
