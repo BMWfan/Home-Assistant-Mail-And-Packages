@@ -65,6 +65,64 @@ def test_has_context_false():
     assert _has_context(text, pos) is False
 
 
+def test_kundennummer_does_not_satisfy_context():
+    """Bare 'nummer' must not match as a substring of 'Kundennummer' etc.
+
+    Regression test: the context regex previously included a bare 'nummer'
+    substring, which matches inside "Kundennummer"/"Bestellnummer"/
+    "Rechnungsnummer" -- i.e. an order or customer reference, not a
+    delivery context -- defeating the context check for nearly any German
+    commerce email and producing false-positive "package" counts (observed
+    live: 186 "tracking numbers" extracted from 90 emails in three days).
+    """
+    found: dict[str, str] = {}
+    _extract_tracking_numbers(
+        "Ihre Kundennummer: 28349311403. Vielen Dank fuer Ihre Bestellung.",
+        found,
+    )
+    assert "28349311403" not in found
+
+    found = {}
+    _extract_tracking_numbers(
+        "Ihre Rechnungsnummer lautet 28419851439 fuer den Auftrag vom 1. Juli.",
+        found,
+    )
+    assert "28419851439" not in found
+
+
+def test_genuine_gls_package_still_matches():
+    """A real GLS delivery mention (contains 'Paket') still matches after tightening."""
+    found: dict[str, str] = {}
+    _extract_tracking_numbers(
+        "Ihr Paket 28453901515 wurde durch GLS zugestellt.", found
+    )
+    assert found.get("28453901515") == "gls"
+
+
+def test_evri_pattern_requires_context():
+    """H+15-alphanumeric must not match arbitrary base64-ish fragments.
+
+    Regression test: evri's pattern had no context requirement and no word
+    boundaries, so it matched any 16-character "H..." fragment anywhere in
+    HTML mail -- tracking pixel URLs, encoded query params, hashes -- none
+    of which are tracking numbers.
+    """
+    found: dict[str, str] = {}
+    _extract_tracking_numbers(
+        "View this email in your browser: "
+        "https://x.example/t/HYNNA5CNFSNUACCM/track.gif",
+        found,
+    )
+    assert "HYNNA5CNFSNUACCM" not in found
+
+    found = {}
+    _extract_tracking_numbers(
+        "Your parcel tracking number is HYNNA5CNFSNUACCM, track your delivery here.",
+        found,
+    )
+    assert found.get("HYNNA5CNFSNUACCM") == "evri"
+
+
 @pytest.mark.asyncio
 async def test_universal_ups_email(hass, mock_imap_universal_ups):
     """Test scanning a shop email with embedded UPS tracking number."""

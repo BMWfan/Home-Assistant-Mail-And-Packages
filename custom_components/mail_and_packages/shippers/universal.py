@@ -34,24 +34,34 @@ SENSOR_TYPE = "universal_packages"
 # requires_context=True means the match is only accepted if a delivery-related
 # keyword appears within 200 characters to reduce false positives.
 ORDERED_PATTERNS: list[tuple[str, str, bool]] = [
-    ("ups", r"1Z[0-9A-Z]{16}", False),
-    ("usps", r"9[2345]\d{15,26}", False),
-    ("royal_mail", r"[A-Za-z]{2}[0-9]{9}GB", False),
-    ("auspost", r"[A-Za-z]{2}[0-9]{9}AU\b", False),
-    ("intelcom", r"(?:NSPRSO[0-9]{10}|AMZNL[0-9]{12})", False),
-    ("bonshaw", r"BNI[0-9]{9}", False),
-    ("post_nl", r"3S[A-Z0-9]{10,18}", False),
-    ("evri", r"H[0-9A-Z]{15}", False),
+    ("ups", r"\b1Z[0-9A-Z]{16}\b", False),
+    ("usps", r"\b9[2345]\d{15,26}\b", False),
+    ("royal_mail", r"\b[A-Za-z]{2}[0-9]{9}GB\b", False),
+    ("auspost", r"\b[A-Za-z]{2}[0-9]{9}AU\b", False),
+    ("intelcom", r"\b(?:NSPRSO[0-9]{10}|AMZNL[0-9]{12})\b", False),
+    ("bonshaw", r"\bBNI[0-9]{9}\b", False),
+    ("post_nl", r"\b3S[A-Z0-9]{10,18}\b", False),
+    # Unlike the other direct-format patterns above, "H" + 15 alphanumeric
+    # chars has no distinguishing structure of its own -- it can match any
+    # base64-ish fragment (tracking pixels, encoded URL params, hashes) in
+    # HTML mail. Require the same delivery-keyword context the bare-digit
+    # patterns below use, or this matches far too often.
+    ("evri", r"\bH[0-9A-Z]{15}\b", True),
     ("post_at", r"\b[0-9]{22}\b", True),
     ("dpd", r"\b[0-9]{14}\b", True),
     ("fedex", r"\b(?:[0-9]{12}|[0-9]{15}|[0-9]{20})\b", True),
     ("gls", r"\b[0-9]{11,12}\b", True),
 ]
 
+# \bnummer\b / \bnuméro\b are anchored: as bare substrings they'd match
+# inside any "Kundennummer"/"Bestellnummer"/"numéro de commande" -- i.e.
+# an order or customer reference, not a delivery context -- in almost
+# every German/French commerce email, defeating the context check
+# entirely for the bare-digit patterns (dpd/gls/fedex/post_at/evri) above.
 _CONTEXT_RE = re.compile(
     r"tracking|sendungsnummer|paketnummer|parcel.?number|waybill|"
-    r"shipment|delivery|package|nummer|colis|paket|envoi|livraison|"
-    r"numéro|lieferung|verfolgung|seguimiento|colissimo",
+    r"shipment|delivery|package|\bnummer\b|colis|paket|envoi|livraison|"
+    r"\bnuméro\b|lieferung|verfolgung|seguimiento|colissimo",
     re.IGNORECASE,
 )
 
