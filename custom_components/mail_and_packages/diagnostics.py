@@ -22,6 +22,7 @@ REDACT_KEYS = {
     "token",
     "access_token",
     "refresh_token",
+    "seventeen_track_api_key",
 }
 
 

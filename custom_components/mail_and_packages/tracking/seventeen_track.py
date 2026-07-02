@@ -12,14 +12,22 @@ _LOGGER = logging.getLogger(__name__)
 
 _API_BASE = "https://api.17track.net/track/v2.2"
 
-_STATUS_MAP: dict[int, str] = {
-    0: "Unknown",
-    10: "In Transit",
-    20: "Expired",
-    30: "Delivery Alert",
-    35: "Undelivered",
-    40: "Delivered",
-    50: "Alert",
+_BATCH_LIMIT = 40
+"""Max tracking numbers per API request (17track rejects larger batches
+with code -18010014 -- observed live with a 186-number request)."""
+
+# v2.2 returns latest_status.status as a string; map it onto the numeric
+# codes the rest of this integration keys on (see universal._STATUS_TO_SUFFIX).
+_V2_STATUS_TO_CODE: dict[str, int] = {
+    "NotFound": 0,
+    "InfoReceived": 10,
+    "InTransit": 10,
+    "AvailableForPickup": 10,
+    "OutForDelivery": 10,
+    "Expired": 20,
+    "DeliveryFailure": 35,
+    "Delivered": 40,
+    "Exception": 50,
 }
 
 
@@ -43,19 +51,19 @@ class SeventeenTrackClient:
         if not tracking_numbers:
             return
         session = async_get_clientsession(self._hass)
-        payload = [{"number": n} for n in tracking_numbers]
-        try:
-            async with session.post(
-                f"{_API_BASE}/register",
-                json=payload,
-                headers=self._headers,
-            ) as resp:
-                resp.raise_for_status()
-            _LOGGER.debug(
-                "17track: registered %d tracking number(s)", len(tracking_numbers)
-            )
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("17track register failed: %s", err)
+        for i in range(0, len(tracking_numbers), _BATCH_LIMIT):
+            chunk = tracking_numbers[i : i + _BATCH_LIMIT]
+            payload = [{"number": n} for n in chunk]
+            try:
+                async with session.post(
+                    f"{_API_BASE}/register",
+                    json=payload,
+                    headers=self._headers,
+                ) as resp:
+                    resp.raise_for_status()
+                _LOGGER.debug("17track: registered %d tracking number(s)", len(chunk))
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("17track register failed: %s", err)
 
     async def get_status_batch(
         self,
@@ -69,43 +77,47 @@ class SeventeenTrackClient:
         if not tracking_numbers:
             return {}
         session = async_get_clientsession(self._hass)
-        payload = [{"number": n} for n in tracking_numbers]
-        try:
-            async with session.post(
-                f"{_API_BASE}/gettrackinfo",
-                json=payload,
-                headers=self._headers,
-            ) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.error("17track gettrackinfo failed: %s", err)
-            return {}
-
-        if data.get("code") != 0:
-            _LOGGER.error("17track API error: code=%s", data.get("code"))
-            return {}
-
         results: dict[str, dict[str, Any]] = {}
 
-        for item in data.get("data", {}).get("accepted", []):
-            number = item.get("number", "")
-            if not number:
+        for i in range(0, len(tracking_numbers), _BATCH_LIMIT):
+            chunk = tracking_numbers[i : i + _BATCH_LIMIT]
+            payload = [{"number": n} for n in chunk]
+            try:
+                async with session.post(
+                    f"{_API_BASE}/gettrackinfo",
+                    json=payload,
+                    headers=self._headers,
+                ) as resp:
+                    resp.raise_for_status()
+                    data = await resp.json()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.error("17track gettrackinfo failed: %s", err)
                 continue
-            track = item.get("track") or {}
-            event_code = track.get("e", 0)
-            latest = track.get("z0") or {}
-            results[number] = {
-                "status": _STATUS_MAP.get(event_code, "Unknown"),
-                "status_code": event_code,
-                "last_event": latest.get("a", ""),
-                "last_location": latest.get("z", ""),
-                "last_update": latest.get("d", ""),
-            }
 
-        for item in data.get("data", {}).get("rejected", []):
-            number = item.get("number", "")
-            if number:
-                results[number] = {"status": "Unknown", "status_code": -1}
+            if data.get("code") != 0:
+                _LOGGER.error("17track API error: code=%s", data.get("code"))
+                continue
+
+            for item in data.get("data", {}).get("accepted", []):
+                number = item.get("number", "")
+                if not number:
+                    continue
+                track_info = item.get("track_info") or {}
+                status_str = (track_info.get("latest_status") or {}).get(
+                    "status", ""
+                ) or "Unknown"
+                latest_event = track_info.get("latest_event") or {}
+                results[number] = {
+                    "status": status_str,
+                    "status_code": _V2_STATUS_TO_CODE.get(status_str, 0),
+                    "last_event": latest_event.get("description", ""),
+                    "last_location": latest_event.get("location") or "",
+                    "last_update": latest_event.get("time_iso", ""),
+                }
+
+            for item in data.get("data", {}).get("rejected", []):
+                number = item.get("number", "")
+                if number:
+                    results[number] = {"status": "Unknown", "status_code": -1}
 
         return results
