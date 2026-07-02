@@ -99,6 +99,28 @@ def test_genuine_gls_package_still_matches():
     assert found.get("28453901515") == "gls"
 
 
+def test_gls_requires_brand_name_not_just_generic_package_mention():
+    """An 11-12 digit number near 'Paket'/'delivery' alone is not enough for GLS.
+
+    Regression test: GLS's bare 11-12-digit pattern only required a generic
+    delivery keyword nearby, which almost any shop order confirmation
+    satisfies via an unrelated customer/order number sitting near the word
+    "Paket" -- observed live as 43+ "GLS delivering" packages the user never
+    had. GLS's own brand name must also appear nearby.
+    """
+    found: dict[str, str] = {}
+    _extract_tracking_numbers(
+        "Ihre Bestellnummer 28349311403, Ihr Paket ist unterwegs.", found
+    )
+    assert "28349311403" not in found
+
+    found = {}
+    _extract_tracking_numbers(
+        "GLS-Sendungsverfolgung: 28502379919 ist jetzt unterwegs.", found
+    )
+    assert found.get("28502379919") == "gls"
+
+
 def test_evri_pattern_requires_context():
     """H+15-alphanumeric must not match arbitrary base64-ish fragments.
 

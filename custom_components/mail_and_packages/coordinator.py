@@ -509,6 +509,17 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 "Loaded %d tracked prefix(es) from storage",
                 len(self._in_transit_tracking),
             )
+            # ONE-TIME cleanup: the universal scanner's pre-fix GLS pattern
+            # (see shippers/universal.py) counted any 11-12 digit number near
+            # a generic "Paket"/"delivery" mention as a GLS package, without
+            # requiring GLS's own brand name nearby. That polluted this
+            # prefix with dozens of false positives during test13-test19
+            # while the underlying IMAP-timeout bug was being fixed. Drop it
+            # once so the now-corrected pattern starts clean instead of
+            # carrying those entries for up to MAX_TRACKING_AGE_DAYS.
+            # TODO: remove this cleanup once deployed -- it must not run on
+            # every restart, only this one to clear pre-fix data.
+            self._in_transit_tracking.pop("gls", None)
 
     async def _async_save_tracking(self) -> None:
         """Persist current in-transit tracking state to storage."""

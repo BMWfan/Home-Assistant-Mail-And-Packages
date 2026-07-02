@@ -67,6 +67,16 @@ _CONTEXT_RE = re.compile(
 
 _CONTEXT_WINDOW = 200
 
+# Carriers whose bare-digit pattern is too generic for the shared delivery-
+# keyword context alone to be distinctive (an 11-12 digit number next to any
+# "paket"/"delivery" mention is common in nearly any commerce email, not
+# just this carrier's). These also require the carrier's own brand name
+# nearby. Live report: 43+ "GLS delivering" packages from ordinary shop
+# mail that only generically mentioned a package, never GLS specifically.
+_BRAND_CONTEXT_RE: dict[str, re.Pattern[str]] = {
+    "gls": re.compile(r"\bgls\b", re.IGNORECASE),
+}
+
 # Maps the carrier name from ORDERED_PATTERNS to the sensor prefix used by
 # existing carrier sensors (e.g. "ups" → ups_delivering / ups_delivered).
 # None = no dedicated sensor exists; number stays in universal_packages only.
@@ -262,12 +272,16 @@ def _extract_tracking_numbers(text: str, found: dict[str, str]) -> None:
                 continue
             if requires_context and not _has_context(text, match.start()):
                 continue
+            brand_re = _BRAND_CONTEXT_RE.get(carrier)
+            if brand_re and not _has_context(text, match.start(), pattern=brand_re):
+                continue
             found[num] = carrier
             claimed.add(num)
 
 
-def _has_context(text: str, pos: int) -> bool:
-    """Return True if a delivery keyword appears within the context window."""
+def _has_context(text: str, pos: int, pattern: re.Pattern[str] | None = None) -> bool:
+    """Return True if `pattern` (default: any delivery keyword) is nearby."""
     start = max(0, pos - _CONTEXT_WINDOW)
     end = min(len(text), pos + _CONTEXT_WINDOW)
-    return bool(_CONTEXT_RE.search(text[start:end]))
+    window = text[start:end]
+    return bool((pattern or _CONTEXT_RE).search(window))
