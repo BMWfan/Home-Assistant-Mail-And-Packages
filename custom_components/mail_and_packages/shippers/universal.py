@@ -19,7 +19,7 @@ from custom_components.mail_and_packages.tracking.seventeen_track import (
 )
 from custom_components.mail_and_packages.utils.cache import EmailCache
 from custom_components.mail_and_packages.utils.imap import (
-    email_fetch,
+    email_fetch_batch,
     email_search_since,
 )
 
@@ -28,6 +28,14 @@ from .base import Shipper
 _LOGGER = logging.getLogger(__name__)
 
 SENSOR_TYPE = "universal_packages"
+
+FETCH_BATCH_SIZE = 25
+"""Messages per batched FETCH round-trip during the universal scan.
+
+Full RFC822 bodies can be large (HTML marketing mail), so this stays
+moderate -- the point is cutting per-message round-trips, not maximizing
+batch size.
+"""
 
 # Patterns ordered from most specific to least specific.
 # Tuples: (carrier_name, pattern, requires_context_keyword)
@@ -151,11 +159,34 @@ class UniversalTrackingShipper(Shipper):
         # Maps tracking_number -> carrier_name; insertion order = discovery order
         found: dict[str, str] = {}
 
-        for eid in email_ids:
+        # Batched download: fetching each email individually costs one IMAP
+        # round-trip per message, which blows the scan time budget on wider
+        # day windows (observed live: 215 messages over a 10-day window was
+        # enough to exceed it on its own). email_fetch_batch downloads a
+        # whole chunk per round-trip; the response mixes FETCH boundary
+        # lines with the message literals, but boundary lines parse as
+        # header-less empty messages and extract nothing, so feeding every
+        # bytes part through the same extraction loop is safe.
+        for i in range(0, len(email_ids), FETCH_BATCH_SIZE):
+            chunk = email_ids[i : i + FETCH_BATCH_SIZE]
             try:
-                await self._scan_email(eid, account, cache, found)
+                if cache:
+                    data = (await cache.fetch_batch(chunk))[1]
+                else:
+                    data = (await email_fetch_batch(account, chunk))[1]
             except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Error scanning email %s: %s", eid, err)
+                _LOGGER.debug("Error batch-fetching emails %s: %s", chunk, err)
+                continue
+            for part in data:
+                if not isinstance(part, (bytes, bytearray)):
+                    continue
+                try:
+                    msg = email.message_from_bytes(part)
+                    text = self._extract_text(msg)
+                    subject = str(msg.get("subject") or "")
+                    _extract_tracking_numbers(subject + "\n" + text, found)
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Error scanning email part: %s", err)
 
         tracking_list = list(found.keys())
         _LOGGER.debug(
@@ -226,28 +257,6 @@ class UniversalTrackingShipper(Shipper):
             detail.update(status_map.get(item["number"], {}))
             enriched.append(detail)
         return enriched
-
-    async def _scan_email(
-        self,
-        eid: bytes,
-        account: IMAP4_SSL,
-        cache: EmailCache | None,
-        found: dict[str, str],
-    ) -> None:
-        """Fetch one email and extract all tracking numbers from it."""
-        if cache:
-            data = (await cache.fetch(eid, "(RFC822)"))[1]
-        else:
-            data = (await email_fetch(account, eid, "(RFC822)"))[1]
-
-        for part in data:
-            if not isinstance(part, (bytes, bytearray)):
-                continue
-            msg = email.message_from_bytes(part)
-            text = self._extract_text(msg)
-            subject = str(msg.get("subject") or "")
-            full_text = subject + "\n" + text
-            _extract_tracking_numbers(full_text, found)
 
     @staticmethod
     def _extract_text(msg: email.message.Message) -> str:
