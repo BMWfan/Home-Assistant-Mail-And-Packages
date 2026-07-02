@@ -15,15 +15,26 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 _LOGGER = logging.getLogger(__name__)
 
 _TOKEN_URL = "https://login.dhl.de/af5f9bb6-27ad-4af4-9445-008e7a5cddb8/login/token"
-_AUTH_URL = (
-    "https://login.dhl.de"
-    "/af5f9bb6-27ad-4af4-9445-008e7a5cddb8/login/oauth2/v2.0/authorize"
-)
+# NOTE: the app uses /login/authorize -- the standards-looking
+# /login/oauth2/v2.0/authorize path is blocked by DHL's API gateway with a
+# blanket 403 ("Requested endpoint is forbidden"), verified live. URL shape
+# (path, scope, state/claims/prompt params) mirrors what the Post & DHL app
+# sends, as documented by the ioBroker.parcel adapter.
+_AUTH_URL = "https://login.dhl.de/af5f9bb6-27ad-4af4-9445-008e7a5cddb8/login/authorize"
 _ADVICES_URL = "https://www.dhl.de/int-aviseanzeigen/advices"
 _CLIENT_ID = "83471082-5c13-4fce-8dcb-19d2a3fca413"
 _CLIENT_BASIC_AUTH = "Basic ODM0NzEwODItNWMxMy00ZmNlLThkY2ItMTlkMmEzZmNhNDEzOg=="
 _CODE_VERIFIER = "zmVs5AKfGvv45a9aUvuOid9a_erOirp7XL1sn9kWT_o"
 _REDIRECT_URI = "dhllogin://de.deutschepost.dhl/login"
+
+# Opaque state blob the app sends; the login UI expects it to be present.
+_AUTH_STATE = "eyJycyI6dHJ1ZSwicnYiOmZhbHNlLCJmaWQiOiJhcHAtbG9naW4tbWVoci1mb290ZXIiLCJoaWQiOiJhcHAtbG9naW4tbWVoci1oZWFkZXIiLCJycCI6ZmFsc2V9"
+_AUTH_CLAIMS = (
+    '{"id_token":{"email":null,"post_number":null,"twofa":null,'
+    '"service_mask":null,"deactivate_account":null,"last_login":null,'
+    '"customer_type":null,"display_name":null,'
+    '"data_confirmation_required":null}}'
+)
 
 
 def get_auth_url() -> str:
@@ -32,10 +43,16 @@ def get_auth_url() -> str:
     digest = hashlib.sha256(verifier_bytes).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
     params = {
-        "response_type": "code",
-        "client_id": _CLIENT_ID,
         "redirect_uri": _REDIRECT_URI,
-        "scope": "openid",
+        "state": _AUTH_STATE,
+        "client_id": _CLIENT_ID,
+        "response_type": "code",
+        "scope": "openid offline_access",
+        "claims": _AUTH_CLAIMS,
+        "nonce": "",
+        "login_hint": "",
+        "prompt": "login",
+        "ui_locales": "de-DE",
         "code_challenge": challenge,
         "code_challenge_method": "S256",
     }
@@ -176,13 +193,9 @@ class DHLBriefankundigungClient:
             )
             return None
 
-        path = Path(save_path)
         try:
             await self._hass.async_add_executor_job(
-                lambda: (
-                    path.parent.mkdir(parents=True, exist_ok=True),
-                    path.write_bytes(decrypted),
-                )
+                _write_file, Path(save_path), decrypted
             )
         except OSError as err:
             _LOGGER.error(
@@ -193,6 +206,12 @@ class DHLBriefankundigungClient:
             return None
 
         return save_path
+
+
+def _write_file(path: Path, data: bytes) -> None:
+    """Write bytes to path, creating parent directories (runs in executor)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
 
 
 def _decrypt_image(encrypted_data: bytes, filename: str) -> bytes:

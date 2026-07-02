@@ -169,7 +169,7 @@
         "data": {
           "dhl_brief_code": "Authorization Code"
         },
-        "description": "**DHL Letter Preview – Login**\n\n1. Open the following link and sign in with your DHL account:\n\n`{auth_url}`\n\n2. After login your browser will be redirected to a URL starting with `dhllogin://`. Copy the value of the `code=...` parameter from that URL.\n\n3. Paste the copied code below and click Submit.",
+        "description": "**DHL Letter Preview – Login**\n\n1. Open the following link in a NEW browser tab and sign in with your DHL / Deutsche Post account (a 2FA code may be sent to you by email or SMS):\n\n`{auth_url}`\n\n2. After the login completes, your browser will try to open an address starting with `dhllogin://` and show an error page – that is expected. Copy the COMPLETE address from the browser's address bar (it looks like `dhllogin://de.deutschepost.dhl/login?code=...`).\n\n3. Paste the complete copied address below and click Submit.",
         "title": "DHL Letter Preview"
       },
       "reconfig_storage": {
@@ -183,7 +183,7 @@
         "data": {
           "dhl_brief_code": "Authorization Code"
         },
-        "description": "**DHL Letter Preview – Renew Login**\n\n1. Open the following link and sign in with your DHL account:\n\n`{auth_url}`\n\n2. After login your browser will be redirected to a URL starting with `dhllogin://`. Copy the value of the `code=...` parameter from that URL.\n\n3. Paste the copied code below and click Submit.",
+        "description": "**DHL Letter Preview – Renew Login**\n\n1. Open the following link in a NEW browser tab and sign in with your DHL / Deutsche Post account (a 2FA code may be sent to you by email or SMS):\n\n`{auth_url}`\n\n2. After the login completes, your browser will try to open an address starting with `dhllogin://` and show an error page – that is expected. Copy the COMPLETE address from the browser's address bar (it looks like `dhllogin://de.deutschepost.dhl/login?code=...`).\n\n3. Paste the complete copied address below and click Submit.",
         "title": "DHL Letter Preview"
       },
       "reconfig_forwarded_emails": {
