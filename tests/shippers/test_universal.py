@@ -121,6 +121,20 @@ def test_gls_requires_brand_name_not_just_generic_package_mention():
     assert found.get("28502379919") == "gls"
 
 
+def test_dhl_germany_number_classified_as_dhl_not_fedex():
+    """DHL Germany numbers (003404 prefix, 20 digits) must be labeled dhl.
+
+    Regression test: with no DHL-specific pattern, real DHL shipments were
+    labeled "fedex" via the generic 20-digit pattern -- routing them to the
+    wrong carrier sensor.
+    """
+    found: dict[str, str] = {}
+    _extract_tracking_numbers(
+        "Ihre DHL Sendung 00340434650122256337 ist unterwegs.", found
+    )
+    assert found.get("00340434650122256337") == "dhl"
+
+
 def test_evri_pattern_requires_context():
     """H+15-alphanumeric must not match arbitrary base64-ish fragments.
 

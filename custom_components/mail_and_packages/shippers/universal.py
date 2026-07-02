@@ -49,6 +49,10 @@ ORDERED_PATTERNS: list[tuple[str, str, bool]] = [
     ("intelcom", r"\b(?:NSPRSO[0-9]{10}|AMZNL[0-9]{12})\b", False),
     ("bonshaw", r"\bBNI[0-9]{9}\b", False),
     ("post_nl", r"\b3S[A-Z0-9]{10,18}\b", False),
+    # DHL Germany parcel numbers are GS1-based and start with 00 3404
+    # (observed live: real DHL shipments were being mislabeled "fedex" via
+    # the generic 20-digit pattern below, which is checked later).
+    ("dhl", r"\b003404[0-9]{14}\b", True),
     # Unlike the other direct-format patterns above, "H" + 15 alphanumeric
     # chars has no distinguishing structure of its own -- it can match any
     # base64-ish fragment (tracking pixels, encoded URL params, hashes) in
@@ -93,6 +97,7 @@ _CARRIER_TO_SENSOR_PREFIX: dict[str, str | None] = {
     "usps": "usps",
     "fedex": "fedex",
     "gls": "gls",
+    "dhl": "dhl",
     # DPD has multiple regional variants (de/fr/uk/nl/pl) – can't tell from
     # number format alone, so we leave it in the universal count.
     "dpd": None,
