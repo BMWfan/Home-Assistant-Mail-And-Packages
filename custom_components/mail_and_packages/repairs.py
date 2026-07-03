@@ -35,7 +35,10 @@ class DHLBriefReauthRepairFlow(RepairsFlow):
     ) -> data_entry_flow.FlowResult:
         """Ask for the DHL authorization code and exchange it for fresh tokens."""
         errors: dict[str, str] = {}
-        if user_input is not None:
+        # Use truthiness, not "is not None": HA can call the initial step with an
+        # empty dict, which must show the form -- not run validation and flash an
+        # error before the user has typed anything.
+        if user_input:
             code = extract_code(user_input.get("dhl_brief_code", "").strip())
             if not code:
                 errors["dhl_brief_code"] = "invalid_auth"
@@ -80,7 +83,10 @@ class SeventeenTrackKeyRepairFlow(RepairsFlow):
     ) -> data_entry_flow.FlowResult:
         """Ask for a new 17track API key and store it."""
         errors: dict[str, str] = {}
-        if user_input is not None:
+        # Use truthiness, not "is not None": HA can call the initial step with an
+        # empty dict, which must show the form -- not run validation and flash an
+        # error before the user has typed anything.
+        if user_input:
             key = (user_input.get(CONF_17TRACK_API_KEY) or "").strip()
             if not key:
                 errors[CONF_17TRACK_API_KEY] = "invalid_auth"
