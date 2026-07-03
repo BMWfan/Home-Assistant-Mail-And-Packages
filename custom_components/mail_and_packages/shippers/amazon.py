@@ -20,9 +20,9 @@ from custom_components.mail_and_packages.const import (
     AMAZON_DELIVERED,
     AMAZON_DELIVERED_SUBJECT,
     AMAZON_EXCEPTION,
-    AMAZON_EXCEPTION_BODY,
+    AMAZON_EXCEPTION_BODIES,
     AMAZON_EXCEPTION_ORDER,
-    AMAZON_EXCEPTION_SUBJECT,
+    AMAZON_EXCEPTION_SUBJECTS,
     AMAZON_HUB,
     AMAZON_HUB_BODY,
     AMAZON_HUB_CODE,
@@ -527,7 +527,7 @@ class AmazonShipper(Shipper):
             account,
             address_list,
             today,
-            AMAZON_EXCEPTION_SUBJECT,
+            AMAZON_EXCEPTION_SUBJECTS,
             forwarding_header,
         )
         if server_response == "OK" and data[0] is not None:
@@ -542,7 +542,8 @@ class AmazonShipper(Shipper):
                         msg = email.message_from_bytes(response_part)
                         body = get_email_body(msg)
                         subject = get_decoded_subject(msg)
-                        if AMAZON_EXCEPTION_BODY in body:
+                        body_lower = body.lower()
+                        if any(m in body_lower for m in AMAZON_EXCEPTION_BODIES):
                             count += 1
                             if found := order_pattern.findall(body):
                                 orders.extend(found)

@@ -259,6 +259,20 @@ AMAZON_TIME_PATTERN_REGEX = [
 ]
 AMAZON_EXCEPTION_SUBJECT = "Delivery update:"
 AMAZON_EXCEPTION_BODY = "running late"
+# Multi-language delay/exception markers. Subjects are searched (OR); a match
+# only counts as an exception if the body also contains a delay phrase.
+# German (amazon.de): subject "Lieferungsaktualisierung:", body "verspätet"/
+# "Verzögerung". Body matching is case-insensitive.
+AMAZON_EXCEPTION_SUBJECTS = [
+    "Delivery update:",
+    "Lieferungsaktualisierung:",
+]
+AMAZON_EXCEPTION_BODIES = [
+    "running late",
+    "verspätet",
+    "verzögerung",
+    "verzögert",
+]
 AMAZON_EXCEPTION = "amazon_exception"
 AMAZON_EXCEPTION_ORDER = "amazon_exception_order"
 AMAZON_PATTERN = "[0-9]{3}-[0-9]{7}-[0-9]{7}"
