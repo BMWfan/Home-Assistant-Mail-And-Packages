@@ -87,6 +87,12 @@ _CONTEXT_WINDOW = 200
 # mail that only generically mentioned a package, never GLS specifically.
 _BRAND_CONTEXT_RE: dict[str, re.Pattern[str]] = {
     "gls": re.compile(r"\bgls\b", re.IGNORECASE),
+    # FedEx numbers are bare 12/15/20-digit runs -- indistinguishable from any
+    # long order/invoice/reference number in commerce mail. A generic delivery
+    # keyword nearby is not enough (live false positive: "869999999999997",
+    # a near-all-nines number 17track returns NotFound for). Real FedEx mail
+    # always names "FedEx", so require the brand near the number.
+    "fedex": re.compile(r"\bfedex\b", re.IGNORECASE),
 }
 
 # Maps the carrier name from ORDERED_PATTERNS to the sensor prefix used by
@@ -231,8 +237,15 @@ class UniversalTrackingShipper(Shipper):
             key = f"{prefix}{suffix}"
             coordinator_tracking.setdefault(key, []).append(item["number"])
 
-        result[SENSOR_TYPE] = result[ATTR_COUNT]
-        result["universal_tracking_details"] = tracking_details
+        # Delivered shipments (17track status 40) are still routed above so the
+        # coordinator clears them from its in-transit state, but they drop out of
+        # the universal count/list immediately instead of lingering until their
+        # source email ages out of the scan window.
+        active_details = [
+            item for item in tracking_details if item.get("status_code") != 40
+        ]
+        result[SENSOR_TYPE] = len(active_details)
+        result["universal_tracking_details"] = active_details
         if coordinator_tracking:
             result["_tracking_details"] = coordinator_tracking
             # When 17track is the status source, publish under a separate key so

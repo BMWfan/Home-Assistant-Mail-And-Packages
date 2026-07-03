@@ -1,7 +1,7 @@
 # Handoff – Mail and Packages (branch `test/all-features`)
 
 Stand: 2026-07-03 (aktualisiert)  
-Aktuelles Release: **v0.5.4-test34** (prerelease auf GitHub)
+Aktuelles Release: **v0.5.4-test35** (prerelease auf GitHub)
 
 > Abschnitte 2–3 unten dokumentieren die **historische** IMAP-Timeout-Saga (test11–17).
 > Das Problem ist seit **test16 (Reconnect)** + **test21 (Batch-Fetch)** gelöst – siehe Abschnitt 0.
@@ -33,7 +33,8 @@ Aktuelles Release: **v0.5.4-test34** (prerelease auf GitHub)
 | test30/31 | DHL-Letter-**Kamera zeigt „No Mail"-Platzhalter** (`mail_none.gif`) statt Leerlauf, wenn keine Briefe. (test30 nutzte fälschlich `image-no-mailpieces700.jpg` → test31 korrigiert.) | `camera.py` (`DhlBriefCamera.async_camera_image`) | ✅ Bild bestätigt |
 | **test32** | **amazon.de-Erkennung gefixt (Kern-Bug).** (1) Absender-Sprachfilter entfernt → `order-update@amazon.de` (tatsächlicher Absender) wird nicht mehr verworfen. (2) Deutsche Betreffe „Versendet:"/„In Zustellung:" ergänzt. | `utils/amazon.py` (`amazon_email_addresses`, `DOMAIN_LANG_MAP`), `const.py` (`AMAZON_SHIPMENT_SUBJECT`) | ✅ `amazon_delivered` 0→1 |
 | test33 | Amazon-**Fahrer-Foto**: starre 2-Host-Liste → Muster `*-prod-temp.s3.*.amazonaws.com` (alle Regionen). | `utils/amazon.py` (`_is_amazon_delivery_image_host`, `get_amazon_image_urls`) | ⚠️ kein aktuelles Foto zum Test (2023er nutzte `gb-prod-temp`, schon abgedeckt) |
-| test34 | Deutsche **Amazon-Verzögerungs-Mails** (`amazon_exception`): Betreff „Lieferungsaktualisierung:", Text „verspätet"/„Verzögerung" (case-insensitive). | `const.py` (`AMAZON_EXCEPTION_SUBJECTS`/`_BODIES`), `shippers/amazon.py` (`_amazon_exception`) | ⏳ Neustart läuft; Sensor bleibt 0 bis eine Verzögerungs-Mail **von heute** kommt |
+| test34 | Deutsche **Amazon-Verzögerungs-Mails** (`amazon_exception`): Betreff „Lieferungsaktualisierung:", Text „verspätet"/„Verzögerung" (case-insensitive). | `const.py` (`AMAZON_EXCEPTION_SUBJECTS`/`_BODIES`), `shippers/amazon.py` (`_amazon_exception`) | ✅ lädt sauber, Delivered bleibt 1 (Sensor 0 bis Verzögerungs-Mail **von heute**) |
+| test35 | Universal-Scanner: (a) **FedEx-Fehltreffer gefixt** — FedEx verlangt jetzt den Markennamen „fedex" nahe der Nummer (wie GLS), killt Unsinns-Nummern wie `869999999999997`. (b) **Zugestellte (17track-Code 40) fallen sofort** aus Universal-Zähler + `tracking_details`-Anzeige, werden aber weiter an den Coordinator gemeldet (In-Transit-Cleanup). | `shippers/universal.py` (`_BRAND_CONTEXT_RE`, `process_batch`) | ⏳ Deploy läuft |
 
 ### Wie die amazon.de-Erkennung funktioniert (für Folge-Arbeit)
 - Absender werden aus `AMAZON_EMAIL` + `AMAZON_SHIPMENT_TRACKING` × Domain gebaut und
