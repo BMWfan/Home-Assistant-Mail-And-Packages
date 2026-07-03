@@ -1377,7 +1377,23 @@ class MailAndPackagesFlowHandler(
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
                 if self._data.get(CONF_DHL_BRIEF_ENABLED):
-                    return await self.async_step_reconfig_dhl_brief_auth()
+                    # Reuse the existing DHL login across reconfigures instead
+                    # of forcing the browser code flow every time. The
+                    # coordinator refreshes and persists these tokens in the
+                    # background, so read the CURRENT ones from the live entry
+                    # (self._data is a wizard-start snapshot that may already be
+                    # stale -- writing it back would clobber a just-refreshed
+                    # token and break auth). Only send the user through the
+                    # login when there is no token yet (first-time enable).
+                    current_tokens = self._entry.data.get(CONF_DHL_BRIEF_TOKENS)
+                    if current_tokens:
+                        self._data[CONF_DHL_BRIEF_TOKENS] = current_tokens
+                    else:
+                        return await self.async_step_reconfig_dhl_brief_auth()
+                else:
+                    # Brief preview turned off -> drop the stored tokens so a
+                    # later re-enable triggers a fresh login.
+                    self._data.pop(CONF_DHL_BRIEF_TOKENS, None)
                 self.hass.config_entries.async_update_entry(
                     self._entry,
                     data=self._data,
