@@ -40,10 +40,16 @@
           "generic_custom_img": "Použít vlastní obrázek obecný 'bez dodání'?",
           "allow_forwarded_emails": "Povolit přeposílané e-maily kromě výchozí hodnoty služby (např. no-reply@usps.com)",
           "generate_grid": "Create image grid for LLM vision models",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Počet dní zpět pro kontrolu e-mailů o balících (minimum 1, výchozí 3)",
+          "amazon_enabled": "Povolit senzory balíků Amazon",
+          "seventeen_track_api_key": "API klíč 17track.net (volitelné)",
+          "dhl_brief_enabled": "Povolit náhled dopisů DHL"
         },
         "description": "Dokončete konfiguraci přizpůsobením následujících položek na základě struktury e-mailu a instalace Home Assistant.\n\nPodrobnosti o [Mail and Packages integration](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) můžete zkontrolovat na [configurace, styly a automatizace](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) na GitHubu.",
-        "title": "Mail and Packages (Krok 2 ze 3)"
+        "title": "Mail and Packages (Krok 2 ze 3)",
+        "data_description": {
+          "seventeen_track_api_key": "Volitelné. S API klíčem 17track.net poskytuje 17track směrodatný stav pro všechna zjištěná sledovací čísla (kromě Amazonu) — detekce stavu na základě e-mailů dopravce se pak přeskočí."
+        }
       },
       "options_3": {
         "data": {
@@ -152,10 +158,16 @@
           "walmart_custom_img": "Use custom 'no Walmart delivery' image?",
           "fedex_custom_img": "Use custom 'no FedEx delivery' image?",
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Počet dní zpět pro kontrolu e-mailů o balících (minimum 1, výchozí 3)",
+          "amazon_enabled": "Povolit senzory balíků Amazon",
+          "seventeen_track_api_key": "API klíč 17track.net (volitelné)",
+          "dhl_brief_enabled": "Povolit náhled dopisů DHL"
         },
         "description": "Finish the configuration by customizing the following based on your email structure and Home Assistant installation.\n\nIf using Amazon forwarded emails please separate each address with a comma or enter (none) to clear this setting.",
-        "title": "Mail and Packages (Step 2 of 2)"
+        "title": "Mail and Packages (Step 2 of 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Volitelné. S API klíčem 17track.net poskytuje 17track směrodatný stav pro všechna zjištěná sledovací čísla (kromě Amazonu) — detekce stavu na základě e-mailů dopravce se pak přeskočí."
+        }
       },
       "reconfig_3": {
         "data": {

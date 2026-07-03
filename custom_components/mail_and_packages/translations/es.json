@@ -36,10 +36,16 @@
           "generic_custom_img": "¿Usar imagen personalizada genérica 'sin entrega'?",
           "generate_grid": "Crear cuadrícula de imágenes para modelos de visión LLM",
           "allow_forwarded_emails": "Permitir correos electrónicos reenviados además del valor predeterminado de un servicio (p. ej., no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Días atrás para revisar correos de paquetes (mínimo 1, predeterminado 3)",
+          "amazon_enabled": "Activar sensores de paquetes de Amazon",
+          "seventeen_track_api_key": "Clave API de 17track.net (opcional)",
+          "dhl_brief_enabled": "Activar vista previa de cartas de DHL"
         },
         "description": "Termine la configuración personalizando lo siguiente según su estructura de correo electrónico y la instalación de Home Assistant. \n\n Para obtener detalles sobre las opciones [Integración de correo y paquetes] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) revise las [configuración, plantillas , y la sección de automatizaciones] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) en GitHub.",
-        "title": "Correo y paquetes (Paso 2 de 2)"
+        "title": "Correo y paquetes (Paso 2 de 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Opcional. Con una clave API de 17track.net, 17track proporciona el estado autorizado para todos los números de seguimiento detectados (excepto Amazon); la detección de estado basada en correos del transportista se omite."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "¿Usar imagen personalizada genérica 'sin entrega'?",
           "generate_grid": "Crear cuadrícula de imágenes para modelos de visión LLM",
           "allow_forwarded_emails": "Permitir correos electrónicos reenviados además del valor predeterminado de un servicio (p. ej., no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Días atrás para revisar correos de paquetes (mínimo 1, predeterminado 3)",
+          "amazon_enabled": "Activar sensores de paquetes de Amazon",
+          "seventeen_track_api_key": "Clave API de 17track.net (opcional)",
+          "dhl_brief_enabled": "Activar vista previa de cartas de DHL"
         },
         "description": "Finalice la configuración personalizando lo siguiente en función de la estructura de su correo electrónico y la instalación de Home Assistant.\n\nPara obtener detalles sobre las opciones de [integración de correo y paquetes](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration), revise la [sección de configuración, plantillas y automatizaciones](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) en GitHub.\n\nSi utiliza correos electrónicos reenviados de Amazon, separe cada dirección con una coma o ingrese (ninguno) para borrar esta configuración.",
-        "title": "Correo y paquetes (Paso 2 de 2)"
+        "title": "Correo y paquetes (Paso 2 de 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Opcional. Con una clave API de 17track.net, 17track proporciona el estado autorizado para todos los números de seguimiento detectados (excepto Amazon); la detección de estado basada en correos del transportista se omite."
+        }
       },
       "reconfig_3": {
         "data": {

@@ -36,10 +36,16 @@
           "generic_custom_img": "Használjon egyéni általános 'nincs szállítás' képet?",
           "generate_grid": "Kép rács létrehozása LLM látásmodellekhez",
           "allow_forwarded_emails": "Engedélyezze a továbbított e-maileket a szolgáltatás alapértelmezett értékén kívül (pl. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Hány napra visszamenőleg keressen csomag e-maileket (minimum 1, alapértelmezett 3)",
+          "amazon_enabled": "Amazon csomagérzékelők engedélyezése",
+          "seventeen_track_api_key": "17track.net API-kulcs (opcionális)",
+          "dhl_brief_enabled": "DHL levélelőnézet engedélyezése"
         },
         "description": "Végezze el a konfigurációt az alábbiak testreszabásával az e-mail struktúrája és a Home Assistant telepítése alapján. \n\n A [Levelek és csomagok integrációja] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) opciókkal kapcsolatban tekintse meg a [konfiguráció, sablonok , és az automatizálás szakasz] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) a GitHubon.",
-        "title": "Levél és csomagok (2. lépés a 2-ből)"
+        "title": "Levél és csomagok (2. lépés a 2-ből)",
+        "data_description": {
+          "seventeen_track_api_key": "Opcionális. 17track.net API-kulccsal a 17track megbízható állapotot biztosít az összes észlelt nyomkövetési számhoz (az Amazon kivételével) — az e-mail alapú futárállapot-észlelés ekkor kimarad."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Használjon egyéni általános 'nincs szállítás' képet?",
           "generate_grid": "Kép rács létrehozása LLM látásmodellekhez",
           "allow_forwarded_emails": "Engedélyezze a továbbított e-maileket a szolgáltatás alapértelmezett értékén kívül (pl. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Hány napra visszamenőleg keressen csomag e-maileket (minimum 1, alapértelmezett 3)",
+          "amazon_enabled": "Amazon csomagérzékelők engedélyezése",
+          "seventeen_track_api_key": "17track.net API-kulcs (opcionális)",
+          "dhl_brief_enabled": "DHL levélelőnézet engedélyezése"
         },
         "description": "Fejezze be a konfigurációt a következők testreszabásával az e-mail struktúrája és a Home Assistant telepítése alapján.\n\nA [Mail and Packages integráció](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) lehetőségeinek részleteiről a GitHub-on található [konfiguráció, sablonok és automatizálások szekcióban](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) található információkat.\n\nHa Amazon továbbított e-maileket használ, kérjük, válassza el minden címet vesszővel, vagy írja be a (none) opciót, hogy törölje ezt a beállítást.",
-        "title": "Levél és csomagok (2. lépés a 2-ből)"
+        "title": "Levél és csomagok (2. lépés a 2-ből)",
+        "data_description": {
+          "seventeen_track_api_key": "Opcionális. 17track.net API-kulccsal a 17track megbízható állapotot biztosít az összes észlelt nyomkövetési számhoz (az Amazon kivételével) — az e-mail alapú futárállapot-észlelés ekkor kimarad."
+        }
       },
       "reconfig_3": {
         "data": {

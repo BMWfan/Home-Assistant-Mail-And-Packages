@@ -36,10 +36,16 @@
           "generic_custom_img": "Käytä mukautettua yleistä 'ei toimituksia' kuvaa?",
           "generate_grid": "Luo kuvaverkko LLM-näkömalleille",
           "allow_forwarded_emails": "Salli edelleenlähetetyt sähköpostit palvelun oletusarvon lisäksi (esim. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Päivien määrä taaksepäin pakettisähköpostien tarkistamiseksi (vähintään 1, oletus 3)",
+          "amazon_enabled": "Ota käyttöön Amazon-pakettianturit",
+          "seventeen_track_api_key": "17track.net API-avain (valinnainen)",
+          "dhl_brief_enabled": "Ota käyttöön DHL-kirjeiden esikatselu"
         },
         "description": "Viimeistele kokoonpano mukauttamalla seuraava sähköpostirakenteen ja Home Assistant -asennuksen perusteella. \n\n Lisätietoja [Posti ja paketit-integroinnista] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) -asetuksista on [kokoonpano, mallit , ja automaatiot-osio] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) GitHubissa.",
-        "title": "Posti ja paketit (vaihe 2/2)"
+        "title": "Posti ja paketit (vaihe 2/2)",
+        "data_description": {
+          "seventeen_track_api_key": "Valinnainen. 17track.net API-avaimella 17track tarjoaa arvovaltaisen tilan kaikille havaituille seurantanumeroille (paitsi Amazon) — sähköpostipohjainen kuljetusliikkeen tilan tunnistus ohitetaan tällöin."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Käytä mukautettua yleistä 'ei toimituksia' kuvaa?",
           "generate_grid": "Luo kuvaverkko LLM-näkömalleille",
           "allow_forwarded_emails": "Salli edelleenlähetetyt sähköpostit palvelun oletusarvon lisäksi (esim. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Päivien määrä taaksepäin pakettisähköpostien tarkistamiseksi (vähintään 1, oletus 3)",
+          "amazon_enabled": "Ota käyttöön Amazon-pakettianturit",
+          "seventeen_track_api_key": "17track.net API-avain (valinnainen)",
+          "dhl_brief_enabled": "Ota käyttöön DHL-kirjeiden esikatselu"
         },
         "description": "Suorita määritys loppuun mukauttamalla seuraavat sähköpostirakenteeseesi ja Home Assistant -asennukseesi perustuen.\n\nLisätietoja [Mail and Packages -integraation](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) vaihtoehdoista löydät GitHubista [määritys-, mallit- ja automaatiot-osiossa](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration).\n\nJos käytät Amazonin välittämiä sähköposteja, erottele jokainen osoite pilkulla tai syötä (none) tyhjentääksesi tämän asetuksen.",
-        "title": "Posti ja paketit (vaihe 2/2)"
+        "title": "Posti ja paketit (vaihe 2/2)",
+        "data_description": {
+          "seventeen_track_api_key": "Valinnainen. 17track.net API-avaimella 17track tarjoaa arvovaltaisen tilan kaikille havaituille seurantanumeroille (paitsi Amazon) — sähköpostipohjainen kuljetusliikkeen tilan tunnistus ohitetaan tällöin."
+        }
       },
       "reconfig_3": {
         "data": {

@@ -36,10 +36,16 @@
           "generic_custom_img": "Använd anpassad generisk 'ingen leverans' bild?",
           "generate_grid": "Skapa bildrutnät för LLM-visionsmodeller",
           "allow_forwarded_emails": "Tillåt vidarebefordrade e-postmeddelanden utöver en tjänsts standardvärde (t.ex. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Antal dagar bakåt att kontrollera paket-e-post (minst 1, standard 3)",
+          "amazon_enabled": "Aktivera Amazon-paketsensorer",
+          "seventeen_track_api_key": "17track.net API-nyckel (valfritt)",
+          "dhl_brief_enabled": "Aktivera förhandsvisning av DHL-brev"
         },
         "description": "Avsluta konfigurationen genom att anpassa följande baserat på din e-poststruktur och installation av hemassistent. \n\n Mer information om alternativen [Mail and Packages] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) läser [konfiguration, mallar , och automatiseringsavsnitt] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) på GitHub.",
-        "title": "Mail och paket (steg 2 av 2)"
+        "title": "Mail och paket (steg 2 av 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Valfritt. Med en 17track.net API-nyckel tillhandahåller 17track den auktoritativa statusen för alla upptäckta spårningsnummer (utom Amazon) — den e-postbaserade statusdetekteringen för transportörer förbigås då."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Använd anpassad generisk 'ingen leverans' bild?",
           "generate_grid": "Skapa bildrutnät för LLM-visionsmodeller",
           "allow_forwarded_emails": "Tillåt vidarebefordrade e-postmeddelanden utöver en tjänsts standardvärde (t.ex. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Antal dagar bakåt att kontrollera paket-e-post (minst 1, standard 3)",
+          "amazon_enabled": "Aktivera Amazon-paketsensorer",
+          "seventeen_track_api_key": "17track.net API-nyckel (valfritt)",
+          "dhl_brief_enabled": "Aktivera förhandsvisning av DHL-brev"
         },
         "description": "Slutför konfigurationen genom att anpassa följande baserat på din e-poststruktur och Home Assistant-installation.\n\nFör detaljer om [Mail and Packages integration](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) alternativen granska [konfiguration, mallar och automatiseringssektionen](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) på GitHub.\n\nOm du använder vidarebefordrade e-postmeddelanden från Amazon, separera varje adress med ett kommatecken eller ange (ingen) för att rensa denna inställning.",
-        "title": "Mail och paket (steg 2 av 2)"
+        "title": "Mail och paket (steg 2 av 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Valfritt. Med en 17track.net API-nyckel tillhandahåller 17track den auktoritativa statusen för alla upptäckta spårningsnummer (utom Amazon) — den e-postbaserade statusdetekteringen för transportörer förbigås då."
+        }
       },
       "reconfig_3": {
         "data": {
