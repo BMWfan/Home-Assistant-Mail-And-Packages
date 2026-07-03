@@ -115,11 +115,22 @@ class DHLBriefankundigungClient:
         """Initialize with existing tokens."""
         self._hass = hass
         self._tokens: dict = dict(tokens)
+        self._auth_failed = False
 
     @property
     def tokens(self) -> dict:
         """Return current tokens so the caller can persist any refresh."""
         return self._tokens
+
+    @property
+    def auth_failed(self) -> bool:
+        """True if the last call failed because the DHL login is invalid.
+
+        The refresh token is dead (DHL returned 400) or the API rejected the
+        id_token (401/403) -- either way only a fresh interactive login fixes
+        it, so the caller should raise a repair issue.
+        """
+        return self._auth_failed
 
     async def _ensure_token_valid(self) -> str:
         """Return a valid id_token, refreshing if it expires within 60 s."""
@@ -132,6 +143,7 @@ class DHLBriefankundigungClient:
         refresh_token = self._tokens.get("refresh_token")
         if not refresh_token:
             _LOGGER.error("DHL Briefankündigung: kein Refresh-Token vorhanden")
+            self._auth_failed = True
             return
         session = async_get_clientsession(self._hass)
         # client_id omitted from the body on purpose -- see exchange_code.
@@ -152,9 +164,11 @@ class DHLBriefankundigungClient:
                     "expires_in", 3600
                 )
                 self._tokens.update(new_tokens)
+                self._auth_failed = False
                 _LOGGER.debug("DHL Briefankündigung: Token erfolgreich erneuert")
         except Exception as err:  # noqa: BLE001
             _LOGGER.error("DHL Briefankündigung Token-Refresh fehlgeschlagen: %s", err)
+            self._auth_failed = True
 
     async def fetch_letters(self) -> list[dict]:
         """Fetch letter announcements from the DHL advices API."""
@@ -172,6 +186,15 @@ class DHLBriefankundigungClient:
             async with session.get(
                 _ADVICES_URL, params={"width": "414"}, headers=headers
             ) as resp:
+                if resp.status in (401, 403):
+                    # id_token rejected -> login is no longer valid.
+                    self._auth_failed = True
+                    _LOGGER.error(
+                        "DHL Briefankündigung: Abruf abgelehnt (HTTP %s) -- "
+                        "Neu-Anmeldung nötig",
+                        resp.status,
+                    )
+                    return []
                 resp.raise_for_status()
                 data = await resp.json(content_type=None)
         except Exception as err:  # noqa: BLE001

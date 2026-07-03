@@ -22,6 +22,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_entry_oauth2_flow
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import (
     ConfigEntryAuthFailed,
@@ -149,9 +150,20 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                         except Exception as err:
                             _LOGGER.error("Error refreshing OAuth token")
                             _LOGGER.debug("OAuth token refresh error details: %s", err)
-                            raise UpdateFailed("OAuth token refresh failed") from err
+                            # Auth is broken -> ConfigEntryAuthFailed makes HA
+                            # raise a reauth repair (Settings > Repairs) and
+                            # prompt re-authentication, instead of an opaque
+                            # "update failed" retry loop.
+                            raise ConfigEntryAuthFailed(
+                                "OAuth token refresh failed"
+                            ) from err
 
                     data = await self.process_emails(self.hass, config)
+                except ConfigEntryAuthFailed:
+                    # Let auth failures (OAuth refresh above, or IMAP login in
+                    # _get_imap_connection) reach the coordinator so it opens a
+                    # reauth repair -- do NOT convert them to UpdateFailed below.
+                    raise
                 except UpdateFailed:
                     raise
                 except Exception as error:
@@ -200,6 +212,22 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             shipper_data, account = await self._update_shippers(
                 account, config, today, since_date, cache
             )
+            # 17track key bad/expired -> repair issue (Settings > Repairs);
+            # cleared automatically once a query succeeds again.
+            if shipper_data.pop("_17track_auth_failed", False):
+                ir.async_create_issue(
+                    hass,
+                    DOMAIN,
+                    "seventeen_track_auth_failed",
+                    is_fixable=True,
+                    severity=ir.IssueSeverity.ERROR,
+                    translation_key="seventeen_track_auth_failed",
+                    data={"entry_id": self.config_entry.entry_id},
+                )
+            else:
+                ir.async_delete_issue(
+                    hass, DOMAIN, "seventeen_track_auth_failed"
+                )
             # When a 17track API key is configured, use only the status data
             # that 17track produced (keyed as _17track_details). This prevents
             # email-based status classifications from conflicting with the
@@ -591,6 +619,26 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         # otherwise the next scan reuses the now-dead token and login/token
         # returns HTTP 400, permanently breaking the feature within hours.
         self._persist_dhl_tokens(client.tokens, tokens)
+
+        # DHL login dead -> surface a repair issue (Settings > Repairs) so the
+        # user is prompted to re-authenticate instead of silently losing the
+        # feature. Cleared automatically once a fetch succeeds again.
+        if client.auth_failed:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                "dhl_brief_auth_failed",
+                is_fixable=True,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="dhl_brief_auth_failed",
+                data={"entry_id": self.config_entry.entry_id},
+            )
+            data["dhl_brief_anzahl"] = 0
+            data["dhl_brief_letters"] = []
+            return
+
+        # Auth works -> clear any previously raised repair issue.
+        ir.async_delete_issue(hass, DOMAIN, "dhl_brief_auth_failed")
 
         if not letters:
             data["dhl_brief_anzahl"] = 0

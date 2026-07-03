@@ -269,6 +269,9 @@ class UniversalTrackingShipper(Shipper):
             # the coordinator can use it exclusively and ignore email-based status.
             if self.config.get(CONF_17TRACK_API_KEY):
                 result["_17track_details"] = coordinator_tracking
+        result["_17track_auth_failed"] = getattr(
+            self, "_seventeen_auth_failed", False
+        )
         return result
 
     async def _enrich_with_17track(
@@ -285,6 +288,9 @@ class UniversalTrackingShipper(Shipper):
         client = SeventeenTrackClient(self.hass, api_key)
         await client.register(tracking_list)
         status_map = await client.get_status_batch(tracking_list)
+        # Surfaced to the coordinator (via process_batch) so a bad/expired
+        # 17track API key becomes a repair issue.
+        self._seventeen_auth_failed = client.auth_failed
 
         enriched = []
         for item in base_details:

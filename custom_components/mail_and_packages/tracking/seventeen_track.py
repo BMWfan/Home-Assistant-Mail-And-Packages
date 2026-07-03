@@ -16,6 +16,12 @@ _BATCH_LIMIT = 40
 """Max tracking numbers per API request (17track rejects larger batches
 with code -18010014 -- observed live with a 186-number request)."""
 
+# 17track signals a bad/expired API key with HTTP 401/403 or one of these
+# top-level business codes. Anything here means the key must be fixed, so the
+# coordinator raises a repair issue rather than retrying forever.
+_AUTH_ERROR_STATUS = (401, 403)
+_AUTH_ERROR_CODES = {-18010011, -18010012, -18010013}
+
 # v2.2 returns latest_status.status as a string; map it onto the numeric
 # codes the rest of this integration keys on (see universal._STATUS_TO_SUFFIX).
 _V2_STATUS_TO_CODE: dict[str, int] = {
@@ -41,6 +47,7 @@ class SeventeenTrackClient:
             "17token": api_key,
             "Content-Type": "application/json",
         }
+        self.auth_failed = False
 
     async def register(self, tracking_numbers: list[str]) -> None:
         """Register tracking numbers with 17track before the first status query.
@@ -60,7 +67,13 @@ class SeventeenTrackClient:
                     json=payload,
                     headers=self._headers,
                 ) as resp:
+                    if resp.status in _AUTH_ERROR_STATUS:
+                        self.auth_failed = True
+                        return
                     resp.raise_for_status()
+                    if (await resp.json()).get("code") in _AUTH_ERROR_CODES:
+                        self.auth_failed = True
+                        return
                 _LOGGER.debug("17track: registered %d tracking number(s)", len(chunk))
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("17track register failed: %s", err)
@@ -88,12 +101,18 @@ class SeventeenTrackClient:
                     json=payload,
                     headers=self._headers,
                 ) as resp:
+                    if resp.status in _AUTH_ERROR_STATUS:
+                        self.auth_failed = True
+                        return results
                     resp.raise_for_status()
                     data = await resp.json()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.error("17track gettrackinfo failed: %s", err)
                 continue
 
+            if data.get("code") in _AUTH_ERROR_CODES:
+                self.auth_failed = True
+                return results
             if data.get("code") != 0:
                 _LOGGER.error("17track API error: code=%s", data.get("code"))
                 continue
