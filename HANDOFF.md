@@ -87,6 +87,44 @@ installiert → Syntax stattdessen mit `python -m py_compile` prüfen. Zip-Datei
   abgegeben" **mit** Bild) reinkommt.
 - Optional weitere Sprachen für Exception-Betreffe/Bodies (aktuell EN + DE).
 
+### Architektur-Notizen & aufgeschobene Ideen (bewusst NICHT umgesetzt)
+
+Der User will vorerst **konsolidieren statt erweitern** (Branch stabilisieren/mergen,
+Testsuite reparieren). Diese Ideen sind dokumentiert für „vielleicht später":
+
+**A) DHL-Paketverfolgung / Fahrer-Ort (aufgeschoben).**
+- Wir sind für die Briefankündigung bereits per OAuth an deinem **DHL-Konto** eingeloggt
+  und sprechen das **App-Backend** an (`dhl.de`, `id_token`-Cookie). Dieselbe Session
+  könnte auch DHLs **Paket**-Endpunkte erreichen — technisch „dasselbe" wie die
+  Briefankündigung, kein neues Amazon-artiges Reverse-Engineering.
+- Endpunkt ist praktisch bekannt: der **ioBroker.parcel-Adapter** (Quelle unserer
+  DHL-Login-Details) trackt auch DHL-Pakete.
+- **Aber:** (1) nur **konto-verknüpfte** Pakete sichtbar (nicht jede in Mails gefundene
+  Sendung); (2) liefert vermutlich **Status + Zustellfenster + „N Stopps"**, **kein**
+  Live-GPS des Fahrers; (3) neue fragile Carrier-API-Abhängigkeit + verletzt „kein
+  direkter Carrier-API-Aufruf außer 17track" (bräuchte explizite Freigabe wie die
+  Briefankündigung).
+- **Entscheidung:** vorerst **weggelassen** (fragil, unklarer Nutzen). Falls doch:
+  zuerst Endpunkt mit vorhandenem Token anprobieren und schauen, welche Orts-/Zustelldaten
+  real zurückkommen, bevor ein „DHL Paket"-Sensor gebaut wird.
+
+**B) Redundanz 17track- vs. Mail-Status (Konsolidierungs-Chance).**
+- Status-Führung ist bei gesetztem 17track-Key **bereits** 17track-exklusiv:
+  [coordinator.py:203-214](custom_components/mail_and_packages/coordinator.py:203) verwirft
+  dann die mail-basierten `_tracking_details` und nutzt nur `_17track_details`.
+- **Verbleibende Redundanz:** Der Scanner führt trotzdem **jeden Scan** die
+  Per-Carrier-Mail-Suchen (`*_delivered`/`*_delivering`-Betreffe) aus, parallel zu 17track.
+  `*_delivering`/`*_packages` werden von 17track überschrieben, `*_delivered` kommt aber
+  weiter aus Mails. Das ist die „gemixte" Wahrnehmung im Wizard/den Sensoren.
+- **Saubere Zielarchitektur:** „Entdeckung" (Nummern in Mails finden) von „Status"
+  (gehört 17track) trennen; bei aktivem 17track die redundanten Per-Carrier-**Status**-Mail-
+  Suchen abschalten (Amazon bleibt separat, ohne 17track).
+- **Caveats gegen blindes Entfernen:** Deckungslücke (Sendungen ohne parsebare Nummer →
+  Mail ist einziges Signal), 17track-Monats-Quota (Mail ist gratis), Verhalten der
+  Per-Carrier-Sensoren ändert sich. → echter Refactor, nicht trivial.
+- **Wizard-UX:** macht die Datenflüsse (Mail-Entdeckung vs. 17track-Status vs.
+  Amazon-separat) nicht klar — Kandidat für bessere Gruppierung/Erklärtexte.
+
 ---
 
 ## 1. Was auf diesem Branch ist
