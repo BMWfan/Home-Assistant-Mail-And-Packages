@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Cartella per memorizzare le immagini"
+          "storage": "Cartella per memorizzare le immagini",
+          "dhl_brief_reauth": "Ri-autenticare l'anteprima lettere DHL"
         },
         "description": "Inserisci la directory in cui desideri che le tue immagini vengano memorizzate.\nIl valore predefinito viene popolato automaticamente.",
-        "title": "Posizione di archiviazione delle immagini"
+        "title": "Posizione di archiviazione delle immagini",
+        "data_description": {
+          "dhl_brief_reauth": "Lascia deselezionato per mantenere l'attuale accesso DHL. Seleziona solo se vuoi accedere di nuovo a DHL (ad esempio dopo la scadenza o la revoca del token)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

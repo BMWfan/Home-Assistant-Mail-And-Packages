@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Directorio para almacenar imágenes"
+          "storage": "Directorio para almacenar imágenes",
+          "dhl_brief_reauth": "Volver a autenticar la vista previa de cartas de DHL"
         },
         "description": "Por favor, ingrese el directorio en el que le gustaría almacenar sus imágenes.\nEl predeterminado se llena automáticamente.",
-        "title": "Ubicación de almacenamiento de imágenes"
+        "title": "Ubicación de almacenamiento de imágenes",
+        "data_description": {
+          "dhl_brief_reauth": "Deje sin marcar para mantener su sesión actual de DHL. Marque solo si desea volver a iniciar sesión en DHL (por ejemplo, después de que el token caduque o se revoque)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

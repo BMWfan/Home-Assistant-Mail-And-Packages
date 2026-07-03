@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Mapa za shranjevanje slik"
+          "storage": "Mapa za shranjevanje slik",
+          "dhl_brief_reauth": "Znova preveri pristnost predogleda pisem DHL"
         },
         "description": "Prosimo, vnesite imenik, v katerem želite shraniti svoje slike.\nPrivzeto je samodejno izpolnjeno.",
-        "title": "Lokacija shranjevanja slik"
+        "title": "Lokacija shranjevanja slik",
+        "data_description": {
+          "dhl_brief_reauth": "Pustite neoznačeno, da obdržite trenutno prijavo DHL. Označite le, če se želite znova prijaviti v DHL (npr. po poteku ali preklicu žetona)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

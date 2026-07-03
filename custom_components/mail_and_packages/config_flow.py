@@ -736,7 +736,9 @@ def _get_schema_step_forwarded_emails(
     )
 
 
-def _get_schema_step_storage(user_input: dict, default_dict: dict) -> Any:
+def _get_schema_step_storage(
+    user_input: dict, default_dict: dict, show_dhl_reauth: bool = False
+) -> Any:
     """Get a schema using the default_dict as a backup."""
     if user_input is None:
         user_input = {}
@@ -745,14 +747,18 @@ def _get_schema_step_storage(user_input: dict, default_dict: dict) -> Any:
         """Get default value for key."""
         return user_input.get(key, default_dict.get(key, fallback_default))
 
-    return vol.Schema(
-        {
-            vol.Required(
-                CONF_STORAGE,
-                default=_get_default(CONF_STORAGE, DEFAULT_STORAGE),
-            ): cv.string,
-        },
-    )
+    schema = {
+        vol.Required(
+            CONF_STORAGE,
+            default=_get_default(CONF_STORAGE, DEFAULT_STORAGE),
+        ): cv.string,
+    }
+    # Only offered on reconfigure when DHL is already set up with a token:
+    # ticking it forces a fresh DHL login (e.g. after the token was revoked),
+    # otherwise the existing login is kept untouched.
+    if show_dhl_reauth:
+        schema[vol.Optional("dhl_brief_reauth", default=False)] = cv.boolean
+    return vol.Schema(schema)
 
 
 async def _validate_login(
@@ -1376,6 +1382,8 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
+                # Transient flow-only flag -- never store it on the entry.
+                reauth = bool(self._data.pop("dhl_brief_reauth", False))
                 if self._data.get(CONF_DHL_BRIEF_ENABLED):
                     # Reuse the existing DHL login across reconfigures instead
                     # of forcing the browser code flow every time. The
@@ -1383,10 +1391,11 @@ class MailAndPackagesFlowHandler(
                     # background, so read the CURRENT ones from the live entry
                     # (self._data is a wizard-start snapshot that may already be
                     # stale -- writing it back would clobber a just-refreshed
-                    # token and break auth). Only send the user through the
-                    # login when there is no token yet (first-time enable).
+                    # token and break auth). Send the user through the login only
+                    # when there is no token yet (first-time enable) OR when they
+                    # explicitly opted to re-authenticate (e.g. token revoked).
                     current_tokens = self._entry.data.get(CONF_DHL_BRIEF_TOKENS)
-                    if current_tokens:
+                    if current_tokens and not reauth:
                         self._data[CONF_DHL_BRIEF_TOKENS] = current_tokens
                     else:
                         return await self.async_step_reconfig_dhl_brief_auth()
@@ -1408,9 +1417,18 @@ class MailAndPackagesFlowHandler(
 
     async def _show_reconfig_storage(self, user_input):
         """Step 3 setup."""
+        # Offer the optional "re-authenticate DHL" toggle only when it makes
+        # sense: DHL preview enabled AND a token already exists on the entry.
+        show_dhl_reauth = bool(
+            self._data.get(CONF_DHL_BRIEF_ENABLED)
+            and self._entry
+            and self._entry.data.get(CONF_DHL_BRIEF_TOKENS)
+        )
         return self.async_show_form(
             step_id="reconfig_storage",
-            data_schema=_get_schema_step_storage(user_input, self._data),
+            data_schema=_get_schema_step_storage(
+                user_input, self._data, show_dhl_reauth
+            ),
             errors=self._errors,
         )
 

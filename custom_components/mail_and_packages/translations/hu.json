@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Képek tárolására szolgáló könyvtár"
+          "storage": "Képek tárolására szolgáló könyvtár",
+          "dhl_brief_reauth": "DHL levélelőnézet újbóli hitelesítése"
         },
         "description": "Kérjük, adja meg azt a könyvtárat, ahová a képeit szeretné tárolni.\nAz alapértelmezett automatikusan kitöltődik.",
-        "title": "Képtárolási hely"
+        "title": "Képtárolási hely",
+        "data_description": {
+          "dhl_brief_reauth": "Hagyja bejelöletlenül a jelenlegi DHL-bejelentkezés megtartásához. Csak akkor jelölje be, ha újra be szeretne jelentkezni a DHL-be (például a token lejárta vagy visszavonása után)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

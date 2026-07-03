@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Répertoire pour stocker les images"
+          "storage": "Répertoire pour stocker les images",
+          "dhl_brief_reauth": "Se reconnecter à l'aperçu des lettres DHL"
         },
         "description": "Veuillez entrer le répertoire dans lequel vous souhaitez que vos images soient stockées.\nLa valeur par défaut est automatiquement remplie.",
-        "title": "Emplacement de stockage des images"
+        "title": "Emplacement de stockage des images",
+        "data_description": {
+          "dhl_brief_reauth": "Laissez décoché pour conserver votre connexion DHL actuelle. Cochez uniquement si vous souhaitez vous reconnecter à DHL (par exemple après l'expiration ou la révocation du jeton)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

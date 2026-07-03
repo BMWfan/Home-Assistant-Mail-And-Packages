@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Adresár na ukladanie obrázkov"
+          "storage": "Adresár na ukladanie obrázkov",
+          "dhl_brief_reauth": "Znovu overiť náhľad listov DHL"
         },
         "description": "Prosím, zadajte adresár, v ktorom chcete ukladať svoje obrázky.\nPredvolená hodnota je automaticky vyplnená.",
-        "title": "Miesto ukladania obrázkov"
+        "title": "Miesto ukladania obrázkov",
+        "data_description": {
+          "dhl_brief_reauth": "Nechajte nezaškrtnuté, ak chcete zachovať existujúce prihlásenie DHL. Zaškrtnite len vtedy, ak sa chcete znova prihlásiť do DHL (napr. po vypršaní alebo zrušení tokenu)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

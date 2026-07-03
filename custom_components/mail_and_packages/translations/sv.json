@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Katalog för att lagra bilder"
+          "storage": "Katalog för att lagra bilder",
+          "dhl_brief_reauth": "Autentisera DHL-brevförhandsvisning igen"
         },
         "description": "Vänligen ange den katalog du vill att dina bilder ska lagras i.\nStandardinställningen är automatiskt ifylld.",
-        "title": "Bildlagringsplats"
+        "title": "Bildlagringsplats",
+        "data_description": {
+          "dhl_brief_reauth": "Lämna omarkerat för att behålla din nuvarande DHL-inloggning. Markera endast om du vill logga in på DHL igen (t.ex. efter att token har gått ut eller återkallats)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

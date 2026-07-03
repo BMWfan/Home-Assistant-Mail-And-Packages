@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Katalog do przechowywania obrazów"
+          "storage": "Katalog do przechowywania obrazów",
+          "dhl_brief_reauth": "Ponowne uwierzytelnienie podglądu listów DHL"
         },
         "description": "Wprowadź katalog, w którym chciałbyś przechowywać swoje obrazy.\nDomyślnie jest on automatycznie wypełniany.",
-        "title": "Lokalizacja przechowywania obrazów"
+        "title": "Lokalizacja przechowywania obrazów",
+        "data_description": {
+          "dhl_brief_reauth": "Pozostaw niezaznaczone, aby zachować bieżące logowanie DHL. Zaznacz tylko, jeśli chcesz ponownie zalogować się do DHL (np. po wygaśnięciu lub unieważnieniu tokena)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

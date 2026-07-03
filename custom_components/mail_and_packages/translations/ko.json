@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "이미지를 저장할 디렉토리"
+          "storage": "이미지를 저장할 디렉토리",
+          "dhl_brief_reauth": "DHL 편지 미리보기 재인증"
         },
         "description": "이미지를 저장할 디렉토리를 입력해 주세요.\n기본값은 자동으로 채워집니다.",
-        "title": "이미지 저장 위치"
+        "title": "이미지 저장 위치",
+        "data_description": {
+          "dhl_brief_reauth": "현재 DHL 로그인을 유지하려면 선택하지 마세요. DHL에 다시 로그인하려는 경우에만 선택하세요(예: 토큰이 만료되거나 취소된 후)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

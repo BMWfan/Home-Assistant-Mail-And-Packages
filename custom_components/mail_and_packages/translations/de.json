@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Verzeichnis zum Speichern von Bildern"
+          "storage": "Verzeichnis zum Speichern von Bildern",
+          "dhl_brief_reauth": "DHL Briefankündigung neu anmelden"
         },
         "description": "Bitte geben Sie das Verzeichnis ein, in dem Ihre Bilder gespeichert werden sollen.\nStandardmäßig ist es automatisch ausgefüllt.",
-        "title": "Speicherort für Bilder"
+        "title": "Speicherort für Bilder",
+        "data_description": {
+          "dhl_brief_reauth": "Nicht ankreuzen, um den bestehenden DHL-Login zu behalten. Nur anhaken, wenn du dich erneut bei DHL anmelden willst (z. B. nachdem der Token abgelaufen oder widerrufen wurde)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

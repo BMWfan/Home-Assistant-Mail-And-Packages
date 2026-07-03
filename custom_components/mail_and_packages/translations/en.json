@@ -166,10 +166,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Directory to store images"
+          "storage": "Directory to store images",
+          "dhl_brief_reauth": "Re-authenticate DHL letter preview"
         },
         "description": "Please enter the directory you'd like your images to be stored in.\nThe default is auto populated.",
-        "title": "Image storage location"
+        "title": "Image storage location",
+        "data_description": {
+          "dhl_brief_reauth": "Leave unchecked to keep your current DHL login. Tick this only if you want to sign in to DHL again (for example after the token expired or was revoked)."
+        }
       },
       "config_dhl_brief_auth": {
         "data": {

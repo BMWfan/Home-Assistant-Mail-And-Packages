@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "儲存圖片的目錄"
+          "storage": "儲存圖片的目錄",
+          "dhl_brief_reauth": "重新驗證 DHL 信件預覽"
         },
         "description": "請輸入您希望存儲圖像的目錄。\n預設值會自動填充。",
-        "title": "圖像儲存位置"
+        "title": "圖像儲存位置",
+        "data_description": {
+          "dhl_brief_reauth": "保持不勾選以維持目前的 DHL 登入。只有在想重新登入 DHL 時才勾選（例如權杖過期或被撤銷後）。"
+        }
       },
       "config_forwarded_emails": {
         "data": {

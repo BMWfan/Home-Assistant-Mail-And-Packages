@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Hakemisto kuvien tallentamiseen"
+          "storage": "Hakemisto kuvien tallentamiseen",
+          "dhl_brief_reauth": "Todenna DHL-kirjeiden esikatselu uudelleen"
         },
         "description": "Anna hakemisto, johon haluat kuviesi tallentuvan.\nOletusarvo täytetään automaattisesti.",
-        "title": "Kuvien tallennuspaikka"
+        "title": "Kuvien tallennuspaikka",
+        "data_description": {
+          "dhl_brief_reauth": "Jätä valitsematta säilyttääksesi nykyisen DHL-kirjautumisen. Valitse vain, jos haluat kirjautua DHL:ään uudelleen (esimerkiksi kun token on vanhentunut tai peruutettu)."
+        }
       },
       "config_forwarded_emails": {
         "data": {

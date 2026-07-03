@@ -126,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Map om afbeeldingen op te slaan"
+          "storage": "Map om afbeeldingen op te slaan",
+          "dhl_brief_reauth": "Opnieuw aanmelden bij DHL-briefvoorbeeld"
         },
         "description": "Voer de map in waar u uw afbeeldingen wilt opslaan.\nDe standaard is automatisch ingevuld.",
-        "title": "Locatie voor afbeeldingsopslag"
+        "title": "Locatie voor afbeeldingsopslag",
+        "data_description": {
+          "dhl_brief_reauth": "Laat uitgevinkt om je huidige DHL-aanmelding te behouden. Vink alleen aan als je opnieuw wilt inloggen bij DHL (bijvoorbeeld nadat het token is verlopen of ingetrokken)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
