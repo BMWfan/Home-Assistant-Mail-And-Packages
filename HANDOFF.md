@@ -1,7 +1,87 @@
 # Handoff – Mail and Packages (branch `test/all-features`)
 
-Stand: 2026-07-02 (aktualisiert)  
-Aktuelles Release: **v0.5.4-test17** (prerelease auf GitHub)
+Stand: 2026-07-03 (aktualisiert)  
+Aktuelles Release: **v0.5.4-test34** (prerelease auf GitHub)
+
+> Abschnitte 2–3 unten dokumentieren die **historische** IMAP-Timeout-Saga (test11–17).
+> Das Problem ist seit **test16 (Reconnect)** + **test21 (Batch-Fetch)** gelöst – siehe Abschnitt 0.
+> Für den aktuellen Stand und den Deploy-Workflow **zuerst Abschnitt 0 lesen.**
+
+---
+
+## 0. Aktueller Stand (2026-07-03) — HIER ANFANGEN
+
+### Gelöste Großbaustellen
+- **IMAP-Scan-Timeout: gelöst.** Reconnect bei Stall (test16) + gebündelter Universal-Fetch
+  (`FETCH_BATCH_SIZE = 25`, test21). Scan läuft jetzt live in ~6–15 s durch. `custom_days`
+  auf **10** gesetzt (30 löste den Timeout erneut aus). Universal-Scanner-Fehltreffer
+  (186 → 0) über `ORDERED_PATTERNS` in `shippers/universal.py` bereinigt.
+- **DHL Briefankündigung (OAuth2 PKCE): eingerichtet und live bestätigt** (test24–28).
+  - Auth-URL nutzt `/login/authorize` (nicht `/oauth2/v2.0/authorize` → 403).
+  - App-User-Agent `DHLPaket_PROD/...` nötig (Akamai-Bot-Schutz).
+  - `client_id` NICHT im Token-Body senden (Basic-Auth-Header reicht; sonst HTTP 400
+    "cannot specify authorization in multiple ways").
+  - `config_flow.py` behält DHL-Tokens über Reconfigure (liest Live-Tokens, nicht den
+    Wizard-Start-Snapshot). Tokens/`id_token` in `diagnostics.py` redigiert.
+  - Vollständige Details in `shippers/dhl_briefankundigung.py`.
+
+### Diese Session (test29–test34) — DHL-Letter-Kosmetik + amazon.de-Erkennung
+
+| Release | Änderung | Dateien | Live-verifiziert |
+|---|---|---|---|
+| test29 | Redundanten DATE-Sensor „DHL Letter Next Delivery" (`dhl_brief_naechster`) **entfernt** (zeigte „Unbekannt", kein Mehrwert; USPS-Vorbild hat auch kein Datum). Datum bleibt als Attribut pro Brief in `dhl_brief_letters`. | `const.py`, `coordinator.py`, `sensor.py` | ✅ Sensor weg, Zähler läuft |
+| test30/31 | DHL-Letter-**Kamera zeigt „No Mail"-Platzhalter** (`mail_none.gif`) statt Leerlauf, wenn keine Briefe. (test30 nutzte fälschlich `image-no-mailpieces700.jpg` → test31 korrigiert.) | `camera.py` (`DhlBriefCamera.async_camera_image`) | ✅ Bild bestätigt |
+| **test32** | **amazon.de-Erkennung gefixt (Kern-Bug).** (1) Absender-Sprachfilter entfernt → `order-update@amazon.de` (tatsächlicher Absender) wird nicht mehr verworfen. (2) Deutsche Betreffe „Versendet:"/„In Zustellung:" ergänzt. | `utils/amazon.py` (`amazon_email_addresses`, `DOMAIN_LANG_MAP`), `const.py` (`AMAZON_SHIPMENT_SUBJECT`) | ✅ `amazon_delivered` 0→1 |
+| test33 | Amazon-**Fahrer-Foto**: starre 2-Host-Liste → Muster `*-prod-temp.s3.*.amazonaws.com` (alle Regionen). | `utils/amazon.py` (`_is_amazon_delivery_image_host`, `get_amazon_image_urls`) | ⚠️ kein aktuelles Foto zum Test (2023er nutzte `gb-prod-temp`, schon abgedeckt) |
+| test34 | Deutsche **Amazon-Verzögerungs-Mails** (`amazon_exception`): Betreff „Lieferungsaktualisierung:", Text „verspätet"/„Verzögerung" (case-insensitive). | `const.py` (`AMAZON_EXCEPTION_SUBJECTS`/`_BODIES`), `shippers/amazon.py` (`_amazon_exception`) | ⏳ Neustart läuft; Sensor bleibt 0 bis eine Verzögerungs-Mail **von heute** kommt |
+
+### Wie die amazon.de-Erkennung funktioniert (für Folge-Arbeit)
+- Absender werden aus `AMAZON_EMAIL` + `AMAZON_SHIPMENT_TRACKING` × Domain gebaut und
+  **nicht mehr** sprachgefiltert (nur Betreffe werden per `filter_amazon_strings` +
+  `DOMAIN_LANG_MAP` je Domain gefiltert).
+- `amazon_packages` = Pakete, deren Ankunftsdatum im Mail-Text = **heute** ist (minus
+  bereits zugestellte). `amazon_delivered` = heutige „Zugestellt:"/„Geliefert:"-Mails.
+- Verifiziert per Live-Blick in die echte Mailbox (Chrome-MCP/Outlook Web,
+  `daniel@bmw-dm.de`): alle Amazon-Zustell-/Versand-/Verzögerungs-Mails kommen von
+  `order-update@amazon.de` mit deutschen Betreffen.
+
+### Deploy-Workflow (AKTUELL — so wird ausgeliefert)
+Der Build läuft unter **Windows/PowerShell**; `ruff` ist in dieser Umgebung **nicht**
+installiert → Syntax stattdessen mit `python -m py_compile` prüfen. Zip-Dateien müssen im
+**Root** liegen (nicht unter `custom_components/mail_and_packages/`), siehe Abschnitt 3c.
+
+1. Code in `custom_components/mail_and_packages/` ändern.
+2. `python -m py_compile <geänderte Dateien>` (+ ggf. Standalone-Sanity-Skript).
+3. Zip bauen (PowerShell):
+   ```powershell
+   $src = "custom_components\mail_and_packages"; $zip = "mail_and_packages.zip"
+   Get-ChildItem $src -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+   if (Test-Path $zip) { Remove-Item $zip -Force }
+   Add-Type -AssemblyName System.IO.Compression.FileSystem
+   [System.IO.Compression.ZipFile]::CreateFromDirectory($src, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+   ```
+4. `git add -A && git commit && git push origin test/all-features`
+5. `git tag v0.5.4-testN && git push origin v0.5.4-testN`
+6. `gh release create v0.5.4-testN mail_and_packages.zip --target test/all-features --title "v0.5.4-testN" --notes "..."`
+7. HACS-Install per HA-MCP: `ha_manage_hacs(action="download", repository_id="BMWfan/Home-Assistant-Mail-And-Packages", version="v0.5.4-testN")`
+8. `ha_restart(confirm=true)` → ~180 s warten → `ha_get_state(...)` zur Verifikation.
+
+### Umgebung / IDs (für Live-Verifikation per HA-MCP)
+- HA-Instanz: `homeassistant.mackcloud.de` (HA 2026.4.3, Container, aarch64).
+- Config-Entry-ID: `01KVNWJJBRTHRCW43KA383KS6K`.
+- Mailbox: `daniel@bmw-dm.de` über `outlook.office365.com` (IMAP SSL, OAuth2 Microsoft).
+- Konfig: `amazon_domain=amazon.de`, `amazon_enabled=true`, `amazon_days=3`,
+  `custom_days=10`, `dhl_brief_enabled=true`, `resources=["universal_packages"]`,
+  14 Ordner inkl. `INBOX/Online-Shops/Amazon`.
+- Reload ohne Neustart: `ha_call_service("homeassistant","reload_config_entry", data={"entry_id": "..."})`.
+
+### Offene Punkte / mögliche nächste Schritte
+- **test34 nach Neustart verifizieren** (keine Regression: `amazon_delivered` bleibt 1,
+  Integration lädt sauber). Non-Null-Beweis für `amazon_exception` erst bei einer
+  Verzögerungs-Mail von heute möglich.
+- Fahrer-Foto-Host live gegenprüfen, sobald eine echte Foto-Zustellung („an sicherem Ort
+  abgegeben" **mit** Bild) reinkommt.
+- Optional weitere Sprachen für Exception-Betreffe/Bodies (aktuell EN + DE).
 
 ---
 
