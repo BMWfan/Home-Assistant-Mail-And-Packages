@@ -1,9 +1,9 @@
 """Repairs (Settings > Repairs) for Mail and Packages.
 
-Surfaces recoverable auth problems as user-facing repair issues -- currently
-the DHL Briefankündigung login expiring -- and provides a guided re-login flow,
-so the user is prompted in the UI instead of having to dig through the logs or
-re-run the whole config wizard.
+Surfaces recoverable auth problems as user-facing repair issues -- the DHL
+Briefankündigung login expiring and the 17track.net API key being rejected --
+and provides guided recovery flows, so the user is prompted in the UI instead
+of having to dig through the logs or re-run the whole config wizard.
 """
 
 from __future__ import annotations
@@ -33,12 +33,20 @@ class DHLBriefReauthRepairFlow(RepairsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> data_entry_flow.FlowResult:
+        """Entry point.
+
+        HA passes the issue's ``data`` dict as ``user_input`` here on start, so
+        we must NOT treat it as a submitted form -- redirect to the form step,
+        which only validates a genuine submission.
+        """
+        return await self.async_step_reauth()
+
+    async def async_step_reauth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
         """Ask for the DHL authorization code and exchange it for fresh tokens."""
         errors: dict[str, str] = {}
-        # Use truthiness, not "is not None": HA can call the initial step with an
-        # empty dict, which must show the form -- not run validation and flash an
-        # error before the user has typed anything.
-        if user_input:
+        if user_input is not None:
             code = extract_code(user_input.get("dhl_brief_code", "").strip())
             if not code:
                 errors["dhl_brief_code"] = "invalid_auth"
@@ -64,7 +72,7 @@ class DHLBriefReauthRepairFlow(RepairsFlow):
                     return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
-            step_id="init",
+            step_id="reauth",
             data_schema=vol.Schema({vol.Required("dhl_brief_code"): str}),
             description_placeholders={"auth_url": get_auth_url()},
             errors=errors,
@@ -81,12 +89,15 @@ class SeventeenTrackKeyRepairFlow(RepairsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> data_entry_flow.FlowResult:
+        """Entry point -- see DHLBriefReauthRepairFlow.async_step_init."""
+        return await self.async_step_reauth()
+
+    async def async_step_reauth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
         """Ask for a new 17track API key and store it."""
         errors: dict[str, str] = {}
-        # Use truthiness, not "is not None": HA can call the initial step with an
-        # empty dict, which must show the form -- not run validation and flash an
-        # error before the user has typed anything.
-        if user_input:
+        if user_input is not None:
             key = (user_input.get(CONF_17TRACK_API_KEY) or "").strip()
             if not key:
                 errors[CONF_17TRACK_API_KEY] = "invalid_auth"
@@ -101,13 +112,11 @@ class SeventeenTrackKeyRepairFlow(RepairsFlow):
                     new_data[CONF_17TRACK_API_KEY] = key
                     self.hass.config_entries.async_update_entry(entry, data=new_data)
                     await self.hass.config_entries.async_reload(entry.entry_id)
-                ir.async_delete_issue(
-                    self.hass, DOMAIN, SEVENTEEN_TRACK_AUTH_ISSUE
-                )
+                ir.async_delete_issue(self.hass, DOMAIN, SEVENTEEN_TRACK_AUTH_ISSUE)
                 return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
-            step_id="init",
+            step_id="reauth",
             data_schema=vol.Schema({vol.Required(CONF_17TRACK_API_KEY): str}),
             errors=errors,
         )

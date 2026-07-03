@@ -223,7 +223,7 @@
       "title": "DHL letter preview: sign-in expired",
       "fix_flow": {
         "step": {
-          "init": {
+          "reauth": {
             "title": "Re-authenticate DHL letter preview",
             "description": "Your DHL sign-in has expired, so no new letter announcements can be fetched.\n\n1. Open this link and sign in to DHL: {auth_url}\n2. After signing in you are redirected to a page that stays blank -- that is expected.\n3. Copy that page's address (it starts with dhllogin://) and paste it below.",
             "data": {
@@ -240,7 +240,7 @@
       "title": "17track.net: API key rejected",
       "fix_flow": {
         "step": {
-          "init": {
+          "reauth": {
             "title": "Update your 17track.net API key",
             "description": "Your 17track.net API key was rejected, so shipment status can no longer be looked up.\n\nGet your key from 17track.net (My Account > Security Settings > API Key) and paste it below.",
             "data": {

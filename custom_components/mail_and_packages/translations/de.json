@@ -221,7 +221,7 @@
       "title": "DHL Briefankündigung: Anmeldung abgelaufen",
       "fix_flow": {
         "step": {
-          "init": {
+          "reauth": {
             "title": "DHL Briefankündigung neu anmelden",
             "description": "Deine DHL-Anmeldung ist abgelaufen, daher können keine neuen Briefankündigungen abgerufen werden.\n\n1. Öffne diesen Link und melde dich bei DHL an: {auth_url}\n2. Nach der Anmeldung wirst du auf eine Seite geleitet, die leer bleibt — das ist normal.\n3. Kopiere die Adresse dieser Seite (beginnt mit dhllogin://) und füge sie unten ein.",
             "data": {
@@ -238,7 +238,7 @@
       "title": "17track.net: API-Schlüssel abgelehnt",
       "fix_flow": {
         "step": {
-          "init": {
+          "reauth": {
             "title": "17track.net API-Schlüssel aktualisieren",
             "description": "Dein 17track.net-API-Schlüssel wurde abgelehnt, daher kann der Sendungsstatus nicht mehr abgerufen werden.\n\nHol dir den Schlüssel bei 17track.net (Mein Konto > Sicherheitseinstellungen > API-Schlüssel) und füge ihn unten ein.",
             "data": {
