@@ -708,21 +708,33 @@ class DhlBriefCamera(CoordinatorEntity, Camera):
         width: int | None = None,
         height: int | None = None,
     ) -> bytes | None:
-        """Return the latest DHL letter image bytes."""
+        """Return the latest DHL letter image bytes.
+
+        Falls back to the bundled "no mail pieces" placeholder when there are
+        no announced letters, so the frontend shows a clear image instead of a
+        blank/idle camera -- mirroring the USPS and generic delivery cameras.
+        """
+
+        def _read(p: str) -> bytes:
+            return Path(p).read_bytes()
+
         letters = (self.coordinator.data or {}).get("dhl_brief_letters", [])
         for letter in letters:
             img_path = letter.get("image_path")
             if img_path and await anyio.Path(img_path).exists():
                 self._file_path = img_path
-
-                def _read(p: str) -> bytes:
-                    return Path(p).read_bytes()
-
                 try:
                     return await self.hass.async_add_executor_job(_read, img_path)
                 except OSError:
                     pass
-        return None
+
+        # No letters (or no readable image): show the "no mail pieces" placeholder.
+        placeholder = f"{Path(__file__).parent}/image-no-mailpieces700.jpg"
+        self._file_path = placeholder
+        try:
+            return await self.hass.async_add_executor_job(_read, placeholder)
+        except OSError:
+            return None
 
     def _handle_coordinator_update(self) -> None:
         """Push updated state to HA when coordinator data changes."""
