@@ -42,7 +42,13 @@ _LOGGER = logging.getLogger(__name__)
 _MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 DOMAIN_LANG_MAP = {
-    "amazon.de": ["versandbestaetigung", "Geliefert:", "Zugestellt:"],
+    "amazon.de": [
+        "versandbestaetigung",
+        "Geliefert:",
+        "Zugestellt:",
+        "Versendet:",
+        "In Zustellung:",
+    ],
     "amazon.it": ["conferma-spedizione", "Consegna effettuata:", "Arriverà"],
     "amazon.nl": [
         "update-bestelling",
@@ -199,13 +205,18 @@ def amazon_email_addresses(
     if domain is None:
         domain = "amazon.com"
 
-    # Use both AMAZON_EMAIL and AMAZON_SHIPMENT_TRACKING for prefixes
+    # Use both AMAZON_EMAIL and AMAZON_SHIPMENT_TRACKING for prefixes.
+    # NOTE: sender local-parts are intentionally NOT language-filtered. Amazon
+    # sends shipment/delivery mail from the same local-parts in every country
+    # (order-update@, shipment-tracking@, versandbestaetigung@, ...), always at
+    # the local domain. Filtering them by language (as we do for subjects) wrongly
+    # dropped e.g. order-update@amazon.de -- the actual sender for amazon.de --
+    # so every Amazon mail was missed. Over-including harmless local-parts just
+    # widens the FROM OR-search; the subject filter still gates real matches.
     prefixes = list(AMAZON_EMAIL)
     for p in AMAZON_SHIPMENT_TRACKING:
         if f"{p}@" not in prefixes:
             prefixes.append(f"{p}@")
-
-    prefixes = filter_amazon_strings(prefixes, domain)
 
     value = [f"{e}{domain}" for e in prefixes]
     if fwds:

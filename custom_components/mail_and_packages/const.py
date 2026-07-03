@@ -172,6 +172,9 @@ AMAZON_SHIPMENT_SUBJECT = [
     "Shipped:",
     "Enviado:",
     "Out for delivery:",
+    # German (amazon.de): "Versendet:" = shipped, "In Zustellung:" = out for delivery
+    "Versendet:",
+    "In Zustellung:",
 ]
 AMAZON_ORDERED_SUBJECT = ["Ordered:", "Pedido efetuado:"]
 AMAZON_EMAIL = [
