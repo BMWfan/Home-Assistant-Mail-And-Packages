@@ -36,7 +36,13 @@
           "generic_custom_img": "Benutzerdefiniertes generisches 'keine Lieferung' Bild verwenden?",
           "generate_grid": "Erstellen Sie ein Bildraster für LLM-Vision-Modelle",
           "allow_forwarded_emails": "Weitergeleitete E-Mails zusätzlich zu den Standardwerten eines Dienstes zulassen (z. B. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Tage zurück, um nach Paket-E-Mails zu suchen (mindestens 1, Standard 3)",
+          "amazon_enabled": "Amazon-Paketsensoren aktivieren",
+          "seventeen_track_api_key": "17track.net API-Schlüssel (optional)",
+          "dhl_brief_enabled": "DHL Briefankündigung aktivieren"
+        },
+        "data_description": {
+          "seventeen_track_api_key": "Optional. Mit einem 17track.net-API-Schlüssel liefert 17track den maßgeblichen Sendungsstatus für alle erkannten Tracking-Nummern (außer Amazon) — die mail-basierte Carrier-Statuserkennung wird dann übergangen."
         },
         "description": "Beenden Sie die Konfiguration, indem Sie Folgendes basierend auf Ihrer E-Mail-Struktur und der Installation von Home Assistant anpassen. \n\n Weitere Informationen zu den Optionen [Mail- und Paketintegration] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) finden Sie in den [Konfiguration, Vorlagen und Abschnitt Automatisierungen] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) auf GitHub.",
         "title": "Briefe und Pakete (Schritt 2 von 2)"
@@ -55,7 +61,7 @@
       "config_amazon": {
         "data": {
           "amazon_domain": "Amazon-Domain",
-          "amazon_fwds": "Amazon hat E-Mail-Adressen weitergeleitet",
+          "amazon_fwds": "Weitergeleitete Amazon-E-Mail-Adressen",
           "amazon_days": "Tage zurück, um nach Amazon-E-Mails zu suchen"
         },
         "description": "Bitte geben Sie die Domain ein, von der Amazon E-Mails sendet (z.B.: amazon.com oder amazon.de)\n\nWenn Sie weitergeleitete E-Mails von Amazon verwenden, trennen Sie bitte jede Adresse mit einem Komma oder geben Sie (keine) ein, um diese Einstellung zu löschen.\n\nHinweis: Wenn Sie im vorherigen Schritt einen Weiterleitungs-Header konfiguriert haben, wird das Feld für die Weiterleitungsadresse nicht angezeigt — der Header übernimmt die Zuordnung von Amazon-E-Mails automatisch.",
@@ -80,7 +86,13 @@
           "generic_custom_img": "Benutzerdefiniertes generisches 'keine Lieferung' Bild verwenden?",
           "generate_grid": "Erstellen Sie ein Bildraster für LLM-Vision-Modelle",
           "allow_forwarded_emails": "Weitergeleitete E-Mails zusätzlich zu den Standardwerten eines Dienstes zulassen (z. B. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Tage zurück, um nach Paket-E-Mails zu suchen (mindestens 1, Standard 3)",
+          "amazon_enabled": "Amazon-Paketsensoren aktivieren",
+          "seventeen_track_api_key": "17track.net API-Schlüssel (optional)",
+          "dhl_brief_enabled": "DHL Briefankündigung aktivieren"
+        },
+        "data_description": {
+          "seventeen_track_api_key": "Optional. Mit einem 17track.net-API-Schlüssel liefert 17track den maßgeblichen Sendungsstatus für alle erkannten Tracking-Nummern (außer Amazon) — die mail-basierte Carrier-Statuserkennung wird dann übergangen."
         },
         "description": "Schließen Sie die Konfiguration ab, indem Sie das Folgende an Ihre E-Mail-Struktur und Home Assistant-Installation anpassen.\n\nWeitere Informationen zu den [Mail und Packages Integration](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) Optionen finden Sie im [Konfigurations-, Vorlagen- und Automatisierungsabschnitt](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) auf GitHub.\n\nWenn Sie weitergeleitete E-Mails von Amazon verwenden, trennen Sie bitte jede Adresse durch ein Komma oder geben Sie (keine) ein, um diese Einstellung zu löschen.",
         "title": "Briefe und Pakete (Schritt 2 von 2)"
@@ -99,7 +111,7 @@
       "reconfig_amazon": {
         "data": {
           "amazon_domain": "Amazon-Domain",
-          "amazon_fwds": "Amazon hat E-Mail-Adressen weitergeleitet",
+          "amazon_fwds": "Weitergeleitete Amazon-E-Mail-Adressen",
           "amazon_days": "Tage zurück, um nach Amazon-E-Mails zu suchen"
         },
         "description": "Bitte geben Sie die Domain ein, von der Amazon E-Mails sendet (z.B.: amazon.com oder amazon.de)\n\nWenn Sie weitergeleitete E-Mails von Amazon verwenden, trennen Sie bitte jede Adresse mit einem Komma oder geben Sie (keine) ein, um diese Einstellung zu löschen.\n\nHinweis: Wenn Sie im vorherigen Schritt einen Weiterleitungs-Header konfiguriert haben, wird das Feld für die Weiterleitungsadresse nicht angezeigt — der Header übernimmt die Zuordnung von Amazon-E-Mails automatisch.",
