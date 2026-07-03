@@ -22,6 +22,8 @@ REDACT_KEYS = {
     "token",
     "access_token",
     "refresh_token",
+    "id_token",
+    "dhl_brief_tokens",
     "seventeen_track_api_key",
 }
 
