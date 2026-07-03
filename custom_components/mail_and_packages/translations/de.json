@@ -251,5 +251,12 @@
         }
       }
     }
+  },
+  "system_health": {
+    "info": {
+      "configured_accounts": "Konfigurierte Konten",
+      "last_scan_ok": "Letzter Scan erfolgreich",
+      "last_scan": "Letzter Scan"
+    }
   }
 }

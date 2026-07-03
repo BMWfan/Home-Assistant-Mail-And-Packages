@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Final
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntityDescription,
+    SensorStateClass,
+)
 from homeassistant.helpers.entity import EntityCategory
 
 from .entity import MailandPackagesBinarySensorEntityDescription
@@ -15,7 +20,7 @@ DOMAIN_DATA = f"{DOMAIN}_data"
 VERSION = "0.0.0-dev"  # Now updated by release workflow
 ISSUE_URL = "http://github.com/moralmunky/Home-Assistant-Mail-And-Packages"
 PLATFORM = "sensor"
-PLATFORMS = ["binary_sensor", "camera", "sensor"]
+PLATFORMS = ["binary_sensor", "button", "calendar", "camera", "event", "sensor"]
 DATA = "data"
 COORDINATOR = "coordinator_mail"
 OVERLAY = ["overlay.png", "vignette.png", "white.png"]
@@ -1736,6 +1741,22 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         key="universal_packages",
     ),
 }
+
+# Enable Home Assistant long-term statistics + history graphs on every numeric
+# package/piece counter. They carry no state_class by default, so HA neither
+# records long-term stats nor draws trend graphs for them. MEASUREMENT is the
+# right class: each value is the current count (in transit / delivered today),
+# not a monotonic total.
+_COUNT_UNITS: Final = ("package(s)", "piece(s)")
+for _key, _desc in list(SENSOR_TYPES.items()):
+    if (
+        _desc.native_unit_of_measurement in _COUNT_UNITS
+        and _desc.state_class is None
+    ):
+        SENSOR_TYPES[_key] = dataclasses.replace(
+            _desc, state_class=SensorStateClass.MEASUREMENT
+        )
+
 
 BINARY_SENSORS: Final[dict[str, MailandPackagesBinarySensorEntityDescription]] = {
     "usps_update": MailandPackagesBinarySensorEntityDescription(
