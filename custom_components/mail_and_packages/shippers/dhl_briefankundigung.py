@@ -80,12 +80,14 @@ def extract_code(raw: str) -> str:
 async def exchange_code(hass: HomeAssistant, code: str) -> dict:
     """Exchange an authorization code for DHL tokens."""
     session = async_get_clientsession(hass)
+    # client_id is intentionally NOT in the body: the client is already
+    # authenticated via the Basic auth header, and DHL rejects specifying it
+    # both ways with HTTP 400 "cannot specify authorization in multiple ways".
     data = {
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": _REDIRECT_URI,
         "code_verifier": _CODE_VERIFIER,
-        "client_id": _CLIENT_ID,
     }
     headers = {
         "Authorization": _CLIENT_BASIC_AUTH,
@@ -132,10 +134,10 @@ class DHLBriefankundigungClient:
             _LOGGER.error("DHL Briefankündigung: kein Refresh-Token vorhanden")
             return
         session = async_get_clientsession(self._hass)
+        # client_id omitted from the body on purpose -- see exchange_code.
         data = {
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
-            "client_id": _CLIENT_ID,
         }
         headers = {
             "Authorization": _CLIENT_BASIC_AUTH,
