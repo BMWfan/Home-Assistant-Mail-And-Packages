@@ -231,6 +231,17 @@ class UniversalTrackingShipper(Shipper):
         result = await self.process(account, date, SENSOR_TYPE, cache, since_date)
         tracking_details: list[dict[str, Any]] = result.pop("tracking_details", [])
 
+        # 17track rejected these numbers outright (status_code -1): not a valid
+        # tracking number for ANY carrier. Drop them entirely -- no routing, no
+        # list, no count. This is the definitive false-positive filter (caught
+        # the BANDWERK marketing-mail phantom "58303696535936"). NotFound (0,
+        # accepted-but-no-data-yet) is intentionally kept so a freshly shipped
+        # parcel still shows before 17track has fetched its first event.
+        # (Absent status_code -> no 17track key configured -> keep as-is.)
+        tracking_details = [
+            item for item in tracking_details if item.get("status_code") != -1
+        ]
+
         # Build _tracking_details so the coordinator's _apply_tracking_state
         # feeds found numbers directly into existing carrier sensors (ups_delivering
         # etc.) with full F2 persistence and deduplication.
