@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL levélelőnézet: bejelentkezés lejárt",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "DHL levélelőnézet újbóli hitelesítése",
+            "description": "A DHL-bejelentkezésed lejárt, ezért nem tölthetők le új levélértesítések.\n\n1. Nyisd meg ezt a linket, és jelentkezz be a DHL-be: {auth_url}\n2. A bejelentkezés után egy üresen maradó oldalra leszel átirányítva — ez normális.\n3. Másold ki az oldal címét (dhllogin:// kezdetű), és illeszd be alább.",
+            "data": {
+              "dhl_brief_code": "DHL-bejelentkezési kód vagy átirányítási URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "A kód nem használható. Jelentkezz be újra."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API-kulcs elutasítva",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Frissítsd a 17track.net API-kulcsodat",
+            "description": "A 17track.net API-kulcsodat elutasították, ezért a küldemények állapota már nem kérdezhető le.\n\nSzerezd be a kulcsot a 17track.net oldalon (Fiókom > Biztonsági beállítások > API-kulcs), és illeszd be alább.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API-kulcs"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Adj meg egy érvényes 17track.net API-kulcsot."
+        }
+      }
+    }
   }
 }

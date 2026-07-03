@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL-briefvoorbeeld: aanmelding verlopen",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Opnieuw aanmelden bij DHL-briefvoorbeeld",
+            "description": "Je DHL-aanmelding is verlopen, dus er kunnen geen nieuwe briefaankondigingen worden opgehaald.\n\n1. Open deze link en meld je aan bij DHL: {auth_url}\n2. Na het aanmelden word je doorgestuurd naar een pagina die leeg blijft — dat is normaal.\n3. Kopieer het adres van die pagina (begint met dhllogin://) en plak het hieronder.",
+            "data": {
+              "dhl_brief_code": "DHL-aanmeldcode of doorstuur-URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Die code kon niet worden gebruikt. Meld je opnieuw aan."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API-sleutel geweigerd",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Werk je 17track.net API-sleutel bij",
+            "description": "Je 17track.net API-sleutel is geweigerd, dus de zendingsstatus kan niet meer worden opgevraagd.\n\nHaal je sleutel op bij 17track.net (Mijn account > Beveiligingsinstellingen > API-sleutel) en plak hem hieronder.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API-sleutel"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Voer een geldige 17track.net API-sleutel in."
+        }
+      }
+    }
   }
 }

@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Vista prèvia de cartes de DHL: sessió caducada",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Torna a autenticar la vista prèvia de cartes de DHL",
+            "description": "La teva sessió de DHL ha caducat, de manera que no es poden obtenir nous avisos de cartes.\n\n1. Obre aquest enllaç i inicia la sessió a DHL: {auth_url}\n2. Després d'iniciar la sessió, se't redirigeix a una pàgina que queda en blanc: és normal.\n3. Copia l'adreça d'aquesta pàgina (comença per dhllogin://) i enganxa-la a sota.",
+            "data": {
+              "dhl_brief_code": "Codi d'inici de sessió de DHL o URL de redirecció"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "No s'ha pogut utilitzar aquest codi. Torna a iniciar la sessió."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: clau API rebutjada",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Actualitza la teva clau API de 17track.net",
+            "description": "La teva clau API de 17track.net s'ha rebutjat, de manera que ja no es pot consultar l'estat dels enviaments.\n\nObtén la teva clau a 17track.net (El meu compte > Configuració de seguretat > Clau API) i enganxa-la a sota.",
+            "data": {
+              "seventeen_track_api_key": "Clau API de 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Introdueix una clau API de 17track.net vàlida."
+        }
+      }
+    }
   }
 }

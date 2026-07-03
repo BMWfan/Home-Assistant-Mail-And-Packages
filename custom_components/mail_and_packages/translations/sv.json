@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL-brevförhandsvisning: inloggning har upphört",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Autentisera DHL-brevförhandsvisning igen",
+            "description": "Din DHL-inloggning har upphört, så inga nya brevaviseringar kan hämtas.\n\n1. Öppna den här länken och logga in på DHL: {auth_url}\n2. Efter inloggningen omdirigeras du till en sida som förblir tom — det är normalt.\n3. Kopiera sidans adress (den börjar med dhllogin://) och klistra in den nedan.",
+            "data": {
+              "dhl_brief_code": "DHL-inloggningskod eller omdirigerings-URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Koden kunde inte användas. Försök logga in igen."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API-nyckel avvisad",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Uppdatera din 17track.net API-nyckel",
+            "description": "Din 17track.net API-nyckel avvisades, så leveransstatus kan inte längre hämtas.\n\nHämta din nyckel från 17track.net (Mitt konto > Säkerhetsinställningar > API-nyckel) och klistra in den nedan.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API-nyckel"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Ange en giltig 17track.net API-nyckel."
+        }
+      }
+    }
   }
 }

@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Aperçu des lettres DHL : connexion expirée",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Se reconnecter à l'aperçu des lettres DHL",
+            "description": "Votre connexion DHL a expiré, aucune nouvelle notification de lettre ne peut donc être récupérée.\n\n1. Ouvrez ce lien et connectez-vous à DHL : {auth_url}\n2. Après la connexion, vous êtes redirigé vers une page qui reste vide — c'est normal.\n3. Copiez l'adresse de cette page (elle commence par dhllogin://) et collez-la ci-dessous.",
+            "data": {
+              "dhl_brief_code": "Code de connexion DHL ou URL de redirection"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Ce code n'a pas pu être utilisé. Veuillez vous reconnecter."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net : clé API refusée",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Mettre à jour votre clé API 17track.net",
+            "description": "Votre clé API 17track.net a été refusée, le statut des envois ne peut donc plus être consulté.\n\nRécupérez votre clé sur 17track.net (Mon compte > Paramètres de sécurité > Clé API) et collez-la ci-dessous.",
+            "data": {
+              "seventeen_track_api_key": "Clé API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Veuillez saisir une clé API 17track.net valide."
+        }
+      }
+    }
   }
 }

@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Predogled pisem DHL: prijava je potekla",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Znova preveri pristnost predogleda pisem DHL",
+            "description": "Vaša prijava v DHL je potekla, zato ni mogoče pridobiti novih obvestil o pismih.\n\n1. Odprite to povezavo in se prijavite v DHL: {auth_url}\n2. Po prijavi boste preusmerjeni na stran, ki ostane prazna — to je normalno.\n3. Kopirajte naslov te strani (začne se z dhllogin://) in ga prilepite spodaj.",
+            "data": {
+              "dhl_brief_code": "Prijavna koda DHL ali URL preusmeritve"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Te kode ni bilo mogoče uporabiti. Poskusite se znova prijaviti."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: ključ API zavrnjen",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Posodobite svoj ključ API 17track.net",
+            "description": "Vaš ključ API 17track.net je bil zavrnjen, zato stanja pošiljk ni več mogoče preveriti.\n\nPridobite ključ na 17track.net (Moj račun > Varnostne nastavitve > Ključ API) in ga prilepite spodaj.",
+            "data": {
+              "seventeen_track_api_key": "Ključ API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Vnesite veljaven ključ API 17track.net."
+        }
+      }
+    }
   }
 }

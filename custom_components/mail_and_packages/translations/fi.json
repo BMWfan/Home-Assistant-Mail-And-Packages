@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL-kirjeiden esikatselu: kirjautuminen vanhentunut",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Todenna DHL-kirjeiden esikatselu uudelleen",
+            "description": "DHL-kirjautumisesi on vanhentunut, joten uusia kirjeilmoituksia ei voida hakea.\n\n1. Avaa tämä linkki ja kirjaudu DHL:ään: {auth_url}\n2. Kirjautumisen jälkeen sinut ohjataan sivulle, joka jää tyhjäksi — se on normaalia.\n3. Kopioi kyseisen sivun osoite (alkaa dhllogin://) ja liitä se alle.",
+            "data": {
+              "dhl_brief_code": "DHL-kirjautumiskoodi tai uudelleenohjaus-URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Koodia ei voitu käyttää. Yritä kirjautua uudelleen."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API-avain hylätty",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Päivitä 17track.net API-avaimesi",
+            "description": "17track.net API-avaimesi hylättiin, joten lähetysten tilaa ei voida enää hakea.\n\nHae avaimesi osoitteesta 17track.net (Oma tili > Suojausasetukset > API-avain) ja liitä se alle.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API-avain"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Anna kelvollinen 17track.net API-avain."
+        }
+      }
+    }
   }
 }

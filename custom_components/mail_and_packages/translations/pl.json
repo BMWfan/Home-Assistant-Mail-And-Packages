@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Podgląd listów DHL: sesja wygasła",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Ponowne uwierzytelnienie podglądu listów DHL",
+            "description": "Twoje logowanie DHL wygasło, więc nie można pobrać nowych awizów listów.\n\n1. Otwórz ten link i zaloguj się do DHL: {auth_url}\n2. Po zalogowaniu nastąpi przekierowanie na pustą stronę — to normalne.\n3. Skopiuj adres tej strony (zaczyna się od dhllogin://) i wklej go poniżej.",
+            "data": {
+              "dhl_brief_code": "Kod logowania DHL lub adres URL przekierowania"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Nie udało się użyć tego kodu. Zaloguj się ponownie."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: klucz API odrzucony",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Zaktualizuj swój klucz API 17track.net",
+            "description": "Twój klucz API 17track.net został odrzucony, więc nie można już sprawdzać statusu przesyłek.\n\nPobierz klucz z 17track.net (Moje konto > Ustawienia zabezpieczeń > Klucz API) i wklej go poniżej.",
+            "data": {
+              "seventeen_track_api_key": "Klucz API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Wprowadź prawidłowy klucz API 17track.net."
+        }
+      }
+    }
   }
 }

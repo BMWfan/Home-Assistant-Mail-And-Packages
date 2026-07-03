@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Prévia de cartas da DHL: sessão expirada",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Reautenticar a prévia de cartas da DHL",
+            "description": "Sua sessão da DHL expirou, então não é possível obter novos avisos de cartas.\n\n1. Abra este link e faça login na DHL: {auth_url}\n2. Após o login, você é redirecionado para uma página que fica em branco — isso é normal.\n3. Copie o endereço dessa página (começa com dhllogin://) e cole abaixo.",
+            "data": {
+              "dhl_brief_code": "Código de login da DHL ou URL de redirecionamento"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Não foi possível usar esse código. Faça login novamente."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: chave de API recusada",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Atualizar sua chave de API 17track.net",
+            "description": "Sua chave de API 17track.net foi recusada, então não é mais possível consultar o status das entregas.\n\nObtenha sua chave em 17track.net (Minha conta > Configurações de segurança > Chave de API) e cole abaixo.",
+            "data": {
+              "seventeen_track_api_key": "Chave de API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Insira uma chave de API 17track.net válida."
+        }
+      }
+    }
   }
 }

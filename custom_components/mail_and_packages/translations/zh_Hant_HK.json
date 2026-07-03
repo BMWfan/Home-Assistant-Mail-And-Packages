@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL 信件預覽：登入已過期",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "重新驗證 DHL 信件預覽",
+            "description": "你的 DHL 登入已過期，因此無法取得新的信件通知。\n\n1. 開啟此連結並登入 DHL：{auth_url}\n2. 登入後你會被導向一個保持空白的頁面 — 這是正常的。\n3. 複製該頁面的網址（以 dhllogin:// 開頭）並貼到下方。",
+            "data": {
+              "dhl_brief_code": "DHL 登入代碼或重新導向網址"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "無法使用該代碼，請重新登入。"
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net：API 金鑰遭拒",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "更新你的 17track.net API 金鑰",
+            "description": "你的 17track.net API 金鑰遭拒，因此無法再查詢寄件狀態。\n\n請從 17track.net（我的帳戶 > 安全設定 > API 金鑰）取得金鑰並貼到下方。",
+            "data": {
+              "seventeen_track_api_key": "17track.net API 金鑰"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "請輸入有效的 17track.net API 金鑰。"
+        }
+      }
+    }
   }
 }

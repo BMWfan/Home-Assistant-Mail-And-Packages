@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Anteprima lettere DHL: accesso scaduto",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Ri-autenticare l'anteprima lettere DHL",
+            "description": "Il tuo accesso DHL è scaduto, quindi non è possibile recuperare nuovi avvisi di lettere.\n\n1. Apri questo link e accedi a DHL: {auth_url}\n2. Dopo l'accesso vieni reindirizzato a una pagina che resta vuota: è normale.\n3. Copia l'indirizzo di quella pagina (inizia con dhllogin://) e incollalo qui sotto.",
+            "data": {
+              "dhl_brief_code": "Codice di accesso DHL o URL di reindirizzamento"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Impossibile usare quel codice. Riprova ad accedere."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: chiave API rifiutata",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Aggiorna la tua chiave API 17track.net",
+            "description": "La tua chiave API 17track.net è stata rifiutata, quindi non è più possibile consultare lo stato delle spedizioni.\n\nOttieni la chiave da 17track.net (Il mio account > Impostazioni di sicurezza > Chiave API) e incollala qui sotto.",
+            "data": {
+              "seventeen_track_api_key": "Chiave API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Inserisci una chiave API 17track.net valida."
+        }
+      }
+    }
   }
 }

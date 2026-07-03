@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL 편지 미리보기: 로그인 만료됨",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "DHL 편지 미리보기 재인증",
+            "description": "DHL 로그인이 만료되어 새 편지 알림을 가져올 수 없습니다.\n\n1. 이 링크를 열고 DHL에 로그인하세요: {auth_url}\n2. 로그인 후 빈 페이지로 이동합니다 — 정상입니다.\n3. 그 페이지의 주소(dhllogin://로 시작)를 복사하여 아래에 붙여넣으세요.",
+            "data": {
+              "dhl_brief_code": "DHL 로그인 코드 또는 리디렉션 URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "해당 코드를 사용할 수 없습니다. 다시 로그인해 주세요."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API 키 거부됨",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "17track.net API 키 업데이트",
+            "description": "17track.net API 키가 거부되어 배송 상태를 더 이상 조회할 수 없습니다.\n\n17track.net(내 계정 > 보안 설정 > API 키)에서 키를 받아 아래에 붙여넣으세요.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API 키"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "유효한 17track.net API 키를 입력하세요."
+        }
+      }
+    }
   }
 }

@@ -215,5 +215,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Vista previa de cartas de DHL: sesión caducada",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Volver a autenticar la vista previa de cartas de DHL",
+            "description": "Tu sesión de DHL caducó, por lo que no se pueden obtener nuevos avisos de cartas.\n\n1. Abre este enlace e inicia sesión en DHL: {auth_url}\n2. Tras iniciar sesión, se te redirige a una página que queda en blanco: es normal.\n3. Copia la dirección de esa página (empieza por dhllogin://) y pégala abajo.",
+            "data": {
+              "dhl_brief_code": "Código de inicio de sesión de DHL o URL de redirección"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "No se pudo usar ese código. Vuelve a iniciar sesión."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: clave API rechazada",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Actualizar tu clave API de 17track.net",
+            "description": "Tu clave API de 17track.net fue rechazada, por lo que ya no se puede consultar el estado de los envíos.\n\nObtén tu clave en 17track.net (Mi cuenta > Configuración de seguridad > Clave API) y pégala abajo.",
+            "data": {
+              "seventeen_track_api_key": "Clave API de 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Ingresa una clave API de 17track.net válida."
+        }
+      }
+    }
   }
 }

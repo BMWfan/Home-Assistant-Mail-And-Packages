@@ -281,5 +281,41 @@
         "oauth2_google": "OAuth2 - Google (Gmail)"
       }
     }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Náhled dopisů DHL: přihlášení vypršelo",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Znovu ověřit náhled dopisů DHL",
+            "description": "Vaše přihlášení k DHL vypršelo, takže nelze načíst nová oznámení o dopisech.\n\n1. Otevřete tento odkaz a přihlaste se k DHL: {auth_url}\n2. Po přihlášení budete přesměrováni na stránku, která zůstane prázdná — to je v pořádku.\n3. Zkopírujte adresu této stránky (začíná na dhllogin://) a vložte ji níže.",
+            "data": {
+              "dhl_brief_code": "Přihlašovací kód DHL nebo URL přesměrování"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Tento kód nelze použít. Přihlaste se prosím znovu."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: klíč API odmítnut",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Aktualizujte svůj klíč API 17track.net",
+            "description": "Váš klíč API 17track.net byl odmítnut, takže již nelze zjišťovat stav zásilek.\n\nZískejte klíč na 17track.net (Můj účet > Nastavení zabezpečení > Klíč API) a vložte jej níže.",
+            "data": {
+              "seventeen_track_api_key": "Klíč API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Zadejte platný klíč API 17track.net."
+        }
+      }
+    }
   }
 }
