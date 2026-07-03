@@ -710,8 +710,8 @@ class DhlBriefCamera(CoordinatorEntity, Camera):
     ) -> bytes | None:
         """Return the latest DHL letter image bytes.
 
-        Falls back to the bundled "no mail pieces" placeholder when there are
-        no announced letters, so the frontend shows a clear image instead of a
+        Falls back to the bundled "No Mail" placeholder when there are no
+        announced letters, so the frontend shows a clear image instead of a
         blank/idle camera -- mirroring the USPS and generic delivery cameras.
         """
 
@@ -728,8 +728,8 @@ class DhlBriefCamera(CoordinatorEntity, Camera):
                 except OSError:
                     pass
 
-        # No letters (or no readable image): show the "no mail pieces" placeholder.
-        placeholder = f"{Path(__file__).parent}/image-no-mailpieces700.jpg"
+        # No letters (or no readable image): show the "No Mail" placeholder.
+        placeholder = f"{Path(__file__).parent}/mail_none.gif"
         self._file_path = placeholder
         try:
             return await self.hass.async_add_executor_job(_read, placeholder)
