@@ -301,6 +301,20 @@ async def download_amazon_img(
             _LOGGER.error("Problem downloading file: %s", err)
 
 
+# Amazon serves driver delivery photos from per-region S3 buckets named
+# "<region>-prod-temp.s3[.<region>].amazonaws.com" (e.g. us-prod-temp.s3...,
+# gb-prod-temp.s3.eu-west-1..., and eu/de variants). Matching the pattern
+# instead of a fixed host list means new regions work without a code change.
+_AMAZON_IMG_HOST_RE = re.compile(
+    r"^[a-z]{2,4}-prod-temp\.s3\.([a-z0-9-]+\.)?amazonaws\.com$"
+)
+
+
+def _is_amazon_delivery_image_host(host: str) -> bool:
+    """Return True if host is a known Amazon delivery-photo bucket."""
+    return host in AMAZON_IMG_LIST or bool(_AMAZON_IMG_HOST_RE.match(host))
+
+
 async def get_amazon_image_urls(
     sdata: Any,
     account: IMAP4_SSL,
@@ -325,7 +339,7 @@ async def get_amazon_image_urls(
                     part_content = part_payload.decode("utf-8", "ignore")
                     found = pattern.findall(part_content)
                     for url in found:
-                        if url[1] not in AMAZON_IMG_LIST:
+                        if not _is_amazon_delivery_image_host(url[1]):
                             continue
                         full_url = url[0] + url[1] + url[2]
                         if full_url not in urls:
