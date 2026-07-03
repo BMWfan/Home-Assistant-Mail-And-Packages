@@ -584,6 +584,14 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         client = DHLBriefankundigungClient(hass, tokens)
         letters = await client.fetch_letters()
 
+        # Persist any refreshed/rotated tokens IMMEDIATELY, before the
+        # no-letters early return below. DHL's login (Azure AD B2C) rotates the
+        # refresh token on every refresh and invalidates the previous one, so a
+        # rotated token MUST be saved even on the common "no letters" day --
+        # otherwise the next scan reuses the now-dead token and login/token
+        # returns HTTP 400, permanently breaking the feature within hours.
+        self._persist_dhl_tokens(client.tokens, tokens)
+
         if not letters:
             data["dhl_brief_anzahl"] = 0
             data["dhl_brief_letters"] = []
@@ -627,13 +635,18 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         data["dhl_brief_anzahl"] = len(letters)
         data["dhl_brief_letters"] = letter_details
 
-        # Persist refreshed tokens if they changed
-        if client.tokens != tokens:
-            new_entry_data = dict(self.config_entry.data)
-            new_entry_data[CONF_DHL_BRIEF_TOKENS] = client.tokens
-            self.hass.config_entries.async_update_entry(
-                self.config_entry, data=new_entry_data
-            )
+        # Tokens may have rotated again during image download; persist once more.
+        self._persist_dhl_tokens(client.tokens, tokens)
+
+    def _persist_dhl_tokens(self, new_tokens: dict, old_tokens: dict) -> None:
+        """Save rotated DHL Briefankündigung tokens back to the config entry."""
+        if not self.config_entry or new_tokens == old_tokens:
+            return
+        new_entry_data = dict(self.config_entry.data)
+        new_entry_data[CONF_DHL_BRIEF_TOKENS] = new_tokens
+        self.hass.config_entries.async_update_entry(
+            self.config_entry, data=new_entry_data
+        )
 
     async def _binary_sensor_update(self):
         """Update binary sensor states."""

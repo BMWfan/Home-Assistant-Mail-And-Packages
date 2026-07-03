@@ -1,7 +1,7 @@
 # Handoff – Mail and Packages (branch `test/all-features`)
 
 Stand: 2026-07-03 (aktualisiert)  
-Aktuelles Release: **v0.5.4-test40** (prerelease auf GitHub)
+Aktuelles Release: **v0.5.4-test41** (prerelease auf GitHub)
 
 > Abschnitte 2–3 unten dokumentieren die **historische** IMAP-Timeout-Saga (test11–17).
 > Das Problem ist seit **test16 (Reconnect)** + **test21 (Batch-Fetch)** gelöst – siehe Abschnitt 0.
@@ -40,6 +40,7 @@ Aktuelles Release: **v0.5.4-test40** (prerelease auf GitHub)
 | test38 | **17track-Rejected-Filter**: Nummern mit `status_code -1` (17track verwirft = keinem Carrier zuordenbar) fallen komplett raus (keine Liste, keine Weiterleitung). `NotFound (0)` bleibt bewusst drin (frisch verschickte Pakete). Prinzipieller Fehltreffer-Filter zusätzlich zum Markenkontext. | `shippers/universal.py` (`process_batch`) | ✅ Universal bleibt 0, sauberer Scan |
 | test39 | **Wizard-Übersetzungen (DE)**: `amazon_enabled`, `seventeen_track_api_key`, `dhl_brief_enabled`, `custom_days` fehlten in `de.json` → zeigten Englisch. Jetzt deutsche, stilkonsistente Labels + 17track-Hinweistext (`data_description`), in config_2 **und** reconfig_2. `amazon_fwds`-Label vom Satz zum Label angeglichen. **Amazon-Detailseite war bereits korrekt an den Haken gekoppelt** (config_flow.py:969) — keine Codeänderung nötig. | `translations/de.json` | ✅ JSON valide, Integration lädt sauber (Labels im Wizard) |
 | test40 | **Alle übrigen 19 Sprachen nachgezogen** (Konsistenz): dieselben 3 Labels + `custom_days` + 17track-`data_description` in config_2 & reconfig_2 für ca/cs/es/es_419/fi/fr/hu/it/ko/nl/no/pl/pt/pt_BR/ru/sk/sl/sv/zh_Hant_HK; englischer Hinweistext auch in `en.json` + `strings.json`. Per Skript (`scratchpad/fill_translations.py`), nur echte Lücken gefüllt. | `translations/*.json`, `strings.json` | ✅ 22 JSON valide, 0 verbleibende Lücken |
+| test41 | **DHL-Token-Rotation-Bug gefixt (Kern-Ursache für schnelles Ablaufen).** DHL (Azure B2C) rotiert den Refresh-Token bei jeder Erneuerung. `_fetch_dhl_brief` speicherte den erneuerten Token aber erst NACH dem `if not letters: return` — d. h. am Normaltag (keine Briefe) wurde der rotierte Token nie persistiert → nächster Scan nutzt den toten Token → HTTP 400, Feature stirbt binnen Stunden. Persistierung jetzt in `_persist_dhl_tokens()` ausgelagert und **direkt nach `fetch_letters()`** (vor dem Early-Return) aufgerufen. **Password-Grant/ROPC ist bei DHL nicht verfügbar** — war aber auch nicht die Ursache. Live-Log zeigte `Token-Refresh 400` + `advices 500`. | `coordinator.py` (`_fetch_dhl_brief`, `_persist_dhl_tokens`) | ⏳ Deploy; danach **einmalige Neu-Anmeldung nötig** (aktueller Token bereits tot) |
 
 ### Wie die amazon.de-Erkennung funktioniert (für Folge-Arbeit)
 - Absender werden aus `AMAZON_EMAIL` + `AMAZON_SHIPMENT_TRACKING` × Domain gebaut und
