@@ -243,8 +243,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         for sensor in const.SENSOR_TYPES:
             if sensor not in data:
                 data[sensor] = 0
-        # DHL brief sensors start as None (no letters yet) rather than 0
-        data["dhl_brief_naechster"] = None
+        # DHL brief sensor list starts empty (no letters yet)
         data["dhl_brief_letters"] = []
         return data
 
@@ -587,7 +586,6 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
         if not letters:
             data["dhl_brief_anzahl"] = 0
-            data["dhl_brief_naechster"] = None
             data["dhl_brief_letters"] = []
             return
 
@@ -597,25 +595,16 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         )
 
         letter_details: list[dict] = []
-        earliest_date: datetime.date | None = None
 
         for letter in letters:
             letter_id = str(letter.get("id", letter.get("adviceId", "")))
-            # Normalize the planned delivery date across possible field names
+            # Keep the announced delivery date as an attribute on each letter
             raw_date = (
                 letter.get("plannedDeliveryDate")
                 or letter.get("deliveryDate")
                 or letter.get("date")
                 or letter.get("expectedDelivery")
             )
-            letter_date: datetime.date | None = None
-            if raw_date:
-                try:
-                    letter_date = datetime.date.fromisoformat(str(raw_date)[:10])
-                    if earliest_date is None or letter_date < earliest_date:
-                        earliest_date = letter_date
-                except ValueError:
-                    pass
 
             image_url = (
                 letter.get("imageUrl")
@@ -636,7 +625,6 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             )
 
         data["dhl_brief_anzahl"] = len(letters)
-        data["dhl_brief_naechster"] = earliest_date
         data["dhl_brief_letters"] = letter_details
 
         # Persist refreshed tokens if they changed

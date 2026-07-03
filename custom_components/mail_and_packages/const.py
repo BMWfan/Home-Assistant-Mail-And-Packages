@@ -1696,12 +1696,6 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         icon="mdi:email-open",
         key="dhl_brief_anzahl",
     ),
-    "dhl_brief_naechster": SensorEntityDescription(
-        name="DHL Letter Next Delivery",
-        icon="mdi:calendar",
-        key="dhl_brief_naechster",
-        device_class=SensorDeviceClass.DATE,
-    ),
     ###
     # !!! Insert new sensors above these two !!!
     ###
