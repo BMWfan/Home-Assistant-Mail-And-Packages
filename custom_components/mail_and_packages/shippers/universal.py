@@ -5,6 +5,7 @@ from __future__ import annotations
 import email
 import logging
 import re
+from email.header import decode_header, make_header
 from typing import Any
 
 from aioimaplib import IMAP4_SSL
@@ -195,7 +196,22 @@ class UniversalTrackingShipper(Shipper):
                     msg = email.message_from_bytes(part)
                     text = self._extract_text(msg)
                     subject = str(msg.get("subject") or "")
+                    _before = set(found)
                     _extract_tracking_numbers(subject + "\n" + text, found)
+                    # TEMP DIAG (test36): trace which mail each number came from.
+                    # Remove after diagnosing the phantom DPD number.
+                    _new = [n for n in found if n not in _before]
+                    if _new:
+                        try:
+                            _subj = str(make_header(decode_header(subject)))
+                        except Exception:  # noqa: BLE001
+                            _subj = subject
+                        _LOGGER.warning(
+                            "UNIVERSAL-DIAG: %s <- from=%r subject=%r",
+                            _new,
+                            str(msg.get("from") or ""),
+                            _subj,
+                        )
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug("Error scanning email part: %s", err)
 
