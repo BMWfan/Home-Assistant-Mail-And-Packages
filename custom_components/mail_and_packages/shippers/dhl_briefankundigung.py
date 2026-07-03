@@ -27,6 +27,12 @@ _CLIENT_BASIC_AUTH = "Basic ODM0NzEwODItNWMxMy00ZmNlLThkY2ItMTlkMmEzZmNhNDEzOg==
 _CODE_VERIFIER = "zmVs5AKfGvv45a9aUvuOid9a_erOirp7XL1sn9kWT_o"
 _REDIRECT_URI = "dhllogin://de.deutschepost.dhl/login"
 
+# DHL's login/token endpoint sits behind Akamai bot protection and rejects
+# requests that don't look like the Post & DHL app -- aiohttp's default
+# Python-aiohttp User-Agent gets a generic "invalid" back. This is the exact
+# UA the app (and the working ioBroker.parcel adapter) sends.
+_APP_USER_AGENT = "DHLPaket_PROD/1367 CFNetwork/1240.0.4 Darwin/20.6.0"
+
 # Opaque state blob the app sends; the login UI expects it to be present.
 _AUTH_STATE = "eyJycyI6dHJ1ZSwicnYiOmZhbHNlLCJmaWQiOiJhcHAtbG9naW4tbWVoci1mb290ZXIiLCJoaWQiOiJhcHAtbG9naW4tbWVoci1oZWFkZXIiLCJycCI6ZmFsc2V9"
 _AUTH_CLAIMS = (
@@ -81,9 +87,20 @@ async def exchange_code(hass: HomeAssistant, code: str) -> dict:
         "code_verifier": _CODE_VERIFIER,
         "client_id": _CLIENT_ID,
     }
-    headers = {"Authorization": _CLIENT_BASIC_AUTH}
+    headers = {
+        "Authorization": _CLIENT_BASIC_AUTH,
+        "User-Agent": _APP_USER_AGENT,
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
     async with session.post(_TOKEN_URL, data=data, headers=headers) as resp:
-        resp.raise_for_status()
+        if resp.status != 200:
+            body = await resp.text()
+            _LOGGER.error(
+                "DHL Briefankündigung: Token-Austausch fehlgeschlagen (HTTP %s): %s",
+                resp.status,
+                body[:500],
+            )
+            resp.raise_for_status()
         tokens: dict = await resp.json(content_type=None)
         tokens["expires_at"] = time.time() + tokens.get("expires_in", 3600)
         return tokens
@@ -120,7 +137,11 @@ class DHLBriefankundigungClient:
             "refresh_token": refresh_token,
             "client_id": _CLIENT_ID,
         }
-        headers = {"Authorization": _CLIENT_BASIC_AUTH}
+        headers = {
+            "Authorization": _CLIENT_BASIC_AUTH,
+            "User-Agent": _APP_USER_AGENT,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
         try:
             async with session.post(_TOKEN_URL, data=data, headers=headers) as resp:
                 resp.raise_for_status()
@@ -143,6 +164,7 @@ class DHLBriefankundigungClient:
         headers = {
             "Cookie": f"dhli={id_token}",
             "Accept": "application/json",
+            "User-Agent": _APP_USER_AGENT,
         }
         try:
             async with session.get(
