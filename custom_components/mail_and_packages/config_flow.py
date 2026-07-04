@@ -747,7 +747,7 @@ def _get_schema_seventeen_track(user_input: dict, default_dict: dict) -> Any:
 
     return vol.Schema(
         {
-            vol.Optional(
+            vol.Required(
                 CONF_17TRACK_API_KEY,
                 default=_get_default(CONF_17TRACK_API_KEY, ""),
             ): cv.string,
@@ -1057,8 +1057,13 @@ class MailAndPackagesFlowHandler(
         """Enter the 17track.net API key (setup) when the toggle is on."""
         self._errors = {}
         if user_input is not None:
-            self._data.update(user_input)
-            return await self._route_after_config_2()
+            key = (user_input.get(CONF_17TRACK_API_KEY) or "").strip()
+            if not key:
+                # Toggle is on -> a key is mandatory.
+                self._errors[CONF_17TRACK_API_KEY] = "seventeen_track_required"
+            else:
+                self._data[CONF_17TRACK_API_KEY] = key
+                return await self._route_after_config_2()
         return self.async_show_form(
             step_id="seventeen_track",
             data_schema=_get_schema_seventeen_track(user_input, self._data),
@@ -1323,8 +1328,13 @@ class MailAndPackagesFlowHandler(
         """Enter the 17track.net API key (reconfigure) when the toggle is on."""
         self._errors = {}
         if user_input is not None:
-            self._data.update(user_input)
-            return await self._route_after_reconfig_2()
+            key = (user_input.get(CONF_17TRACK_API_KEY) or "").strip()
+            if not key:
+                # Toggle is on -> a key is mandatory.
+                self._errors[CONF_17TRACK_API_KEY] = "seventeen_track_required"
+            else:
+                self._data[CONF_17TRACK_API_KEY] = key
+                return await self._route_after_reconfig_2()
         return self.async_show_form(
             step_id="reconfig_seventeen_track",
             data_schema=_get_schema_seventeen_track(user_input, self._data),

@@ -14,7 +14,8 @@
       "missing_forwarded_emails": "Fehlende weitergeleitete E-Mail-Adressen. Sie können '(none)' eingeben, um diese Einstellung zu löschen.",
       "path_not_found": "Verzeichnis nicht gefunden",
       "invalid_auth": "Invalid authentication details. Please check your username and password.",
-      "ssl_error": "An SSL error occurred. Change SSL cipher list and try again."
+      "ssl_error": "An SSL error occurred. Change SSL cipher list and try again.",
+      "seventeen_track_required": "Bitte gib deinen 17track.net-API-Schlüssel ein (oder schalte den 17track-Schalter aus, um Mail-Tracking zu nutzen)."
     },
     "step": {
       "config_2": {
