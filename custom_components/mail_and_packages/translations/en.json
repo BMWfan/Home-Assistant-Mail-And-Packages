@@ -266,14 +266,14 @@
       },
       "seventeen_track": {
         "title": "17track.net API key",
-        "description": "Enter your 17track.net API key. You can find it on 17track.net under My Account > Security Settings > API Key.\n\nA key is required to continue. If you don't have one, cancel with ✕ at the top and choose mail-based tracking instead.",
+        "description": "Enter your 17track.net API key. You can find it on 17track.net under My Account > Security Settings > API Key.\n\nA key is required to continue. If you don't have one, cancel with ✕ at the top, restart the wizard, and choose mail-based tracking in step 2.",
         "data": {
           "seventeen_track_api_key": "17track.net API key"
         }
       },
       "reconfig_seventeen_track": {
         "title": "17track.net API key",
-        "description": "Enter your 17track.net API key. You can find it on 17track.net under My Account > Security Settings > API Key.\n\nA key is required to continue. If you don't have one, cancel with ✕ at the top and choose mail-based tracking instead.",
+        "description": "Enter your 17track.net API key. You can find it on 17track.net under My Account > Security Settings > API Key.\n\nA key is required to continue. If you don't have one, cancel with ✕ at the top, restart the wizard, and choose mail-based tracking in step 2.",
         "data": {
           "seventeen_track_api_key": "17track.net API key"
         }

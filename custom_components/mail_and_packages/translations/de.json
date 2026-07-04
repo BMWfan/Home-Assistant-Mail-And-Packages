@@ -250,14 +250,14 @@
       },
       "seventeen_track": {
         "title": "17track.net API-Schlüssel",
-        "description": "Gib deinen 17track.net-API-Schlüssel ein. Du findest ihn auf 17track.net unter Mein Konto > Sicherheitseinstellungen > API-Schlüssel.\n\nEin Schlüssel ist erforderlich. Wenn du keinen hast, brich oben mit ✕ ab und wähle „Mail-Tracking“.",
+        "description": "Gib deinen 17track.net-API-Schlüssel ein. Du findest ihn auf 17track.net unter Mein Konto > Sicherheitseinstellungen > API-Schlüssel.\n\nEin Schlüssel ist erforderlich. Wenn du keinen hast, brich oben mit ✕ ab, starte den Assistenten neu und wähle in Schritt 2 „Mail-Tracking“.",
         "data": {
           "seventeen_track_api_key": "17track.net API-Schlüssel"
         }
       },
       "reconfig_seventeen_track": {
         "title": "17track.net API-Schlüssel",
-        "description": "Gib deinen 17track.net-API-Schlüssel ein. Du findest ihn auf 17track.net unter Mein Konto > Sicherheitseinstellungen > API-Schlüssel.\n\nEin Schlüssel ist erforderlich. Wenn du keinen hast, brich oben mit ✕ ab und wähle „Mail-Tracking“.",
+        "description": "Gib deinen 17track.net-API-Schlüssel ein. Du findest ihn auf 17track.net unter Mein Konto > Sicherheitseinstellungen > API-Schlüssel.\n\nEin Schlüssel ist erforderlich. Wenn du keinen hast, brich oben mit ✕ ab, starte den Assistenten neu und wähle in Schritt 2 „Mail-Tracking“.",
         "data": {
           "seventeen_track_api_key": "17track.net API-Schlüssel"
         }
