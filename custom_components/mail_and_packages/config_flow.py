@@ -577,10 +577,20 @@ async def _get_schema_step_2(
                 CONF_GENERIC_CUSTOM_IMG,
                 default=_get_default(CONF_GENERIC_CUSTOM_IMG, False),
             ): cv.boolean,
-            vol.Optional(
-                "use_seventeen_track",
-                default=bool(_get_default(CONF_17TRACK_API_KEY, "")),
-            ): cv.boolean,
+            vol.Required(
+                "tracking_source",
+                default=(
+                    "seventeen_track"
+                    if _get_default(CONF_17TRACK_API_KEY, "")
+                    else "mail"
+                ),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=["mail", "seventeen_track"],
+                    mode=selector.SelectSelectorMode.LIST,
+                    translation_key="tracking_source",
+                )
+            ),
             vol.Optional(
                 CONF_DHL_BRIEF_ENABLED,
                 default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
@@ -989,7 +999,7 @@ class MailAndPackagesFlowHandler(
             self._errors, user_input = await _validate_user_input(user_input)
             self._data.update(user_input)
             if len(self._errors) == 0:
-                if self._data.pop("use_seventeen_track", False):
+                if self._data.pop("tracking_source", "mail") == "seventeen_track":
                     return await self.async_step_seventeen_track()
                 # Mail-based tracking selected -> drop any stored 17track key.
                 self._data.pop(CONF_17TRACK_API_KEY, None)
@@ -1284,7 +1294,7 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(user_input)
             if len(self._errors) == 0:
-                if self._data.pop("use_seventeen_track", False):
+                if self._data.pop("tracking_source", "mail") == "seventeen_track":
                     return await self.async_step_reconfig_seventeen_track()
                 self._data.pop(CONF_17TRACK_API_KEY, None)
                 return await self._route_after_reconfig_2()

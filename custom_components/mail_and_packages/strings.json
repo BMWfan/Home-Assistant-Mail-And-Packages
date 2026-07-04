@@ -58,12 +58,12 @@
           "amazon_enabled": "Enable Amazon package sensors",
           "seventeen_track_api_key": "17track.net API key (optional)",
           "dhl_brief_enabled": "Enable DHL letter preview",
-          "use_seventeen_track": "Use 17track.net for shipment status (off = mail-based tracking)"
+          "tracking_source": "Shipment status source"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster.",
           "seventeen_track_api_key": "Optional. With a 17track.net API key, 17track provides the authoritative status for all detected tracking numbers (except Amazon) -- the mail-based carrier status detection is then bypassed.",
-          "use_seventeen_track": "When on, 17track.net provides the authoritative status for all detected tracking numbers (except Amazon) and the mail-based carrier status is bypassed. When off, status comes from the carrier emails. You enter the API key on the next step."
+          "tracking_source": "Choose where shipment status comes from. 17track.net provides the authoritative status for all detected tracking numbers (except Amazon) and the mail-based carrier status is bypassed. With mail-based tracking, status comes from the carrier emails. If you pick 17track.net you enter the API key on the next step."
         },
         "description": "Finish the configuration by customizing the following based on your email structure and Home Assistant installation.\n\nIf using Amazon forwarded emails please separate each address with a comma.",
         "title": "Mail and Packages (Step 2 of 2)"
@@ -135,12 +135,12 @@
           "amazon_enabled": "Enable Amazon package sensors",
           "seventeen_track_api_key": "17track.net API key (optional)",
           "dhl_brief_enabled": "Enable DHL letter preview",
-          "use_seventeen_track": "Use 17track.net for shipment status (off = mail-based tracking)"
+          "tracking_source": "Shipment status source"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster.",
           "seventeen_track_api_key": "Optional. With a 17track.net API key, 17track provides the authoritative status for all detected tracking numbers (except Amazon) -- the mail-based carrier status detection is then bypassed.",
-          "use_seventeen_track": "When on, 17track.net provides the authoritative status for all detected tracking numbers (except Amazon) and the mail-based carrier status is bypassed. When off, status comes from the carrier emails. You enter the API key on the next step."
+          "tracking_source": "Choose where shipment status comes from. 17track.net provides the authoritative status for all detected tracking numbers (except Amazon) and the mail-based carrier status is bypassed. With mail-based tracking, status comes from the carrier emails. If you pick 17track.net you enter the API key on the next step."
         },
         "description": "Finish the configuration by customizing the following based on your email structure and Home Assistant installation.\n\nIf using Amazon forwarded emails please separate each address with a comma or enter (none) to clear this setting.",
         "title": "Mail and Packages (Step 2 of 2)"
@@ -234,6 +234,12 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    },
+    "tracking_source": {
+      "options": {
+        "mail": "Mail-based tracking",
+        "seventeen_track": "17track.net"
       }
     }
   },
