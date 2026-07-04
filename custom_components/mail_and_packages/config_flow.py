@@ -451,7 +451,7 @@ def _get_schema_imap(user_input: list, default_dict: list) -> Any:
             vol.Optional(
                 CONF_VERIFY_SSL,
                 default=_get_default(CONF_VERIFY_SSL, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
         },
     )
 
@@ -520,7 +520,7 @@ async def _get_schema_step_2(
             vol.Optional(
                 CONF_AMAZON_ENABLED,
                 default=_get_default(CONF_AMAZON_ENABLED, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_SCAN_INTERVAL,
                 default=_get_default(CONF_SCAN_INTERVAL),
@@ -540,43 +540,43 @@ async def _get_schema_step_2(
             vol.Optional(
                 CONF_ALLOW_FORWARDED_EMAILS,
                 default=_get_default(CONF_ALLOW_FORWARDED_EMAILS, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_GENERATE_GRID,
                 default=_get_default(CONF_GENERATE_GRID, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_GENERATE_MP4,
                 default=_get_default(CONF_GENERATE_MP4, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_ALLOW_EXTERNAL,
                 default=_get_default(CONF_ALLOW_EXTERNAL, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_CUSTOM_IMG,
                 default=_get_default(CONF_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_AMAZON_CUSTOM_IMG,
                 default=_get_default(CONF_AMAZON_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_UPS_CUSTOM_IMG,
                 default=_get_default(CONF_UPS_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_WALMART_CUSTOM_IMG,
                 default=_get_default(CONF_WALMART_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_FEDEX_CUSTOM_IMG,
                 default=_get_default(CONF_FEDEX_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_GENERIC_CUSTOM_IMG,
                 default=_get_default(CONF_GENERIC_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Required(
                 "tracking_source",
                 default=(
@@ -594,7 +594,7 @@ async def _get_schema_step_2(
             vol.Optional(
                 CONF_DHL_BRIEF_ENABLED,
                 default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
         },
     )
 
@@ -786,7 +786,9 @@ def _get_schema_step_storage(
     # ticking it forces a fresh DHL login (e.g. after the token was revoked),
     # otherwise the existing login is kept untouched.
     if show_dhl_reauth:
-        schema[vol.Optional("dhl_brief_reauth", default=False)] = cv.boolean
+        schema[vol.Optional("dhl_brief_reauth", default=False)] = (
+            selector.BooleanSelector()
+        )
     return vol.Schema(schema)
 
 
