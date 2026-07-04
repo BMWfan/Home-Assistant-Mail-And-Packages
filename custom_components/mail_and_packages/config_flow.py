@@ -530,6 +530,49 @@ async def _get_schema_step_2(
 
     return vol.Schema(
         {
+            "sec_amazon": section(
+                vol.Schema(
+                    {
+                        vol.Optional(
+                            CONF_AMAZON_ENABLED,
+                            default=_get_default(CONF_AMAZON_ENABLED, False),
+                        ): selector.BooleanSelector(),
+                    }
+                ),
+                {"collapsed": False},
+            ),
+            "sec_dhl": section(
+                vol.Schema(
+                    {
+                        vol.Optional(
+                            CONF_DHL_BRIEF_ENABLED,
+                            default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
+                        ): selector.BooleanSelector(),
+                    }
+                ),
+                {"collapsed": False},
+            ),
+            "sec_source": section(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            "tracking_source",
+                            default=(
+                                "seventeen_track"
+                                if _get_default(CONF_17TRACK_API_KEY, "")
+                                else "mail"
+                            ),
+                        ): selector.SelectSelector(
+                            selector.SelectSelectorConfig(
+                                options=["mail", "seventeen_track"],
+                                mode=selector.SelectSelectorMode.LIST,
+                                translation_key="tracking_source",
+                            )
+                        ),
+                    }
+                ),
+                {"collapsed": False},
+            ),
             vol.Required(CONF_FOLDER, default=default_folder): multi_folder_select(
                 {m: m for m in mailboxes}
             ),
@@ -589,49 +632,6 @@ async def _get_schema_step_2(
                 CONF_GENERIC_CUSTOM_IMG,
                 default=_get_default(CONF_GENERIC_CUSTOM_IMG, False),
             ): selector.BooleanSelector(),
-            "sec_amazon": section(
-                vol.Schema(
-                    {
-                        vol.Optional(
-                            CONF_AMAZON_ENABLED,
-                            default=_get_default(CONF_AMAZON_ENABLED, False),
-                        ): selector.BooleanSelector(),
-                    }
-                ),
-                {"collapsed": False},
-            ),
-            "sec_dhl": section(
-                vol.Schema(
-                    {
-                        vol.Optional(
-                            CONF_DHL_BRIEF_ENABLED,
-                            default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
-                        ): selector.BooleanSelector(),
-                    }
-                ),
-                {"collapsed": False},
-            ),
-            "sec_source": section(
-                vol.Schema(
-                    {
-                        vol.Required(
-                            "tracking_source",
-                            default=(
-                                "seventeen_track"
-                                if _get_default(CONF_17TRACK_API_KEY, "")
-                                else "mail"
-                            ),
-                        ): selector.SelectSelector(
-                            selector.SelectSelectorConfig(
-                                options=["mail", "seventeen_track"],
-                                mode=selector.SelectSelectorMode.LIST,
-                                translation_key="tracking_source",
-                            )
-                        ),
-                    }
-                ),
-                {"collapsed": False},
-            ),
         },
     )
 
