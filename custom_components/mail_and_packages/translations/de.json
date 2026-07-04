@@ -38,17 +38,36 @@
           "generate_grid": "Erstellen Sie ein Bildraster für LLM-Vision-Modelle",
           "allow_forwarded_emails": "Weitergeleitete E-Mails zusätzlich zu den Standardwerten eines Dienstes zulassen (z. B. no-reply@usps.com)",
           "custom_days": "Tage zurück, um nach Paket-E-Mails zu suchen (mindestens 1, Standard 3)",
-          "amazon_enabled": "Amazon-Paketsensoren aktivieren",
-          "seventeen_track_api_key": "17track.net API-Schlüssel (optional)",
-          "dhl_brief_enabled": "DHL Briefankündigung aktivieren",
-          "tracking_source": "Sendungsstatus-Quelle"
+          "seventeen_track_api_key": "17track.net API-Schlüssel (optional)"
         },
         "data_description": {
-          "seventeen_track_api_key": "Optional. Mit einem 17track.net-API-Schlüssel liefert 17track den maßgeblichen Sendungsstatus für alle erkannten Tracking-Nummern (außer Amazon) — die mail-basierte Carrier-Statuserkennung wird dann übergangen.",
-          "tracking_source": "Wähle, woher der Sendungsstatus kommt. 17track.net liefert den maßgeblichen Status für alle erkannten Tracking-Nummern (außer Amazon), die mail-basierte Carrier-Statuserkennung wird dann übergangen. Beim Mail-Tracking kommt der Status aus den Carrier-Mails. Bei 17track.net gibst du den API-Schlüssel im nächsten Schritt ein."
+          "seventeen_track_api_key": "Optional. Mit einem 17track.net-API-Schlüssel liefert 17track den maßgeblichen Sendungsstatus für alle erkannten Tracking-Nummern (außer Amazon) — die mail-basierte Carrier-Statuserkennung wird dann übergangen."
         },
         "description": "Beenden Sie die Konfiguration, indem Sie Folgendes basierend auf Ihrer E-Mail-Struktur und der Installation von Home Assistant anpassen. \n\n Weitere Informationen zu den Optionen [Mail- und Paketintegration] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) finden Sie in den [Konfiguration, Vorlagen und Abschnitt Automatisierungen] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) auf GitHub.",
-        "title": "Briefe und Pakete (Schritt 2 von 2)"
+        "title": "Briefe und Pakete (Schritt 2 von 2)",
+        "sections": {
+          "sec_amazon": {
+            "name": "Amazon",
+            "data": {
+              "amazon_enabled": "Amazon-Paketsensoren aktivieren"
+            }
+          },
+          "sec_dhl": {
+            "name": "DHL Briefankündigung",
+            "data": {
+              "dhl_brief_enabled": "DHL Briefankündigung aktivieren"
+            }
+          },
+          "sec_source": {
+            "name": "Sendungsstatus-Quelle",
+            "data": {
+              "tracking_source": "Quelle"
+            },
+            "data_description": {
+              "tracking_source": "Wähle, woher der Sendungsstatus kommt. 17track.net liefert den maßgeblichen Status für alle erkannten Tracking-Nummern (außer Amazon), die mail-basierte Carrier-Statuserkennung wird dann übergangen. Beim Mail-Tracking kommt der Status aus den Carrier-Mails. Bei 17track.net gibst du den API-Schlüssel im nächsten Schritt ein."
+            }
+          }
+        }
       },
       "config_3": {
         "data": {
@@ -90,17 +109,36 @@
           "generate_grid": "Erstellen Sie ein Bildraster für LLM-Vision-Modelle",
           "allow_forwarded_emails": "Weitergeleitete E-Mails zusätzlich zu den Standardwerten eines Dienstes zulassen (z. B. no-reply@usps.com)",
           "custom_days": "Tage zurück, um nach Paket-E-Mails zu suchen (mindestens 1, Standard 3)",
-          "amazon_enabled": "Amazon-Paketsensoren aktivieren",
-          "seventeen_track_api_key": "17track.net API-Schlüssel (optional)",
-          "dhl_brief_enabled": "DHL Briefankündigung aktivieren",
-          "tracking_source": "Sendungsstatus-Quelle"
+          "seventeen_track_api_key": "17track.net API-Schlüssel (optional)"
         },
         "data_description": {
-          "seventeen_track_api_key": "Optional. Mit einem 17track.net-API-Schlüssel liefert 17track den maßgeblichen Sendungsstatus für alle erkannten Tracking-Nummern (außer Amazon) — die mail-basierte Carrier-Statuserkennung wird dann übergangen.",
-          "tracking_source": "Wähle, woher der Sendungsstatus kommt. 17track.net liefert den maßgeblichen Status für alle erkannten Tracking-Nummern (außer Amazon), die mail-basierte Carrier-Statuserkennung wird dann übergangen. Beim Mail-Tracking kommt der Status aus den Carrier-Mails. Bei 17track.net gibst du den API-Schlüssel im nächsten Schritt ein."
+          "seventeen_track_api_key": "Optional. Mit einem 17track.net-API-Schlüssel liefert 17track den maßgeblichen Sendungsstatus für alle erkannten Tracking-Nummern (außer Amazon) — die mail-basierte Carrier-Statuserkennung wird dann übergangen."
         },
         "description": "Schließen Sie die Konfiguration ab, indem Sie das Folgende an Ihre E-Mail-Struktur und Home Assistant-Installation anpassen.\n\nWeitere Informationen zu den [Mail und Packages Integration](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) Optionen finden Sie im [Konfigurations-, Vorlagen- und Automatisierungsabschnitt](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) auf GitHub.\n\nWenn Sie weitergeleitete E-Mails von Amazon verwenden, trennen Sie bitte jede Adresse durch ein Komma oder geben Sie (keine) ein, um diese Einstellung zu löschen.",
-        "title": "Briefe und Pakete (Schritt 2 von 2)"
+        "title": "Briefe und Pakete (Schritt 2 von 2)",
+        "sections": {
+          "sec_amazon": {
+            "name": "Amazon",
+            "data": {
+              "amazon_enabled": "Amazon-Paketsensoren aktivieren"
+            }
+          },
+          "sec_dhl": {
+            "name": "DHL Briefankündigung",
+            "data": {
+              "dhl_brief_enabled": "DHL Briefankündigung aktivieren"
+            }
+          },
+          "sec_source": {
+            "name": "Sendungsstatus-Quelle",
+            "data": {
+              "tracking_source": "Quelle"
+            },
+            "data_description": {
+              "tracking_source": "Wähle, woher der Sendungsstatus kommt. 17track.net liefert den maßgeblichen Status für alle erkannten Tracking-Nummern (außer Amazon), die mail-basierte Carrier-Statuserkennung wird dann übergangen. Beim Mail-Tracking kommt der Status aus den Carrier-Mails. Bei 17track.net gibst du den API-Schlüssel im nächsten Schritt ein."
+            }
+          }
+        }
       },
       "reconfig_3": {
         "data": {
@@ -212,14 +250,14 @@
       },
       "seventeen_track": {
         "title": "17track.net API-Schlüssel",
-        "description": "Gib deinen 17track.net-API-Schlüssel ein. Du findest ihn auf 17track.net unter Mein Konto > Sicherheitseinstellungen > API-Schlüssel.\n\nLeer lassen, um auf Mail-Tracking zurückzufallen.",
+        "description": "Gib deinen 17track.net-API-Schlüssel ein. Du findest ihn auf 17track.net unter Mein Konto > Sicherheitseinstellungen > API-Schlüssel.\n\nEin Schlüssel ist erforderlich. Wenn du keinen hast, geh zurück und wähle „Mail-Tracking“.",
         "data": {
           "seventeen_track_api_key": "17track.net API-Schlüssel"
         }
       },
       "reconfig_seventeen_track": {
         "title": "17track.net API-Schlüssel",
-        "description": "Gib deinen 17track.net-API-Schlüssel ein. Du findest ihn auf 17track.net unter Mein Konto > Sicherheitseinstellungen > API-Schlüssel.\n\nLeer lassen, um auf Mail-Tracking zurückzufallen.",
+        "description": "Gib deinen 17track.net-API-Schlüssel ein. Du findest ihn auf 17track.net unter Mein Konto > Sicherheitseinstellungen > API-Schlüssel.\n\nEin Schlüssel ist erforderlich. Wenn du keinen hast, geh zurück und wähle „Mail-Tracking“.",
         "data": {
           "seventeen_track_api_key": "17track.net API-Schlüssel"
         }

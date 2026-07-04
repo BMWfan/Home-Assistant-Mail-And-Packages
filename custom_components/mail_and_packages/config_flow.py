@@ -12,6 +12,7 @@ import voluptuous as vol
 from aioimaplib import AioImapException
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.data_entry_flow import section
 from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
@@ -269,6 +270,21 @@ async def _validate_forwarded_emails(user_input: dict, errors: dict) -> None:
         errors[CONF_FORWARDED_EMAILS] = status[0]
 
 
+def _flatten_step_2_sections(user_input: dict) -> dict:
+    """Flatten the step-2 UI sections back into top-level keys.
+
+    The step-2 schema groups fields into HA ``section()`` boxes, so the
+    submitted ``user_input`` nests those fields under the section keys
+    (``sec_amazon``/``sec_dhl``/``sec_source``). Move them back up so the
+    rest of the flow can read them as plain top-level keys.
+    """
+    for _sec in ("sec_amazon", "sec_dhl", "sec_source"):
+        nested = user_input.pop(_sec, None)
+        if isinstance(nested, dict):
+            user_input.update(nested)
+    return user_input
+
+
 async def _validate_user_input(user_input: dict) -> tuple:
     """Validate user input from config flow.
 
@@ -518,10 +534,6 @@ async def _get_schema_step_2(
                 {m: m for m in mailboxes}
             ),
             vol.Optional(
-                CONF_AMAZON_ENABLED,
-                default=_get_default(CONF_AMAZON_ENABLED, False),
-            ): selector.BooleanSelector(),
-            vol.Optional(
                 CONF_SCAN_INTERVAL,
                 default=_get_default(CONF_SCAN_INTERVAL),
             ): vol.All(vol.Coerce(int), vol.Range(min=5)),
@@ -577,24 +589,49 @@ async def _get_schema_step_2(
                 CONF_GENERIC_CUSTOM_IMG,
                 default=_get_default(CONF_GENERIC_CUSTOM_IMG, False),
             ): selector.BooleanSelector(),
-            vol.Required(
-                "tracking_source",
-                default=(
-                    "seventeen_track"
-                    if _get_default(CONF_17TRACK_API_KEY, "")
-                    else "mail"
+            "sec_amazon": section(
+                vol.Schema(
+                    {
+                        vol.Optional(
+                            CONF_AMAZON_ENABLED,
+                            default=_get_default(CONF_AMAZON_ENABLED, False),
+                        ): selector.BooleanSelector(),
+                    }
                 ),
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=["mail", "seventeen_track"],
-                    mode=selector.SelectSelectorMode.LIST,
-                    translation_key="tracking_source",
-                )
+                {"collapsed": False},
             ),
-            vol.Optional(
-                CONF_DHL_BRIEF_ENABLED,
-                default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
-            ): selector.BooleanSelector(),
+            "sec_dhl": section(
+                vol.Schema(
+                    {
+                        vol.Optional(
+                            CONF_DHL_BRIEF_ENABLED,
+                            default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
+                        ): selector.BooleanSelector(),
+                    }
+                ),
+                {"collapsed": False},
+            ),
+            "sec_source": section(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            "tracking_source",
+                            default=(
+                                "seventeen_track"
+                                if _get_default(CONF_17TRACK_API_KEY, "")
+                                else "mail"
+                            ),
+                        ): selector.SelectSelector(
+                            selector.SelectSelectorConfig(
+                                options=["mail", "seventeen_track"],
+                                mode=selector.SelectSelectorMode.LIST,
+                                translation_key="tracking_source",
+                            )
+                        ),
+                    }
+                ),
+                {"collapsed": False},
+            ),
         },
     )
 
@@ -998,6 +1035,7 @@ class MailAndPackagesFlowHandler(
         """Configure form step 2."""
         self._errors = {}
         if user_input is not None:
+            _flatten_step_2_sections(user_input)
             self._errors, user_input = await _validate_user_input(user_input)
             self._data.update(user_input)
             if len(self._errors) == 0:
@@ -1293,6 +1331,7 @@ class MailAndPackagesFlowHandler(
         self._errors = {}
         _LOGGER.debug("Loading step 2...")
         if user_input is not None:
+            _flatten_step_2_sections(user_input)
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(user_input)
             if len(self._errors) == 0:
