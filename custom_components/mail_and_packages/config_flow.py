@@ -578,9 +578,9 @@ async def _get_schema_step_2(
                 default=_get_default(CONF_GENERIC_CUSTOM_IMG, False),
             ): cv.boolean,
             vol.Optional(
-                CONF_17TRACK_API_KEY,
-                default=_get_default(CONF_17TRACK_API_KEY, ""),
-            ): cv.string,
+                "use_seventeen_track",
+                default=bool(_get_default(CONF_17TRACK_API_KEY, "")),
+            ): cv.boolean,
             vol.Optional(
                 CONF_DHL_BRIEF_ENABLED,
                 default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
@@ -731,6 +731,25 @@ def _get_schema_step_forwarded_emails(
             vol.Optional(
                 CONF_FORWARDED_EMAILS,
                 default=_get_default(CONF_FORWARDED_EMAILS, DEFAULT_FORWARDED_EMAILS),
+            ): cv.string,
+        },
+    )
+
+
+def _get_schema_seventeen_track(user_input: dict, default_dict: dict) -> Any:
+    """Schema for the 17track.net API-key step (shown when the toggle is on)."""
+    if user_input is None:
+        user_input = {}
+
+    def _get_default(key: str, fallback_default: Any = None) -> None:
+        """Get default value for key."""
+        return user_input.get(key, default_dict.get(key, fallback_default))
+
+    return vol.Schema(
+        {
+            vol.Optional(
+                CONF_17TRACK_API_KEY,
+                default=_get_default(CONF_17TRACK_API_KEY, ""),
             ): cv.string,
         },
     )
@@ -970,25 +989,11 @@ class MailAndPackagesFlowHandler(
             self._errors, user_input = await _validate_user_input(user_input)
             self._data.update(user_input)
             if len(self._errors) == 0:
-                if self._data[CONF_ALLOW_FORWARDED_EMAILS]:
-                    return await self.async_step_config_forwarded_emails()
-                if self._data.get(CONF_AMAZON_ENABLED):
-                    return await self.async_step_config_amazon()
-                has_custom_image = (
-                    self._data.get(CONF_CUSTOM_IMG)
-                    or self._data.get(CONF_AMAZON_CUSTOM_IMG)
-                    or self._data.get(CONF_UPS_CUSTOM_IMG)
-                    or self._data.get(CONF_WALMART_CUSTOM_IMG)
-                    or self._data.get(CONF_FEDEX_CUSTOM_IMG)
-                    or self._data.get(CONF_GENERIC_CUSTOM_IMG)
-                )
-                if has_custom_image:
-                    return await self.async_step_config_3()
-
-                return self.async_create_entry(
-                    title=f"Mail and Packages ({self._data[CONF_HOST]})",
-                    data=self._data,
-                )
+                if self._data.pop("use_seventeen_track", False):
+                    return await self.async_step_seventeen_track()
+                # Mail-based tracking selected -> drop any stored 17track key.
+                self._data.pop(CONF_17TRACK_API_KEY, None)
+                return await self._route_after_config_2()
             return await self._show_config_2(user_input)
 
         return await self._show_config_2(user_input)
@@ -1024,6 +1029,39 @@ class MailAndPackagesFlowHandler(
                 defaults,
                 self.hass,
             ),
+            errors=self._errors,
+        )
+
+    async def _route_after_config_2(self):
+        """Branch after step 2 (and the optional 17track step) during setup."""
+        if self._data[CONF_ALLOW_FORWARDED_EMAILS]:
+            return await self.async_step_config_forwarded_emails()
+        if self._data.get(CONF_AMAZON_ENABLED):
+            return await self.async_step_config_amazon()
+        has_custom_image = (
+            self._data.get(CONF_CUSTOM_IMG)
+            or self._data.get(CONF_AMAZON_CUSTOM_IMG)
+            or self._data.get(CONF_UPS_CUSTOM_IMG)
+            or self._data.get(CONF_WALMART_CUSTOM_IMG)
+            or self._data.get(CONF_FEDEX_CUSTOM_IMG)
+            or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+        )
+        if has_custom_image:
+            return await self.async_step_config_3()
+        return self.async_create_entry(
+            title=f"Mail and Packages ({self._data[CONF_HOST]})",
+            data=self._data,
+        )
+
+    async def async_step_seventeen_track(self, user_input=None):
+        """Enter the 17track.net API key (setup) when the toggle is on."""
+        self._errors = {}
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self._route_after_config_2()
+        return self.async_show_form(
+            step_id="seventeen_track",
+            data_schema=_get_schema_seventeen_track(user_input, self._data),
             errors=self._errors,
         )
 
@@ -1241,23 +1279,10 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(user_input)
             if len(self._errors) == 0:
-                if self._data.get(CONF_ALLOW_FORWARDED_EMAILS, False):
-                    return await self.async_step_reconfig_forwarded_emails()
-
-                if self._data.get(CONF_AMAZON_ENABLED):
-                    return await self.async_step_reconfig_amazon()
-                has_custom_image = (
-                    self._data.get(CONF_CUSTOM_IMG)
-                    or self._data.get(CONF_AMAZON_CUSTOM_IMG)
-                    or self._data.get(CONF_UPS_CUSTOM_IMG)
-                    or self._data.get(CONF_WALMART_CUSTOM_IMG)
-                    or self._data.get(CONF_FEDEX_CUSTOM_IMG)
-                    or self._data.get(CONF_GENERIC_CUSTOM_IMG)
-                )
-                if has_custom_image:
-                    return await self.async_step_reconfig_3()
-
-                return await self.async_step_reconfig_storage()
+                if self._data.pop("use_seventeen_track", False):
+                    return await self.async_step_reconfig_seventeen_track()
+                self._data.pop(CONF_17TRACK_API_KEY, None)
+                return await self._route_after_reconfig_2()
 
             return await self._show_reconfig_2(user_input)
 
@@ -1273,6 +1298,36 @@ class MailAndPackagesFlowHandler(
                 self._data,
                 self.hass,
             ),
+            errors=self._errors,
+        )
+
+    async def _route_after_reconfig_2(self):
+        """Branch after step 2 (and the optional 17track step) on reconfigure."""
+        if self._data.get(CONF_ALLOW_FORWARDED_EMAILS, False):
+            return await self.async_step_reconfig_forwarded_emails()
+        if self._data.get(CONF_AMAZON_ENABLED):
+            return await self.async_step_reconfig_amazon()
+        has_custom_image = (
+            self._data.get(CONF_CUSTOM_IMG)
+            or self._data.get(CONF_AMAZON_CUSTOM_IMG)
+            or self._data.get(CONF_UPS_CUSTOM_IMG)
+            or self._data.get(CONF_WALMART_CUSTOM_IMG)
+            or self._data.get(CONF_FEDEX_CUSTOM_IMG)
+            or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+        )
+        if has_custom_image:
+            return await self.async_step_reconfig_3()
+        return await self.async_step_reconfig_storage()
+
+    async def async_step_reconfig_seventeen_track(self, user_input=None):
+        """Enter the 17track.net API key (reconfigure) when the toggle is on."""
+        self._errors = {}
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self._route_after_reconfig_2()
+        return self.async_show_form(
+            step_id="reconfig_seventeen_track",
+            data_schema=_get_schema_seventeen_track(user_input, self._data),
             errors=self._errors,
         )
 

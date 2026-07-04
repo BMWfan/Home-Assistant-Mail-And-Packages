@@ -56,11 +56,13 @@
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
           "amazon_enabled": "Enable Amazon package sensors",
           "seventeen_track_api_key": "17track.net API key (optional)",
-          "dhl_brief_enabled": "Enable DHL letter preview"
+          "dhl_brief_enabled": "Enable DHL letter preview",
+          "use_seventeen_track": "Use 17track.net for shipment status (off = mail-based tracking)"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster.",
-          "seventeen_track_api_key": "Optional. With a 17track.net API key, 17track provides the authoritative status for all detected tracking numbers (except Amazon) -- the mail-based carrier status detection is then bypassed."
+          "seventeen_track_api_key": "Optional. With a 17track.net API key, 17track provides the authoritative status for all detected tracking numbers (except Amazon) -- the mail-based carrier status detection is then bypassed.",
+          "use_seventeen_track": "When on, 17track.net provides the authoritative status for all detected tracking numbers (except Amazon) and the mail-based carrier status is bypassed. When off, status comes from the carrier emails. You enter the API key on the next step."
         },
         "description": "Finish the configuration by customizing the following based on your email structure and Home Assistant installation.\n\nIf using Amazon forwarded emails please separate each address with a comma.",
         "title": "Mail and Packages (Step 2 of 2)"
@@ -131,11 +133,13 @@
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
           "amazon_enabled": "Enable Amazon package sensors",
           "seventeen_track_api_key": "17track.net API key (optional)",
-          "dhl_brief_enabled": "Enable DHL letter preview"
+          "dhl_brief_enabled": "Enable DHL letter preview",
+          "use_seventeen_track": "Use 17track.net for shipment status (off = mail-based tracking)"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster.",
-          "seventeen_track_api_key": "Optional. With a 17track.net API key, 17track provides the authoritative status for all detected tracking numbers (except Amazon) -- the mail-based carrier status detection is then bypassed."
+          "seventeen_track_api_key": "Optional. With a 17track.net API key, 17track provides the authoritative status for all detected tracking numbers (except Amazon) -- the mail-based carrier status detection is then bypassed.",
+          "use_seventeen_track": "When on, 17track.net provides the authoritative status for all detected tracking numbers (except Amazon) and the mail-based carrier status is bypassed. When off, status comes from the carrier emails. You enter the API key on the next step."
         },
         "description": "Finish the configuration by customizing the following based on your email structure and Home Assistant installation.\n\nIf using Amazon forwarded emails please separate each address with a comma or enter (none) to clear this setting.",
         "title": "Mail and Packages (Step 2 of 2)"
@@ -206,6 +210,20 @@
           "password": "Password"
         },
         "title": "Re-authenticate Mail Server"
+      },
+      "seventeen_track": {
+        "title": "17track.net API key",
+        "description": "Enter your 17track.net API key. You can find it on 17track.net under My Account > Security Settings > API Key.\n\nLeave it blank to fall back to mail-based tracking.",
+        "data": {
+          "seventeen_track_api_key": "17track.net API key"
+        }
+      },
+      "reconfig_seventeen_track": {
+        "title": "17track.net API key",
+        "description": "Enter your 17track.net API key. You can find it on 17track.net under My Account > Security Settings > API Key.\n\nLeave it blank to fall back to mail-based tracking.",
+        "data": {
+          "seventeen_track_api_key": "17track.net API key"
+        }
       }
     }
   },
