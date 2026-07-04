@@ -530,6 +530,27 @@ async def _get_schema_step_2(
 
     return vol.Schema(
         {
+            "sec_source": section(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            "tracking_source",
+                            default=(
+                                "seventeen_track"
+                                if _get_default(CONF_17TRACK_API_KEY, "")
+                                else "mail"
+                            ),
+                        ): selector.SelectSelector(
+                            selector.SelectSelectorConfig(
+                                options=["mail", "seventeen_track"],
+                                mode=selector.SelectSelectorMode.LIST,
+                                translation_key="tracking_source",
+                            )
+                        ),
+                    }
+                ),
+                {"collapsed": False},
+            ),
             "sec_amazon": section(
                 vol.Schema(
                     {
@@ -548,27 +569,6 @@ async def _get_schema_step_2(
                             CONF_DHL_BRIEF_ENABLED,
                             default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
                         ): selector.BooleanSelector(),
-                    }
-                ),
-                {"collapsed": False},
-            ),
-            "sec_source": section(
-                vol.Schema(
-                    {
-                        vol.Required(
-                            "tracking_source",
-                            default=(
-                                "seventeen_track"
-                                if _get_default(CONF_17TRACK_API_KEY, "")
-                                else "mail"
-                            ),
-                        ): selector.SelectSelector(
-                            selector.SelectSelectorConfig(
-                                options=["mail", "seventeen_track"],
-                                mode=selector.SelectSelectorMode.LIST,
-                                translation_key="tracking_source",
-                            )
-                        ),
                     }
                 ),
                 {"collapsed": False},
