@@ -23,6 +23,7 @@ from .const import (
     AMAZON_ORDER,
     AMAZON_OTP,
     AMAZON_OTP_CODE,
+    AMAZON_OTP_DETAILS,
     ATTR_CODE,
     ATTR_GRID_IMAGE_NAME,
     ATTR_IMAGE,
@@ -191,24 +192,38 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
     def _add_dhl_brief_attributes(self, attr: dict, data: dict) -> None:
         """Add DHL Briefankündigung letter list to attributes."""
         if letters := data.get("dhl_brief_letters"):
-            attr["letters"] = [
-                {"id": entry.get("id"), "date": str(entry.get("date", ""))}
-                for entry in letters
-            ]
+            letter_list = []
+            for entry in letters:
+                item = {"id": entry.get("id"), "date": str(entry.get("date", ""))}
+                # Letter previews are saved under <config>/www/... which HA
+                # serves at /local/... -- expose that URL for dashboard cards.
+                if image_path := entry.get("image_path"):
+                    normalized = str(image_path).replace("\\", "/")
+                    if "/www/" in normalized:
+                        item["image"] = "/local/" + normalized.split("/www/", 1)[1]
+                letter_list.append(item)
+            attr["letters"] = letter_list
 
     def _add_amazon_attributes(self, attr: dict, data: dict) -> None:
-        """Add Amazon specific attributes to the sensor."""
+        """Add Amazon specific attributes to the sensor.
+
+        Type-specific branches must come first: the generic AMAZON_ORDER
+        fallback used to shadow the hub/OTP branches whenever any order
+        data existed, so those sensors never exposed their codes.
+        """
         if self.type == AMAZON_EXCEPTION:
             if order := data.get(AMAZON_EXCEPTION_ORDER, data.get(ATTR_ORDER)):
                 attr[ATTR_ORDER] = order
-        elif order := data.get(AMAZON_ORDER):
-            attr[ATTR_ORDER] = order
         elif self.type == AMAZON_HUB:
             if code := data.get(AMAZON_HUB_CODE, data.get(ATTR_CODE)):
                 attr[ATTR_CODE] = code
         elif self.type == AMAZON_OTP:
             if code := data.get(AMAZON_OTP_CODE, data.get(ATTR_CODE)):
                 attr[ATTR_CODE] = code
+            if details := data.get(AMAZON_OTP_DETAILS):
+                attr["details"] = details
+        elif order := data.get(AMAZON_ORDER):
+            attr[ATTR_ORDER] = order
 
 
 class ImagePathSensors(CoordinatorEntity, SensorEntity):

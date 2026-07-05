@@ -301,7 +301,13 @@ AMAZON_LANGS = [
 AMAZON_OTP = "amazon_otp"
 AMAZON_OTP_CODE = "amazon_otp_code"
 AMAZON_OTP_REGEX = "(\n)(\\d{6})(\n)"
-AMAZON_OTP_SUBJECT = "A one-time password is required for your Amazon delivery"
+# IMAP SUBJECT search matches substrings (case-insensitive), so short,
+# distinctive fragments cover the EN and DE mail variants.
+AMAZON_OTP_SUBJECT = [
+    "A one-time password is required",
+    "Einmalpasswort",
+]
+AMAZON_OTP_DETAILS = "amazon_otp_details"
 
 AMAZON_DELIEVERED_BY_OTHERS_SEARCH_TEXT = ["AMAZON"]
 

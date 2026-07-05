@@ -32,6 +32,7 @@ from custom_components.mail_and_packages.const import (
     AMAZON_ORDERED_SUBJECT,
     AMAZON_OTP,
     AMAZON_OTP_CODE,
+    AMAZON_OTP_DETAILS,
     AMAZON_OTP_REGEX,
     AMAZON_OTP_SUBJECT,
     AMAZON_PACKAGES,
@@ -111,11 +112,12 @@ class AmazonShipper(Shipper):
             return {sensor_type: result}
 
         if sensor_type == AMAZON_HUB:
-            return await self._amazon_hub(account, fwds, cache, forwarding_header)
+            return await self._amazon_hub(account, fwds, domain, cache, forwarding_header)
 
         if sensor_type == AMAZON_OTP:
-            result = await self._amazon_otp(account, fwds, cache, forwarding_header)
-            return {sensor_type: result}
+            # _amazon_otp already returns a dict keyed by AMAZON_OTP -- do not
+            # wrap it again or the sensor state becomes a dict.
+            return await self._amazon_otp(account, fwds, domain, cache, forwarding_header)
 
         if sensor_type == AMAZON_EXCEPTION:
             return await self._amazon_exception(
@@ -433,6 +435,7 @@ class AmazonShipper(Shipper):
         self,
         account: IMAP4_SSL,
         fwds: list[str] | None = None,
+        domain: str | None = None,
         cache: EmailCache | None = None,
         forwarding_header: str = "",
     ) -> dict[str, Any]:
@@ -442,7 +445,7 @@ class AmazonShipper(Shipper):
         code = []
         processed_ids = []
         today = get_today().strftime("%d-%b-%Y")
-        address_list = amazon_email_addresses(fwds, "amazon.com")
+        address_list = amazon_email_addresses(fwds, domain)
         for search_subject in AMAZON_HUB_SUBJECT:
             (server_response, data) = await email_search(
                 account,
@@ -480,13 +483,16 @@ class AmazonShipper(Shipper):
         self,
         account: IMAP4_SSL,
         fwds: list[str] | None = None,
+        domain: str | None = None,
         cache: EmailCache | None = None,
         forwarding_header: str = "",
     ) -> dict[str, Any]:
         """Find Amazon OTP code."""
         code = []
+        details = []
+        order_pattern = re.compile(r"[0-9]{3}-[0-9]{7}-[0-9]{7}")
         today = get_today().strftime("%d-%b-%Y")
-        address_list = amazon_email_addresses(fwds, "amazon.com")
+        address_list = amazon_email_addresses(fwds, domain)
         (server_response, data) = await email_search(
             account,
             address_list,
@@ -508,7 +514,22 @@ class AmazonShipper(Shipper):
                             found := re.compile(AMAZON_OTP_REGEX).search(body)
                         ) is not None:
                             code.append(found.group(2))
-        return {AMAZON_OTP: len(code), AMAZON_OTP_CODE: code}
+                            # The OTP mail references its order number; keep the
+                            # pair so UIs can attach the code to the shipment.
+                            order_match = order_pattern.search(body)
+                            details.append(
+                                {
+                                    "code": found.group(2),
+                                    "order": (
+                                        order_match.group(0) if order_match else None
+                                    ),
+                                }
+                            )
+        return {
+            AMAZON_OTP: len(code),
+            AMAZON_OTP_CODE: code,
+            AMAZON_OTP_DETAILS: details,
+        }
 
     async def _amazon_exception(
         self,
