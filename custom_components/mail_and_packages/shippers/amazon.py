@@ -30,6 +30,7 @@ from custom_components.mail_and_packages.const import (
     AMAZON_HUB_SUBJECT_SEARCH,
     AMAZON_ORDER,
     AMAZON_ORDERED_SUBJECT,
+    AMAZON_DELIVERED_ORDERS,
     AMAZON_OTP,
     AMAZON_OTP_CODE,
     AMAZON_OTP_DETAILS,
@@ -109,7 +110,12 @@ class AmazonShipper(Shipper):
             result = await self._parse_amazon_emails(
                 account, param, fwds, days, domain, cache, forwarding_header
             )
-            return {sensor_type: result}
+            return {
+                sensor_type: result,
+                AMAZON_DELIVERED_ORDERS: getattr(
+                    self, "_last_delivered_orders", []
+                ),
+            }
 
         if sensor_type == AMAZON_HUB:
             return await self._amazon_hub(account, fwds, domain, cache, forwarding_header)
@@ -197,6 +203,10 @@ class AmazonShipper(Shipper):
             await self._process_amazon_email(account, email_id, context, cache)
 
         final_count = self._calculate_final_count(context)
+
+        # Keep today's delivered order ids so process() can publish them as a
+        # sensor attribute (the delivered COUNT comes from _amazon_search).
+        self._last_delivered_orders = list(context["amazon_delivered"])
 
         if param == "count":
             return final_count

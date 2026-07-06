@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cardtest",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8137",
+        "--directory",
+        "C:\\Users\\danie\\AppData\\Local\\Temp\\claude\\C--Users-danie-OneDrive-Documents-New-project\\55e6a2ea-7500-4ac6-a981-0b57d6c000ef\\scratchpad\\cardtest"
+      ],
+      "port": 8137
+    }
+  ]
+}

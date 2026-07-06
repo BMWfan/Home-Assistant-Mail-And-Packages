@@ -308,6 +308,7 @@ AMAZON_OTP_SUBJECT = [
     "Einmalpasswort",
 ]
 AMAZON_OTP_DETAILS = "amazon_otp_details"
+AMAZON_DELIVERED_ORDERS = "amazon_delivered_orders"
 
 AMAZON_DELIEVERED_BY_OTHERS_SEARCH_TEXT = ["AMAZON"]
 

@@ -16,6 +16,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import MailAndPackagesConfigEntry
 from .const import (
+    AMAZON_DELIVERED,
+    AMAZON_DELIVERED_ORDERS,
     AMAZON_EXCEPTION,
     AMAZON_EXCEPTION_ORDER,
     AMAZON_HUB,
@@ -32,6 +34,7 @@ from .const import (
     ATTR_ORDER,
     ATTR_TRACKING_NUM,
     ATTR_USPS_IMAGE,
+    CONF_AMAZON_DOMAIN,
     CONF_AMAZON_ENABLED,
     CONF_DHL_BRIEF_ENABLED,
     CONF_PATH,
@@ -211,6 +214,10 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         fallback used to shadow the hub/OTP branches whenever any order
         data existed, so those sensors never exposed their codes.
         """
+        # The configured marketplace domain lets dashboards build direct
+        # order links (https://www.<domain>/gp/your-account/order-details).
+        attr["domain"] = self._config.data.get(CONF_AMAZON_DOMAIN, "amazon.com")
+
         if self.type == AMAZON_EXCEPTION:
             if order := data.get(AMAZON_EXCEPTION_ORDER, data.get(ATTR_ORDER)):
                 attr[ATTR_ORDER] = order
@@ -222,6 +229,9 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
                 attr[ATTR_CODE] = code
             if details := data.get(AMAZON_OTP_DETAILS):
                 attr["details"] = details
+        elif self.type == AMAZON_DELIVERED:
+            if orders := data.get(AMAZON_DELIVERED_ORDERS):
+                attr[ATTR_ORDER] = orders
         elif order := data.get(AMAZON_ORDER):
             attr[ATTR_ORDER] = order
 
