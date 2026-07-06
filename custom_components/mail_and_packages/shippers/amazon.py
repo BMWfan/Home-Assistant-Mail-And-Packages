@@ -31,6 +31,7 @@ from custom_components.mail_and_packages.const import (
     AMAZON_ORDER,
     AMAZON_ORDERED_SUBJECT,
     AMAZON_DELIVERED_ORDERS,
+    AMAZON_ORDER_TRACKING,
     AMAZON_OTP,
     AMAZON_OTP_CODE,
     AMAZON_OTP_DETAILS,
@@ -115,6 +116,7 @@ class AmazonShipper(Shipper):
                 AMAZON_DELIVERED_ORDERS: getattr(
                     self, "_last_delivered_orders", []
                 ),
+                AMAZON_ORDER_TRACKING: getattr(self, "_last_order_tracking", {}),
             }
 
         if sensor_type == AMAZON_HUB:
@@ -197,6 +199,9 @@ class AmazonShipper(Shipper):
             "deliveries_today": [],
             "all_shipped_orders": set(),
             "order_pattern": order_pattern,
+            # order id -> Amazon Logistics tracking number (TBA...)
+            "order_tracking": {},
+            "tba_pattern": re.compile(r"\bTBA[0-9]{9,15}\b", re.IGNORECASE),
         }
 
         for email_id in unique_emails:
@@ -207,6 +212,7 @@ class AmazonShipper(Shipper):
         # Keep today's delivered order ids so process() can publish them as a
         # sensor attribute (the delivered COUNT comes from _amazon_search).
         self._last_delivered_orders = list(context["amazon_delivered"])
+        self._last_order_tracking = dict(context["order_tracking"])
 
         if param == "count":
             return final_count
@@ -266,6 +272,17 @@ class AmazonShipper(Shipper):
             ctx["delivered_packages"][o] = ctx["delivered_packages"].get(o, 0) + 1
             if o not in ctx["amazon_delivered"]:
                 ctx["amazon_delivered"].append(o)
+        if len(orders) == 1:
+            self._capture_order_tracking(orders[0], subject, body, ctx)
+
+    @staticmethod
+    def _capture_order_tracking(
+        order_id: str, subject: str, body: str | None, ctx: dict
+    ) -> None:
+        """Remember the TBA tracking number referenced by an order's mail."""
+        haystack = subject + "\n" + (body or "")
+        if match := ctx["tba_pattern"].search(haystack):
+            ctx["order_tracking"][order_id] = match.group(0).upper()
 
     async def _handle_shipping_email(
         self,
@@ -278,6 +295,7 @@ class AmazonShipper(Shipper):
         order_id = self._extract_first_order_id(subject, body, ctx["order_pattern"])
         if order_id:
             ctx["all_shipped_orders"].add(order_id)
+            self._capture_order_tracking(order_id, subject, body, ctx)
 
         if body:
             parsed_arrival = await parse_amazon_arrival_date(self.hass, body, date)

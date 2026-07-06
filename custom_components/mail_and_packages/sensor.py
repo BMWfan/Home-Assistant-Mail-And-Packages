@@ -19,6 +19,7 @@ from .const import (
     AMAZON_DELIVERED,
     AMAZON_DELIVERED_ORDERS,
     AMAZON_EXCEPTION,
+    AMAZON_ORDER_TRACKING,
     AMAZON_EXCEPTION_ORDER,
     AMAZON_HUB,
     AMAZON_HUB_CODE,
@@ -217,6 +218,10 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         # The configured marketplace domain lets dashboards build direct
         # order links (https://www.<domain>/gp/your-account/order-details).
         attr["domain"] = self._config.data.get(CONF_AMAZON_DOMAIN, "amazon.com")
+
+        # order id -> TBA tracking number, when the mail contained one.
+        if tracking_map := data.get(AMAZON_ORDER_TRACKING):
+            attr["tracking"] = tracking_map
 
         if self.type == AMAZON_EXCEPTION:
             if order := data.get(AMAZON_EXCEPTION_ORDER, data.get(ATTR_ORDER)):

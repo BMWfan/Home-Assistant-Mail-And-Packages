@@ -309,6 +309,9 @@ AMAZON_OTP_SUBJECT = [
 ]
 AMAZON_OTP_DETAILS = "amazon_otp_details"
 AMAZON_DELIVERED_ORDERS = "amazon_delivered_orders"
+# Map of order id -> Amazon Logistics tracking number (TBA...) when the
+# shipping/delivered mail contains one.
+AMAZON_ORDER_TRACKING = "amazon_order_tracking"
 
 AMAZON_DELIEVERED_BY_OTHERS_SEARCH_TEXT = ["AMAZON"]
 
