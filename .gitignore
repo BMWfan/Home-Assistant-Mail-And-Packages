@@ -91,3 +91,4 @@ test/*
 # Keep .PLACEHOLDER so the images/ directory itself is tracked.
 custom_components/mail_and_packages/images/*
 !custom_components/mail_and_packages/images/.PLACEHOLDER
+.claude/launch.json
