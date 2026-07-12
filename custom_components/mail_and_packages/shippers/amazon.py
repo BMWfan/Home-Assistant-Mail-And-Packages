@@ -117,9 +117,7 @@ class AmazonShipper(Shipper):
             return {
                 AMAZON_PACKAGES: count,
                 AMAZON_ORDER: orders,
-                AMAZON_DELIVERED_ORDERS: getattr(
-                    self, "_last_delivered_orders", []
-                ),
+                AMAZON_DELIVERED_ORDERS: getattr(self, "_last_delivered_orders", []),
                 AMAZON_ORDER_TRACKING: getattr(self, "_last_order_tracking", {}),
             }
 
@@ -130,12 +128,16 @@ class AmazonShipper(Shipper):
             return {AMAZON_ORDER: result}
 
         if sensor_type == AMAZON_HUB:
-            return await self._amazon_hub(account, fwds, domain, cache, forwarding_header)
+            return await self._amazon_hub(
+                account, fwds, domain, cache, forwarding_header
+            )
 
         if sensor_type == AMAZON_OTP:
             # _amazon_otp already returns a dict keyed by AMAZON_OTP -- do not
             # wrap it again or the sensor state becomes a dict.
-            return await self._amazon_otp(account, fwds, domain, cache, forwarding_header)
+            return await self._amazon_otp(
+                account, fwds, domain, cache, forwarding_header
+            )
 
         if sensor_type == AMAZON_EXCEPTION:
             return await self._amazon_exception(

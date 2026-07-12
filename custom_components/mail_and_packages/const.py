@@ -1863,10 +1863,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
 # not a monotonic total.
 _COUNT_UNITS: Final = ("package(s)", "piece(s)")
 for _key, _desc in list(SENSOR_TYPES.items()):
-    if (
-        _desc.native_unit_of_measurement in _COUNT_UNITS
-        and _desc.state_class is None
-    ):
+    if _desc.native_unit_of_measurement in _COUNT_UNITS and _desc.state_class is None:
         SENSOR_TYPES[_key] = dataclasses.replace(
             _desc, state_class=SensorStateClass.MEASUREMENT
         )

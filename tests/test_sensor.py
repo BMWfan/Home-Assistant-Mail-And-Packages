@@ -57,139 +57,139 @@ async def test_sensor(hass, mock_update, entity_registry: er.EntityRegistry):
     assert state
 
     # Make sure the rest of the sensors are importing our test data
-    state = s("mail_usps_mail")
+    state = s("usps_mail")
     assert state
     assert state.state == "6"
 
     assert state.attributes["image"] == "mail_today.gif"
 
-    state = s("mail_usps_delivered")
+    state = s("usps_delivered")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["92123456789012345"]
 
-    state = s("mail_usps_delivering")
+    state = s("usps_delivering")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["92123456789012345"]
 
-    state = s("mail_usps_packages")
+    state = s("usps_packages")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["92123456789012345"]
 
-    state = s("mail_ups_delivered")
+    state = s("ups_delivered")
     assert state
     assert state.state == "1"
 
-    state = s("mail_ups_delivering")
-    assert state
-    assert state.state == "1"
-    assert state.attributes["tracking_#"] == ["1Z123456789"]
-
-    state = s("mail_ups_packages")
+    state = s("ups_delivering")
     assert state
     assert state.state == "1"
     assert state.attributes["tracking_#"] == ["1Z123456789"]
 
-    state = s("mail_fedex_delivered")
+    state = s("ups_packages")
+    assert state
+    assert state.state == "1"
+    assert state.attributes["tracking_#"] == ["1Z123456789"]
+
+    state = s("fedex_delivered")
     assert state
     assert state.state == "0"
 
-    state = s("mail_fedex_delivering")
+    state = s("fedex_delivering")
     assert state
     assert state.state == "2"
     assert state.attributes["tracking_#"] == ["1234567890"]
 
-    state = s("mail_fedex_packages")
+    state = s("fedex_packages")
     assert state
     assert state.state == "2"
     assert state.attributes["tracking_#"] == ["1234567890"]
 
-    state = s("mail_amazon_packages")
+    state = s("amazon_packages")
     assert state
     assert state.state == "7"
     assert state.attributes["order"] == ["#123-4567890"]
 
-    state = s("mail_amazon_delivered")
+    state = s("amazon_delivered")
     assert state
     assert state.state == "2"
     assert state.attributes["order"] == ["#123-4567890"]
 
-    state = s("mail_dhl_delivered")
+    state = s("dhl_delivered")
     assert state
     assert state.state == "0"
 
-    state = s("mail_dhl_delivering")
+    state = s("dhl_delivering")
     assert state
     assert state.state == "1"
     assert state.attributes["tracking_#"] == ["1234567890"]
 
-    state = s("mail_dhl_packages")
+    state = s("dhl_packages")
     assert state
     assert state.state == "2"
     assert state.attributes["tracking_#"] == ["1234567890"]
 
-    state = s("mail_auspost_delivered")
+    state = s("auspost_delivered")
     assert state
     assert state.state == "2"
 
-    state = s("mail_auspost_delivering")
+    state = s("auspost_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_auspost_packages")
+    state = s("auspost_packages")
     assert state
     assert state.state == "3"
 
-    state = s("mail_poczta_polska_delivering")
+    state = s("poczta_polska_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_poczta_polska_packages")
+    state = s("poczta_polska_packages")
     assert state
     assert state.state == "1"
 
-    state = s("mail_inpost_pl_delivered")
+    state = s("inpost_pl_delivered")
     assert state
     assert state.state == "2"
 
-    state = s("mail_inpost_pl_delivering")
+    state = s("inpost_pl_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_inpost_pl_packages")
+    state = s("inpost_pl_packages")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["520113017830399002575123"]
 
-    state = s("mail_dpd_com_pl_delivered")
+    state = s("dpd_com_pl_delivered")
     assert state
     assert state.state == "2"
 
-    state = s("mail_dpd_com_pl_delivering")
+    state = s("dpd_com_pl_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_dpd_com_pl_packages")
+    state = s("dpd_com_pl_packages")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["13490015284111"]
 
-    state = s("mail_gls_delivered")
+    state = s("gls_delivered")
     assert state
     assert state.state == "2"
 
-    state = s("mail_gls_delivering")
+    state = s("gls_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_gls_packages")
+    state = s("gls_packages")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["51687952111"]
 
-    state = s("packages_delivered")
+    state = s("zpackages_delivered")
     assert state
     assert state.state == "7"
 

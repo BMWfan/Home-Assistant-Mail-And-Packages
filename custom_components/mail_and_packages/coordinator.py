@@ -229,9 +229,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                     data={"entry_id": self.config_entry.entry_id},
                 )
             else:
-                ir.async_delete_issue(
-                    hass, DOMAIN, "seventeen_track_auth_failed"
-                )
+                ir.async_delete_issue(hass, DOMAIN, "seventeen_track_auth_failed")
             # When a 17track API key is configured, use only the status data
             # that 17track produced (keyed as _17track_details). This prevents
             # email-based status classifications from conflicting with the
