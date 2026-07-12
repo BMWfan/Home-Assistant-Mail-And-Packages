@@ -250,6 +250,17 @@
           "invalid_auth": "Wprowadź prawidłowy klucz API 17track.net."
         }
       }
+    },
+    "auth_failed": {
+      "title": "Błąd uwierzytelniania Mail and Packages",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Ponownie uwierzytelnij serwer pocztowy",
+            "description": "Uwierzytelnienie na serwerze pocztowym IMAP nie powiodło się. Kliknij prześlij, aby rozpocząć proces ponownego uwierzytelniania."
+          }
+        }
+      }
     }
   }
 }

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from .amazon import AmazonShipper
 from .generic import GenericShipper
+from .post_de import PostDEShipper
 from .universal import UniversalTrackingShipper
 from .usps import USPSShipper
 
@@ -18,6 +19,7 @@ SHIPPER_REGISTRY = {
     "amazon": AmazonShipper,
     "universal": UniversalTrackingShipper,
     "generic": GenericShipper,
+    "post_de": PostDEShipper,
     "usps": USPSShipper,
 }
 

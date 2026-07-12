@@ -250,6 +250,17 @@
           "invalid_auth": "Anna kelvollinen 17track.net API-avain."
         }
       }
+    },
+    "auth_failed": {
+      "title": "Mail and Packages -autentikointi epäonnistui",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Tunnistaudu uudelleen sähköpostipalvelimeen",
+            "description": "Autentikointi IMAP-sähköpostipalvelimeesi epäonnistui. Napsauta Lähetä aloittaaksesi uudelleentunnistautumisen."
+          }
+        }
+      }
     }
   }
 }

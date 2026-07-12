@@ -316,6 +316,17 @@
           "invalid_auth": "Zadejte platný klíč API 17track.net."
         }
       }
+    },
+    "auth_failed": {
+      "title": "Ověření Mail and Packages selhalo",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Znovu ověřit poštovní server",
+            "description": "Ověření k vašemu poštovnímu serveru IMAP selhalo. Kliknutím na odeslat spustíte proces opětovného ověření."
+          }
+        }
+      }
     }
   }
 }

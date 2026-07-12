@@ -292,6 +292,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             "walmart_image": (False, False, True, False),
             "fedex_image": (False, False, False, True),
             "usps_image": (False, False, False, False),
+            "post_de_image": (False, False, False, False),
         }
 
         for key, params in shipper_images.items():
@@ -316,10 +317,26 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             )
         except InvalidAuth as err:
             _LOGGER.error("Authentication failed: %s", err)
+            # Create a repairs issue for authentication failure
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                "auth_failed",
+                is_fixable=True,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="auth_failed",
+                data={"entry_id": self.config_entry.entry_id}
+                if self.config_entry
+                else None,
+            )
             raise ConfigEntryAuthFailed from err
         except Exception as err:
             _LOGGER.error("Error logging into IMAP: %s", err)
             raise UpdateFailed(f"Login failed: {err}") from err
+        # Login succeeded, delete the issue if it exists
+        issue_registry = ir.async_get(self.hass)
+        if (DOMAIN, "auth_failed") in issue_registry.issues:
+            ir.async_delete_issue(self.hass, DOMAIN, "auth_failed")
 
         # Stashed so utils.imap can transparently reconnect if a command
         # stalls mid-scan (observed against Exchange Online: a connection
@@ -338,15 +355,13 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         account._hass = self.hass  # noqa: SLF001
 
         folders = config.get(CONF_FOLDER)
-        if not folders:
-            folders = ["INBOX"]
-        elif isinstance(folders, str):
+        if isinstance(folders, str):
             folders = [folders]
         elif isinstance(folders, (list, tuple, set)):
             folders = [f for f in folders if isinstance(f, str) and f]
-            if not folders:
-                folders = ["INBOX"]
         else:
+            folders = []
+        if not folders:
             folders = ["INBOX"]
         account._folders = folders  # noqa: SLF001
         account._current_folder = None  # noqa: SLF001
@@ -457,6 +472,10 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                     account, today, sensors, cache, since_date=since_date
                 )
                 if isinstance(results, dict):
+                    if "_tracking_details" in results:
+                        data.setdefault("_tracking_details", {}).update(
+                            results.pop("_tracking_details")
+                        )
                     data.update(results)
                 success = True
             except Exception as err:  # noqa: BLE001
@@ -478,13 +497,24 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         today_iso: str,
     ) -> None:
         """Update in-transit tracking state and override sensor counts."""
-        prefixes: set[str] = set()
+        prefixes: set[str] = set(self._in_transit_tracking.keys())
         for sensor_key in tracking_details:
             prefix = "_".join(sensor_key.split("_")[:-1])
             if prefix:
                 prefixes.add(prefix)
 
         for prefix in prefixes:
+            if prefix in self._in_transit_tracking and not (
+                f"{prefix}_delivering" in tracking_details
+                or f"{prefix}_exception" in tracking_details
+                or f"{prefix}_delivered" in tracking_details
+            ):
+                _LOGGER.debug(
+                    "Prefix '%s' has no tracking_details entries — "
+                    "may be a removed carrier; tracking will persist until TTL expiry",
+                    prefix,
+                )
+
             delivering = list(tracking_details.get(f"{prefix}_delivering", []))
             delivering += list(tracking_details.get(f"{prefix}_exception", []))
             delivered = list(tracking_details.get(f"{prefix}_delivered", []))
@@ -503,9 +533,34 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 )
 
             in_transit = self._in_transit_tracking.get(prefix, {})
-            if in_transit:
+            # A carrier that reported DELIVERING/EXCEPTION tracking details
+            # this scan must have its count overridden even when the
+            # in-transit map ends up EMPTY: when every tracked package has a
+            # delivered notification, the raw IMAP count (which cannot dedup
+            # prior-day deliveries) would otherwise leak through as the
+            # sensor value. Batch-level dedup already zeroes the count for
+            # shippers that emit tracking details, so this is defense in
+            # depth at the state-machine layer. Delivered-only details must
+            # NOT trigger the override: a carrier whose delivering emails
+            # yielded no extractable tracking numbers has a legitimate
+            # email-based count that tracking-level dedup cannot verify —
+            # and carriers with no tracking details at all keep their
+            # email-count value untouched.
+            has_details = any(
+                f"{prefix}_{suffix}" in tracking_details
+                for suffix in ("delivering", "exception")
+            )
+            if in_transit or has_details:
+                if not in_transit and data.get(f"{prefix}_delivering"):
+                    _LOGGER.debug(
+                        "Prefix '%s': no tracked packages remain in transit — "
+                        "overriding delivering count %s -> 0",
+                        prefix,
+                        data.get(f"{prefix}_delivering"),
+                    )
                 data[f"{prefix}_tracking"] = list(in_transit.keys())
                 data[f"{prefix}_delivering"] = len(in_transit)
+            if in_transit:
                 delivered_count = data.get(f"{prefix}_delivered", 0)
                 data[f"{prefix}_packages"] = len(in_transit) + (
                     delivered_count if isinstance(delivered_count, int) else 0
@@ -774,7 +829,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             self.config_entry, data=new_entry_data
         )
 
-    async def _binary_sensor_update(self):
+    async def _binary_sensor_update(self):  # noqa: C901
         """Update binary sensor states."""
         # USPS uses ATTR_USPS_IMAGE instead of the old ATTR_IMAGE_NAME
         _LOGGER.debug("Data: %s", self._data)
@@ -844,6 +899,8 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
                 if custom_img_key and self.config.get(custom_img_key):
                     none_image = self.config.get(custom_img_file_key)
+                elif base_name == "post_de":
+                    none_image = f"{Path(__file__).parent}/mail_none.gif"
                 else:
                     none_image = (
                         f"{Path(__file__).parent}/no_deliveries_{base_name}.jpg"

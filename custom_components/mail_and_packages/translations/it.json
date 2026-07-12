@@ -250,6 +250,17 @@
           "invalid_auth": "Inserisci una chiave API 17track.net valida."
         }
       }
+    },
+    "auth_failed": {
+      "title": "Autenticazione Mail and Packages fallita",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Riautentica il server di posta",
+            "description": "L'autenticazione al server di posta IMAP è fallita. Clicca su invia per avviare la procedura di riautenticazione."
+          }
+        }
+      }
     }
   }
 }

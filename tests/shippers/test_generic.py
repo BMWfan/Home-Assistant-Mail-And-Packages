@@ -1,5 +1,6 @@
 """Tests for generic shipper utilities."""
 
+import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -76,6 +77,59 @@ async def test_fedex_delivered_class(hass, mock_imap_fedex_delivered_with_photo)
         )
         assert result[ATTR_COUNT] == 1
         assert result[ATTR_TRACKING] == ["885814254426"]
+
+
+@pytest.mark.asyncio
+async def test_image_extraction_runs_off_event_loop(
+    hass, mock_imap_fedex_delivered_with_photo
+):
+    """generic_delivery_image_extraction must run in an executor thread.
+
+    Regression test: it parses the full email and writes the image with
+    blocking file I/O; calling it directly from the coordinator path
+    triggers HA's blocking-call-in-event-loop detection. The probe records
+    which thread each extraction call runs on and asserts none of them is
+    the event-loop thread.
+
+    The probe is installed with ``new=`` (a plain function, not a Mock) on
+    purpose: the test harness's ``async_add_executor_job`` wrapper runs
+    Mock targets inline on the loop, which would defeat the thread check.
+    """
+    shipper = GenericShipper(
+        hass,
+        {
+            "image_path": "test/path/fedex/",
+            "image_name": "testfilename.jpg",
+        },
+    )
+
+    loop_thread = threading.get_ident()
+    extract_threads: list[int] = []
+
+    def _extract_probe(*args):
+        extract_threads.append(threading.get_ident())
+        return True
+
+    with (
+        patch("custom_components.mail_and_packages.shippers.generic.Path.mkdir"),
+        patch(
+            "custom_components.mail_and_packages.shippers.generic.generic_delivery_image_extraction",
+            new=_extract_probe,
+        ),
+    ):
+        result = await shipper.process(
+            mock_imap_fedex_delivered_with_photo,
+            "today",
+            "fedex_delivered",
+        )
+
+    assert result[ATTR_COUNT] == 1
+    # The fixture email yields one extraction call per bytes response part.
+    assert len(extract_threads) >= 1
+    assert all(tid != loop_thread for tid in extract_threads), (
+        "generic_delivery_image_extraction ran on the event-loop thread "
+        "instead of an executor thread"
+    )
 
 
 @pytest.mark.asyncio
@@ -338,7 +392,7 @@ async def test_generic_forwarded_emails(hass):
         return_value=("OK", [None]),
     ) as mock_search:
         await shipper.process(mock_acc, "today", "ups_delivered")
-        assert "forward@test.com" in mock_search.call_args[0][1]
+        assert "forward@test.com" in mock_search.call_args.kwargs["address"]
 
 
 @pytest.mark.asyncio
@@ -357,7 +411,7 @@ async def test_generic_forwarded_emails_string(hass):
         return_value=("OK", [None]),
     ) as mock_search:
         await shipper.process(mock_acc, "today", "ups_delivered")
-        search_addresses = mock_search.call_args[0][1]
+        search_addresses = mock_search.call_args.kwargs["address"]
         assert "forward@test.com" in search_addresses
         assert "other@test.com" in search_addresses
 
@@ -379,9 +433,9 @@ async def test_generic_forwarding_header_mode(hass):
         return_value=("OK", [None]),
     ) as mock_search:
         await shipper.process(mock_acc, "today", "ups_delivered")
-        search_addresses = mock_search.call_args[0][1]
+        search_addresses = mock_search.call_args.kwargs["address"]
         assert "should-not-appear@example.com" not in search_addresses
-        assert mock_search.call_args[0][4] == "X-SimpleLogin-Original-From"
+        assert mock_search.call_args.kwargs["header"] == "X-SimpleLogin-Original-From"
 
 
 @pytest.mark.asyncio
@@ -673,6 +727,46 @@ async def test_process_batch_deduplication(hass):
 
 
 @pytest.mark.asyncio
+async def test_process_batch_dedup_uses_extended_window_delivered(hass):
+    """Dedup subtracts packages delivered on PRIOR days, not just today.
+
+    Regression test: ATTR_TRACKING on _delivered sensors holds only
+    today's deliveries (the sensor resets at midnight); the dedup set
+    must come from pre_filtered_tracking (the extended-window list) or
+    packages delivered yesterday stay in _delivering until they age out.
+    """
+    shipper = GenericShipper(hass, {})
+    mock_account = AsyncMock()
+    mock_cache = MagicMock()
+
+    async def _mock_process(account, date, sensor, cache, **kwargs):
+        if sensor == "fedex_delivered":
+            # Delivered emails exist for F1+F2 earlier in the window; none today
+            return {
+                "fedex_delivered": 0,
+                ATTR_TRACKING: [],
+                "pre_filtered_tracking": ["F1", "F2"],
+            }
+        if sensor == "fedex_delivering":
+            return {
+                "fedex_delivering": 2,
+                ATTR_TRACKING: ["F1", "F2"],
+                ATTR_COUNT: 2,
+            }
+        return {sensor: 0, ATTR_TRACKING: []}
+
+    with patch.object(shipper, "process", side_effect=_mock_process):
+        result = await shipper.process_batch(
+            mock_account, "today", ["fedex_delivered", "fedex_delivering"], mock_cache
+        )
+
+        assert result["fedex_delivered"] == 0
+        assert result["fedex_delivering"] == 0  # F1+F2 delivered on prior days
+        assert result["_tracking_details"]["fedex_delivered"] == ["F1", "F2"]
+        assert "fedex_delivering" not in result["_tracking_details"]
+
+
+@pytest.mark.asyncio
 async def test_generic_image_reset_on_zero_count(hass):
     """Test GenericShipper camera image resets when count is zero."""
     shipper = GenericShipper(
@@ -859,7 +953,7 @@ async def test_ups_packages_searches_imap(hass):
         mock_search.assert_called_once()
         call_args = mock_search.call_args
         # Verify UPS emails are passed
-        assert "mcinfo@ups.com" in call_args.args[1]
+        assert "mcinfo@ups.com" in call_args.kwargs["address"]
 
 
 @pytest.mark.asyncio
@@ -873,7 +967,7 @@ async def test_ups_packages_with_forwarded_emails_includes_both(hass):
     ) as mock_search:
         await shipper.process(mock_account, "today", "ups_packages")
         mock_search.assert_called_once()
-        email_list = mock_search.call_args.args[1]
+        email_list = mock_search.call_args.kwargs["address"]
         assert "forwarder@example.com" in email_list
         assert "mcinfo@ups.com" in email_list
 
@@ -920,7 +1014,7 @@ async def test_process_delivering_uses_since_date(hass):
         )
 
     # The search date passed to IMAP should be since_date, not today
-    call_date = mock_search.call_args[0][2]
+    call_date = mock_search.call_args.kwargs["date"]
     assert call_date == "19-Apr-2026"
 
 
@@ -948,9 +1042,9 @@ async def test_process_delivered_uses_since_date(hass):
 
     assert mock_search.call_count == 2
     # First call: extended window for tracking deduplication
-    assert mock_search.call_args_list[0][0][2] == "19-Apr-2026"
+    assert mock_search.call_args_list[0].kwargs["date"] == "19-Apr-2026"
     # Second call: today only so the count resets at midnight
-    assert mock_search.call_args_list[1][0][2] == "22-Apr-2026"
+    assert mock_search.call_args_list[1].kwargs["date"] == "22-Apr-2026"
 
 
 @pytest.mark.asyncio
@@ -970,7 +1064,7 @@ async def test_process_exception_uses_since_date(hass):
             since_date="19-Apr-2026",
         )
 
-    call_date = mock_search.call_args[0][2]
+    call_date = mock_search.call_args.kwargs["date"]
     assert call_date == "19-Apr-2026"
 
 
@@ -1013,26 +1107,38 @@ async def test_ups_packages_uses_since_date(hass):
 
     mock_search.assert_called_once()
     # since_date should be passed as the search date, not the regular date
-    assert mock_search.call_args.args[2] == "19-Apr-2026"
+    assert mock_search.call_args.kwargs["date"] == "19-Apr-2026"
 
 
 @pytest.mark.asyncio
-async def test_post_de_delivering_ignores_since_date(hass):
-    """post_de_delivering (brief/letter announcement) ignores since_date and uses today's date."""
-    shipper = GenericShipper(hass, {})
+async def test_aliexpress_delivered_class(hass):
+    """Test AliExpress delivered email parsing via GenericShipper."""
+    shipper = GenericShipper(hass, {"image_path": "test/path/"})
     mock_account = AsyncMock()
 
-    with patch(
-        "custom_components.mail_and_packages.shippers.generic.email_search",
-        return_value=("OK", [b""]),
-    ) as mock_search:
-        await shipper.process(
-            mock_account,
-            "22-Apr-2026",
-            "post_de_delivering",
-            since_date="19-Apr-2026",
-        )
-
-    mock_search.assert_called_once()
-    # today's date should be passed as the search date, ignoring since_date
-    assert mock_search.call_args.args[2] == "22-Apr-2026"
+    with (
+        patch(
+            "custom_components.mail_and_packages.shippers.generic.email_search",
+            new_callable=AsyncMock,
+            return_value=("OK", [b"1"]),
+        ),
+        patch.object(
+            shipper,
+            "_verify_matched_subjects",
+            new_callable=AsyncMock,
+            return_value=[b"1"],
+        ),
+        patch(
+            "custom_components.mail_and_packages.shippers.generic.find_text_matches",
+            new_callable=AsyncMock,
+            return_value=(1, [b"1"]),
+        ),
+        patch(
+            "custom_components.mail_and_packages.shippers.generic.get_tracking",
+            new_callable=AsyncMock,
+            return_value=["LP123456789DE"],
+        ),
+    ):
+        result = await shipper.process(mock_account, "today", "aliexpress_delivered")
+        assert result[ATTR_COUNT] == 1
+        assert result[ATTR_TRACKING] == ["LP123456789DE"]

@@ -19,12 +19,15 @@ from custom_components.mail_and_packages.utils.imap import (
     _execute_single_search,
     _parse_esearch_line,
     build_search,
+    clean_search_string,
+    decode_folder_ref,
     decode_imap_utf7,
     email_fetch,
     email_fetch_batch,
     email_fetch_headers,
     email_fetch_text,
     email_search,
+    encode_folder_ref,
     encode_imap_utf7,
     login,
     logout,
@@ -924,8 +927,8 @@ def test_build_search_list_subject():
 def test_build_search_empty_safe_subjects():
     """Test build_search when subjects become empty after ASCII stripping."""
     # Covers line 112: subject_part = ""
-    # "é" is non-ASCII and will be stripped to an empty string
-    utf8, search = build_search(["test@example.com"], "25-Mar-2026", subject=["é"])
+    # "😊" is non-ASCII with no ASCII decomposition, and will be stripped to an empty string
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", subject=["😊"])
     assert "SUBJECT" not in search
 
 
@@ -956,6 +959,117 @@ def test_build_search_single_addr_with_subject():
         ["test@example.com"], "25-Mar-2026", subject="Test", is_yahoo=True
     )
     assert search_yahoo == '(FROM "test@example.com" SUBJECT "Test" SINCE 25-Mar-2026)'
+
+
+def test_build_search_with_body():
+    """Test build_search with body parameter."""
+    # Single body string
+    utf8, search = build_search(
+        ["test@example.com"], "25-Mar-2026", body="Tracking 1Z1234567890"
+    )
+    assert 'BODY "Tracking 1Z1234567890"' in search
+
+    # Multiple body strings
+    utf8, search = build_search(
+        ["test@example.com"],
+        "25-Mar-2026",
+        body=["Tracking 1Z1234567890", "Order #12345"],
+    )
+    assert 'BODY "Tracking 1Z1234567890"' in search
+    assert 'BODY "Order #12345"' in search
+
+    # Yahoo IMAP with body
+    utf8, search_yahoo = build_search(
+        ["test@example.com"], "25-Mar-2026", body="Tracking 1Z1234567890", is_yahoo=True
+    )
+    assert 'BODY "Tracking 1Z1234567890"' in search_yahoo
+
+    # Yahoo IMAP with multiple bodies
+    utf8, search_yahoo_multi = build_search(
+        ["test@example.com"],
+        "25-Mar-2026",
+        body=["Tracking 1Z1234567890", "Order #12345"],
+        is_yahoo=True,
+    )
+    assert '(OR BODY "Tracking 1Z1234567890" BODY "Order #12345")' in search_yahoo_multi
+
+    # Body with subject
+    utf8, search = build_search(
+        ["test@example.com"],
+        "25-Mar-2026",
+        subject="Test",
+        body="Tracking 1Z1234567890",
+    )
+    assert 'SUBJECT "Test"' in search
+    assert 'BODY "Tracking 1Z1234567890"' in search
+
+    # Body with subject and Yahoo
+    utf8, search_yahoo = build_search(
+        ["test@example.com"],
+        "25-Mar-2026",
+        subject="Test",
+        body="Tracking 1Z1234567890",
+        is_yahoo=True,
+    )
+    assert 'SUBJECT "Test"' in search_yahoo
+    assert 'BODY "Tracking 1Z1234567890"' in search_yahoo
+
+
+def test_build_search_with_body_and_empty_body():
+    """Test build_search with empty body string."""
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", body="")
+    assert "BODY" not in search
+
+    # Empty list of bodies
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", body=[])
+    assert "BODY" not in search
+
+    # None body
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", body=None)
+    assert "BODY" not in search
+
+
+def test_build_search_with_body_and_non_ascii():
+    """Test build_search with non-ASCII body strings."""
+    # Non-ASCII characters should be stripped or normalized
+    utf8, search = build_search(
+        ["test@example.com"], "25-Mar-2026", body="Tracking émojis 🎉"
+    )
+    assert 'BODY "Tracking emojis "' in search
+
+
+def test_build_search_unicode_normalization():
+    """Test that accented characters decompose to their base ASCII equivalents."""
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", subject="Livré")
+    assert 'SUBJECT "Livre"' in search
+
+    utf8, search2 = build_search(["test@example.com"], "25-Mar-2026", body="Café")
+    assert 'BODY "Cafe"' in search2
+
+
+def test_build_search_quotes_removed():
+    """Test that double quotes are removed from search terms to prevent query corruption."""
+    utf8, search = build_search(
+        ["test@example.com"], "25-Mar-2026", subject='UPS "Notification"'
+    )
+    assert 'SUBJECT "UPS Notification"' in search
+
+    utf8, search2 = build_search(
+        ["test@example.com"], "25-Mar-2026", body='order "123"'
+    )
+    assert 'BODY "order 123"' in search2
+
+    # Mixed ASCII and non-ASCII
+    utf8, search = build_search(
+        ["test@example.com"], "25-Mar-2026", body="Tracking 1Z1234567890 émojis"
+    )
+    assert 'BODY "Tracking 1Z1234567890 emojis"' in search
+
+
+def test_clean_search_string_empty():
+    """Test clean_search_string with empty or falsy inputs."""
+    assert clean_search_string("") == ""
+    assert clean_search_string(None) == ""  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
@@ -1180,6 +1294,164 @@ async def test_email_fetch_folder_prefix():
     # Verify selectfolder was called for Junk and uid fetch executed
     mock_account.select.assert_called_once_with("Junk")
     mock_account.uid.assert_called_once_with("FETCH", "2001", "(RFC822)")
+
+
+def test_folder_ref_roundtrip():
+    """encode_folder_ref/decode_folder_ref round-trip any folder name.
+
+    The encoded form must contain no whitespace and no '/', because
+    composite folder/uid IDs are space-joined then .split() at several
+    call sites and rsplit('/', 1) to recover the folder.
+    """
+    for folder in [
+        "INBOX",
+        "# - Projects",
+        "0 - Pending Orders",
+        "# - For Family",
+        "50% discount codes",
+        "a/b nested",
+        "tab\tname",
+        "Boîte aux lettres",
+    ]:
+        encoded = encode_folder_ref(folder)
+        assert " " not in encoded
+        assert "/" not in encoded
+        assert "\t" not in encoded
+        assert decode_folder_ref(encoded) == folder
+
+
+@pytest.mark.asyncio
+async def test_email_search_sequential_fallback_spaced_folder():
+    """Folder names with spaces survive the space-join/.split() round-trip.
+
+    Regression test: multi-folder composite IDs are returned space-joined
+    (mimicking a raw IMAP SEARCH response) and later .split() by consumers —
+    an unencoded 'folder with spaces/uid' shatters into garbage IDs.
+    """
+    mock_account = AsyncMock()
+    mock_account._folders = ["INBOX", "# - Projects"]
+    mock_account.has_capability.return_value = False
+
+    mock_res1 = MagicMock(result="OK", lines=[b"1001 1002"])
+    mock_res2 = MagicMock(result="OK", lines=[b"55"])
+    mock_account.uid_search.side_effect = [mock_res1, mock_res2]
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+
+    result = await email_search(
+        mock_account, ["test@example.com"], "25-Mar-2026", subject="Test"
+    )
+
+    assert result[0] == "OK"
+    # The joined blob must re-split into exactly one ID per matched email.
+    ids = result[1][0].split()
+    assert ids == [b"INBOX/1001", b"INBOX/1002", b"%23%20-%20Projects/55"]
+    # And each ID's folder component must decode back to the real name.
+    folder, uid = ids[2].decode().rsplit("/", 1)
+    assert decode_folder_ref(folder) == "# - Projects"
+    assert uid == "55"
+
+
+@pytest.mark.asyncio
+async def test_email_search_multisearch_spaced_folder():
+    """ESEARCH responses with spaced mailbox names produce encoded IDs."""
+    mock_account = AsyncMock()
+    mock_account._folders = ["INBOX", "0 - Pending Orders"]
+    mock_account.has_capability = MagicMock(return_value=True)
+
+    mock_res = MagicMock()
+    mock_res.result = "OK"
+    mock_res.lines = [
+        b'* ESEARCH (TAG "1" MAILBOX "0 - Pending Orders" UIDVALIDITY 123) UID ALL 2001',
+    ]
+    mock_protocol = AsyncMock()
+    mock_protocol.execute.return_value = mock_res
+    mock_protocol.new_tag.return_value = "1"
+    mock_protocol.loop = asyncio.get_running_loop()
+    mock_account.protocol = mock_protocol
+
+    result = await email_search(
+        mock_account, ["test@example.com"], "25-Mar-2026", subject="Test"
+    )
+
+    assert result[0] == "OK"
+    assert result[1][0].split() == [b"0%20-%20Pending%20Orders/2001"]
+
+
+@pytest.mark.asyncio
+async def test_email_fetch_spaced_folder_selects_decoded_name():
+    """email_fetch on an encoded composite ID selects the REAL folder name."""
+    mock_account = AsyncMock()
+    mock_account._current_folder = "INBOX"
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+    mock_res = MagicMock(result="OK", lines=[b"RFC822", b"body"])
+    mock_account.uid.return_value = mock_res
+
+    result = await email_fetch(mock_account, b"%23%20-%20Projects/55")
+
+    assert result[0] == "OK"
+    # selectfolder must receive the decoded name (then IMAP-quote it since
+    # it contains spaces).
+    mock_account.select.assert_called_once_with('"# - Projects"')
+    mock_account.uid.assert_called_once_with("FETCH", "55", "(RFC822)")
+
+
+@pytest.mark.asyncio
+async def test_email_fetch_batch_spaced_folder_groups_decoded():
+    """email_fetch_batch groups encoded IDs by their decoded folder."""
+    mock_account = AsyncMock()
+    mock_account.host = "imap.gmail.com"
+    mock_account._current_folder = None
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+    mock_res = MagicMock(result="OK", lines=[b"RFC822", b"body"])
+    mock_account.uid.return_value = mock_res
+
+    result = await email_fetch_batch(
+        mock_account, [b"%23%20-%20Projects/55", b"%23%20-%20Projects/56"]
+    )
+
+    assert result[0] == "OK"
+    mock_account.select.assert_called_once_with('"# - Projects"')
+    mock_account.uid.assert_called_once_with("FETCH", "55,56", "(RFC822)")
+
+
+@pytest.mark.asyncio
+async def test_email_fetch_headers_spaced_folder_selects_decoded_name():
+    """email_fetch_headers on an encoded composite ID selects the REAL folder."""
+    mock_account = AsyncMock()
+    mock_account._current_folder = "INBOX"
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+    mock_res = MagicMock(result="OK", lines=[b"Subject: hi", b")"])
+    mock_account.uid.return_value = mock_res
+
+    result = await email_fetch_headers(mock_account, b"%23%20-%20Projects/55")
+
+    assert result[0] == "OK"
+    mock_account.select.assert_called_once_with('"# - Projects"')
+    mock_account.uid.assert_called_once_with(
+        "FETCH", "55", "(BODY[HEADER.FIELDS (SUBJECT)])"
+    )
+
+
+@pytest.mark.asyncio
+async def test_email_fetch_text_spaced_folder_selects_decoded_name():
+    """email_fetch_text on an encoded composite ID selects the REAL folder."""
+    mock_account = AsyncMock()
+    mock_account.host = "imap.gmail.com"
+    mock_account._current_folder = "INBOX"
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+    mock_res = MagicMock(result="OK", lines=[b"body text", b")"])
+    mock_account.uid.return_value = mock_res
+
+    result = await email_fetch_text(mock_account, b"%23%20-%20Projects/55")
+
+    assert result[0] == "OK"
+    mock_account.select.assert_called_once_with('"# - Projects"')
+    mock_account.uid.assert_called_once_with("FETCH", "55", "(BODY[1])")
 
 
 @pytest.mark.asyncio
@@ -1775,3 +2047,36 @@ async def test_email_fetch_batch_prefixed_timeout_error():
     mock_imap.uid.side_effect = TimeoutError()
     with pytest.raises(TimeoutError):
         await email_fetch_batch(mock_imap, [b"Junk/1001", b"Junk/1002"])
+
+
+@pytest.mark.asyncio
+async def test_email_search_body_threshold():
+    """Test that email_search only does server-side body search if <= 2 body patterns are specified."""
+    mock_imap = AsyncMock()
+    mock_imap._folders = ["INBOX"]
+    mock_imap.search.return_value = MagicMock(result="OK", lines=[b"1"])
+
+    # 1 body pattern -> should include BODY in search query
+    await email_search(mock_imap, ["test@example.com"], "25-Mar-2026", body="Pattern1")
+    search_query = mock_imap.search.call_args.args[0]
+    assert 'BODY "Pattern1"' in search_query
+
+    # 2 body patterns -> should include BODY in search query
+    mock_imap.search.reset_mock()
+    await email_search(
+        mock_imap, ["test@example.com"], "25-Mar-2026", body=["Pattern1", "Pattern2"]
+    )
+    search_query = mock_imap.search.call_args.args[0]
+    assert 'BODY "Pattern1"' in search_query
+    assert 'BODY "Pattern2"' in search_query
+
+    # 3 body patterns -> should NOT include BODY in search query
+    mock_imap.search.reset_mock()
+    await email_search(
+        mock_imap,
+        ["test@example.com"],
+        "25-Mar-2026",
+        body=["Pattern1", "Pattern2", "Pattern3"],
+    )
+    search_query = mock_imap.search.call_args.args[0]
+    assert "BODY" not in search_query

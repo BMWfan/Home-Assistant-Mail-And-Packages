@@ -23,6 +23,8 @@ from .const import (
     CONF_CUSTOM_IMG_FILE,
     CONF_DHL_BRIEF_ENABLED,
     CONF_DURATION,
+    CONF_POST_DE_CUSTOM_IMG,
+    CONF_POST_DE_CUSTOM_IMG_FILE,
     DOMAIN,
     SENSOR_NAME,
     VERSION,
@@ -107,12 +109,16 @@ class MailCam(CoordinatorEntity, Camera):
 
         # Derive config keys and default image from camera type name
         # Remove "_camera" suffix to get base name (e.g., "usps_camera" -> "usps")
-        base_name = self._type.replace("_camera", "")
+        base_name = self._type.removesuffix("_camera")
 
-        # USPS uses special config keys (no prefix), others use prefixed keys
-        if base_name == "usps":
-            custom_img_key = CONF_CUSTOM_IMG
-            custom_img_file_key = CONF_CUSTOM_IMG_FILE
+        # USPS and Post DE use mail_none.gif, others use no_deliveries_*.jpg
+        if base_name in ("usps", "post_de"):
+            if base_name == "usps":
+                custom_img_key = CONF_CUSTOM_IMG
+                custom_img_file_key = CONF_CUSTOM_IMG_FILE
+            else:
+                custom_img_key = CONF_POST_DE_CUSTOM_IMG
+                custom_img_file_key = CONF_POST_DE_CUSTOM_IMG_FILE
             default_image = "mail_none.gif"
         else:
             # Derive config key names dynamically (e.g., "amazon" -> CONF_AMAZON_CUSTOM_IMG)
@@ -180,7 +186,13 @@ class MailCam(CoordinatorEntity, Camera):
 
         def _read_file(path: str) -> bytes:
             with Path(path).open("rb") as f:
-                return f.read()
+                data = f.read()
+            if not data:
+                # A 0-byte image (e.g. a failed extraction that wrote an empty
+                # file) is as unservable as a missing one — raise so it routes
+                # through the same placeholder fallback below.
+                raise FileNotFoundError(f"empty image file: {path}")
+            return data
 
         try:
             image_bytes = await self.hass.async_add_executor_job(
@@ -353,11 +365,11 @@ class MailCam(CoordinatorEntity, Camera):
         enabled_resources = self.config.data.get("resources", [])
 
         for camera_type in CAMERA_DATA:
-            # Skip generic and USPS cameras
-            if camera_type in ("generic_camera", "usps_camera"):
+            # Skip generic, USPS, and Post DE cameras
+            if camera_type in ("generic_camera", "usps_camera", "post_de_camera"):
                 continue
 
-            base_name = camera_type.replace("_camera", "")
+            base_name = camera_type.removesuffix("_camera")
             delivered_key = f"{base_name}_delivered"
 
             # Check if this shipper's delivery sensor is enabled
@@ -417,8 +429,11 @@ class MailCam(CoordinatorEntity, Camera):
 
     async def _update_standard_camera(self) -> None:
         """Update file path for standard cameras (Amazon, UPS, etc)."""
-        base_name = self._type.replace("_camera", "")
-        self._file_path = f"{Path(__file__).parent}/no_deliveries_{base_name}.jpg"
+        base_name = self._type.removesuffix("_camera")
+        if base_name == "post_de":
+            self._file_path = f"{Path(__file__).parent}/mail_none.gif"
+        else:
+            self._file_path = f"{Path(__file__).parent}/no_deliveries_{base_name}.jpg"
         self._is_generic = True
 
         if self._no_mail:
@@ -584,12 +599,14 @@ class MailCam(CoordinatorEntity, Camera):
             The corresponding sensor name, or None if no mapping exists
 
         """
-        # Extract base name from camera type (e.g., "amazon_camera" -> "amazon")
-        base_name = camera_type.split("_", maxsplit=1)[0]
+        # Remove "_camera" suffix to get base name
+        base_name = camera_type.removesuffix("_camera")
 
-        # Special case for USPS (uses usps_mail instead of usps_delivered)
+        # Special cases for mail scans cameras
         if base_name == "usps":
             return "usps_mail"
+        if base_name == "post_de":
+            return "post_de_mail"
 
         # For other cameras, use the pattern: {base_name}_delivered
         return f"{base_name}_delivered"

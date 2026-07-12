@@ -55,6 +55,8 @@ from .const import (
     CONF_IMAP_SECURITY,
     CONF_IMAP_TIMEOUT,
     CONF_PATH,
+    CONF_POST_DE_CUSTOM_IMG,
+    CONF_POST_DE_CUSTOM_IMG_FILE,
     CONF_SCAN_INTERVAL,
     CONF_STORAGE,
     CONF_UPS_CUSTOM_IMG,
@@ -85,6 +87,8 @@ from .const import (
     DEFAULT_IMAP_TIMEOUT,
     DEFAULT_PATH,
     DEFAULT_PORT,
+    DEFAULT_POST_DE_CUSTOM_IMG,
+    DEFAULT_POST_DE_CUSTOM_IMG_FILE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STORAGE,
     DEFAULT_UPS_CUSTOM_IMG,
@@ -223,6 +227,11 @@ def _validate_path_input(user_input: dict, errors: dict) -> None:
             CONF_GENERIC_CUSTOM_IMG,
             CONF_GENERIC_CUSTOM_IMG_FILE,
             CONF_GENERIC_CUSTOM_IMG_FILE,
+        ),
+        (
+            CONF_POST_DE_CUSTOM_IMG,
+            CONF_POST_DE_CUSTOM_IMG_FILE,
+            CONF_POST_DE_CUSTOM_IMG_FILE,
         ),
     ]
 
@@ -632,6 +641,10 @@ async def _get_schema_step_2(
                 CONF_GENERIC_CUSTOM_IMG,
                 default=_get_default(CONF_GENERIC_CUSTOM_IMG, False),
             ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_POST_DE_CUSTOM_IMG,
+                default=_get_default(CONF_POST_DE_CUSTOM_IMG, False),
+            ): selector.BooleanSelector(),
         },
     )
 
@@ -712,6 +725,18 @@ def _get_schema_step_3(user_input: dict, default_dict: dict) -> Any:
                 default=_get_default(
                     CONF_GENERIC_CUSTOM_IMG_FILE,
                     DEFAULT_GENERIC_CUSTOM_IMG_FILE,
+                ),
+            )
+        ] = cv.string
+
+    # Only show Post DE custom image file field if Post DE custom image is enabled
+    if user_input.get(CONF_POST_DE_CUSTOM_IMG):
+        schema[
+            vol.Optional(
+                CONF_POST_DE_CUSTOM_IMG_FILE,
+                default=_get_default(
+                    CONF_POST_DE_CUSTOM_IMG_FILE,
+                    DEFAULT_POST_DE_CUSTOM_IMG_FILE,
                 ),
             )
         ] = cv.string
@@ -1068,6 +1093,7 @@ class MailAndPackagesFlowHandler(
             CONF_WALMART_CUSTOM_IMG: DEFAULT_WALMART_CUSTOM_IMG,
             CONF_FEDEX_CUSTOM_IMG: DEFAULT_FEDEX_CUSTOM_IMG,
             CONF_GENERIC_CUSTOM_IMG: DEFAULT_GENERIC_CUSTOM_IMG,
+            CONF_POST_DE_CUSTOM_IMG: DEFAULT_POST_DE_CUSTOM_IMG,
             CONF_ALLOW_FORWARDED_EMAILS: DEFAULT_ALLOW_FORWARDED_EMAILS,
         }
 
@@ -1095,6 +1121,7 @@ class MailAndPackagesFlowHandler(
             or self._data.get(CONF_WALMART_CUSTOM_IMG)
             or self._data.get(CONF_FEDEX_CUSTOM_IMG)
             or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+            or self._data.get(CONF_POST_DE_CUSTOM_IMG)
         )
         if has_custom_image:
             return await self.async_step_config_3()
@@ -1142,6 +1169,7 @@ class MailAndPackagesFlowHandler(
             CONF_WALMART_CUSTOM_IMG_FILE: DEFAULT_WALMART_CUSTOM_IMG_FILE,
             CONF_FEDEX_CUSTOM_IMG_FILE: DEFAULT_FEDEX_CUSTOM_IMG_FILE,
             CONF_GENERIC_CUSTOM_IMG_FILE: DEFAULT_GENERIC_CUSTOM_IMG_FILE,
+            CONF_POST_DE_CUSTOM_IMG_FILE: DEFAULT_POST_DE_CUSTOM_IMG_FILE,
         }
 
         return self.async_show_form(
@@ -1163,6 +1191,7 @@ class MailAndPackagesFlowHandler(
                     or self._data.get(CONF_UPS_CUSTOM_IMG)
                     or self._data.get(CONF_WALMART_CUSTOM_IMG)
                     or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+                    or self._data.get(CONF_POST_DE_CUSTOM_IMG)
                 ):
                     return await self.async_step_config_3()
                 return await self.async_step_config_storage()
@@ -1370,6 +1399,7 @@ class MailAndPackagesFlowHandler(
             or self._data.get(CONF_WALMART_CUSTOM_IMG)
             or self._data.get(CONF_FEDEX_CUSTOM_IMG)
             or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+            or self._data.get(CONF_POST_DE_CUSTOM_IMG)
         )
         if has_custom_image:
             return await self.async_step_reconfig_3()
@@ -1415,6 +1445,7 @@ class MailAndPackagesFlowHandler(
             CONF_WALMART_CUSTOM_IMG_FILE: DEFAULT_WALMART_CUSTOM_IMG_FILE,
             CONF_FEDEX_CUSTOM_IMG_FILE: DEFAULT_FEDEX_CUSTOM_IMG_FILE,
             CONF_GENERIC_CUSTOM_IMG_FILE: DEFAULT_GENERIC_CUSTOM_IMG_FILE,
+            CONF_POST_DE_CUSTOM_IMG_FILE: DEFAULT_POST_DE_CUSTOM_IMG_FILE,
         }
 
         return self.async_show_form(
@@ -1437,6 +1468,7 @@ class MailAndPackagesFlowHandler(
                     or self._data.get(CONF_WALMART_CUSTOM_IMG)
                     or self._data.get(CONF_FEDEX_CUSTOM_IMG)
                     or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+                    or self._data.get(CONF_POST_DE_CUSTOM_IMG)
                 )
                 if has_custom_image:
                     return await self.async_step_reconfig_3()

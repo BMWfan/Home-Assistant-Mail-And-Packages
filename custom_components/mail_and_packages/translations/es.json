@@ -250,6 +250,17 @@
           "invalid_auth": "Introduce una clave API de 17track.net válida."
         }
       }
+    },
+    "auth_failed": {
+      "title": "Error de autenticación de Mail and Packages",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Volver a autenticar el servidor de correo",
+            "description": "Error al autenticar en su servidor de correo IMAP. Haga clic en enviar para iniciar el flujo de reautenticación."
+          }
+        }
+      }
     }
   }
 }

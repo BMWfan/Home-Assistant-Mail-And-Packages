@@ -250,6 +250,17 @@
           "invalid_auth": "Ange en giltig 17track.net API-nyckel."
         }
       }
+    },
+    "auth_failed": {
+      "title": "Mail and Packages-autentisering misslyckades",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Återautentisera e-postserver",
+            "description": "Autentisering mot din IMAP-e-postserver misslyckades. Klicka på skicka för att starta återautentiseringsflödet."
+          }
+        }
+      }
     }
   }
 }

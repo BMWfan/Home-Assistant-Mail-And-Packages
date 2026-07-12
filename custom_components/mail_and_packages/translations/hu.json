@@ -250,6 +250,17 @@
           "invalid_auth": "Adj meg egy érvényes 17track.net API-kulcsot."
         }
       }
+    },
+    "auth_failed": {
+      "title": "Mail and Packages hitelesítés sikertelen",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Levelezőszerver újrahitelesítése",
+            "description": "Nem sikerült a hitelesítés az IMAP levelezőszerveren. Kattintson a küldésre az újrahitelesítési folyamat elindításához."
+          }
+        }
+      }
     }
   }
 }

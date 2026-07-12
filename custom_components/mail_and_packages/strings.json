@@ -55,7 +55,8 @@
           "walmart_custom_img": "Use custom 'no Walmart delivery' image?",
           "fedex_custom_img": "Use custom 'no FedEx delivery' image?",
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
-          "seventeen_track_api_key": "17track.net API key (optional)"
+          "seventeen_track_api_key": "17track.net API key (optional)",
+          "post_de_custom_img": "Use custom Post DE 'no mail' image?"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster.",
@@ -93,7 +94,8 @@
           "amazon_custom_img_file": "Path to custom Amazon image: (ie: images/my_custom_no_amazon.jpg)",
           "ups_custom_img_file": "Path to custom UPS image: (ie: images/my_custom_no_ups.jpg)",
           "walmart_custom_img_file": "Path to custom Walmart image: (ie: images/my_custom_no_walmart.jpg)",
-          "fedex_custom_img_file": "Path to custom FedEx image: (ie: images/my_custom_no_fedex.jpg)"
+          "fedex_custom_img_file": "Path to custom FedEx image: (ie: images/my_custom_no_fedex.jpg)",
+          "post_de_custom_img_file": "Path to custom Post DE image: (ie: images/my_custom_no_post_de.gif)"
         },
         "description": "Enter the path and file name to your custom no delivery images below.\n\nExample: images/custom_nomail.gif",
         "title": "Mail and Packages (Step 3 of 3)"
@@ -151,7 +153,8 @@
           "walmart_custom_img": "Use custom 'no Walmart delivery' image?",
           "fedex_custom_img": "Use custom 'no FedEx delivery' image?",
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
-          "seventeen_track_api_key": "17track.net API key (optional)"
+          "seventeen_track_api_key": "17track.net API key (optional)",
+          "post_de_custom_img": "Use custom Post DE 'no mail' image?"
         },
         "data_description": {
           "imap_timeout": "Covers the entire scan — login plus every per-carrier IMAP search — not just connecting. Raise this if large mailboxes time out; lower it to fail faster.",
@@ -189,7 +192,8 @@
           "amazon_custom_img_file": "Path to custom Amazon image: (i.e.: images/my_custom_no_amazon.jpg)",
           "ups_custom_img_file": "Path to custom UPS image: (i.e.: images/my_custom_no_ups.jpg)",
           "walmart_custom_img_file": "Path to custom Walmart image: (i.e.: images/my_custom_no_walmart.jpg)",
-          "fedex_custom_img_file": "Path to custom FedEx image: (i.e.: images/my_custom_no_fedex.jpg)"
+          "fedex_custom_img_file": "Path to custom FedEx image: (i.e.: images/my_custom_no_fedex.jpg)",
+          "post_de_custom_img_file": "Path to custom Post DE image: (i.e.: images/my_custom_no_post_de.gif)"
         },
         "description": "Enter the path and file name to your custom no delivery images below.\n\nExample: images/custom_nomail.gif",
         "title": "Mail and Packages (Step 3 of 3)"
@@ -210,13 +214,6 @@
         "description": "Please enter the directory you'd like your images to be stored in.\nThe default is auto populated.",
         "title": "Image storage location"
       },
-      "config_dhl_brief_auth": {
-        "data": {
-          "dhl_brief_code": "Authorization Code"
-        },
-        "description": "**DHL Letter Preview – Login**\n\n1. Open the following link in a NEW browser tab and sign in with your DHL / Deutsche Post account (a 2FA code may be sent to you by email or SMS):\n\n`{auth_url}`\n\n2. After the login completes, your browser will try to open an address starting with `dhllogin://` and show an error page – that is expected. Copy the COMPLETE address from the browser's address bar (it looks like `dhllogin://de.deutschepost.dhl/login?code=...`).\n\n3. Paste the complete copied address below and click Submit.",
-        "title": "DHL Letter Preview"
-      },
       "reconfig_storage": {
         "data": {
           "storage": "Directory to store images",
@@ -227,13 +224,6 @@
         "data_description": {
           "dhl_brief_reauth": "Leave unchecked to keep your current DHL login. Tick this only if you want to sign in to DHL again (for example after the token expired or was revoked)."
         }
-      },
-      "reconfig_dhl_brief_auth": {
-        "data": {
-          "dhl_brief_code": "Authorization Code"
-        },
-        "description": "**DHL Letter Preview – Renew Login**\n\n1. Open the following link in a NEW browser tab and sign in with your DHL / Deutsche Post account (a 2FA code may be sent to you by email or SMS):\n\n`{auth_url}`\n\n2. After the login completes, your browser will try to open an address starting with `dhllogin://` and show an error page – that is expected. Copy the COMPLETE address from the browser's address bar (it looks like `dhllogin://de.deutschepost.dhl/login?code=...`).\n\n3. Paste the complete copied address below and click Submit.",
-        "title": "DHL Letter Preview"
       },
       "reconfig_forwarded_emails": {
         "data": {
@@ -249,6 +239,20 @@
           "password": "Password"
         },
         "title": "Re-authenticate Mail Server"
+      },
+      "config_dhl_brief_auth": {
+        "data": {
+          "dhl_brief_code": "Authorization Code"
+        },
+        "description": "**DHL Letter Preview – Login**\n\n1. Open the following link in a NEW browser tab and sign in with your DHL / Deutsche Post account (a 2FA code may be sent to you by email or SMS):\n\n`{auth_url}`\n\n2. After the login completes, your browser will try to open an address starting with `dhllogin://` and show an error page – that is expected. Copy the COMPLETE address from the browser's address bar (it looks like `dhllogin://de.deutschepost.dhl/login?code=...`).\n\n3. Paste the complete copied address below and click Submit.",
+        "title": "DHL Letter Preview"
+      },
+      "reconfig_dhl_brief_auth": {
+        "data": {
+          "dhl_brief_code": "Authorization Code"
+        },
+        "description": "**DHL Letter Preview – Renew Login**\n\n1. Open the following link in a NEW browser tab and sign in with your DHL / Deutsche Post account (a 2FA code may be sent to you by email or SMS):\n\n`{auth_url}`\n\n2. After the login completes, your browser will try to open an address starting with `dhllogin://` and show an error page – that is expected. Copy the COMPLETE address from the browser's address bar (it looks like `dhllogin://de.deutschepost.dhl/login?code=...`).\n\n3. Paste the complete copied address below and click Submit.",
+        "title": "DHL Letter Preview"
       },
       "seventeen_track": {
         "title": "17track.net API key",
@@ -313,6 +317,17 @@
         },
         "error": {
           "invalid_auth": "Please enter a valid 17track.net API key."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Mail and Packages authentication failed",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Re-authenticate Mail Server",
+            "description": "Authentication to your IMAP mail server has failed. Click submit to start the re-authentication flow."
+          }
         }
       }
     }

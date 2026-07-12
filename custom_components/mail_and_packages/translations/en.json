@@ -55,6 +55,7 @@
           "walmart_custom_img": "Use custom 'no Walmart delivery' image?",
           "fedex_custom_img": "Use custom 'no FedEx delivery' image?",
           "generic_custom_img": "Use custom 'no Generic delivery' image?",
+          "post_de_custom_img": "Use custom Post DE 'no mail' image?",
           "generate_grid": "Create image grid for LLM vision models",
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
           "seventeen_track_api_key": "17track.net API key (optional)"
@@ -95,7 +96,8 @@
           "amazon_custom_img_file": "Path to custom Amazon image: (ie: images/my_custom_no_amazon.jpg)",
           "ups_custom_img_file": "Path to custom UPS image: (ie: images/my_custom_no_ups.jpg)",
           "walmart_custom_img_file": "Path to custom Walmart image: (ie: images/my_custom_no_walmart.jpg)",
-          "fedex_custom_img_file": "Path to custom FedEx image: (ie: images/my_custom_no_fedex.jpg)"
+          "fedex_custom_img_file": "Path to custom FedEx image: (ie: images/my_custom_no_fedex.jpg)",
+          "post_de_custom_img_file": "Path to custom Post DE image: (ie: images/my_custom_no_post_de.gif)"
         },
         "description": "Enter the path and file name to your custom no mail image below.\n\nExample: images/custom_nomail.gif",
         "title": "Mail and Packages (Step 3 of 3)"
@@ -146,6 +148,7 @@
           "walmart_custom_img": "Use custom 'no Walmart delivery' image?",
           "fedex_custom_img": "Use custom 'no FedEx delivery' image?",
           "generic_custom_img": "Use custom 'no Generic delivery' image?",
+          "post_de_custom_img": "Use custom Post DE 'no mail' image?",
           "generate_grid": "Create image grid for LLM vision models",
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
           "seventeen_track_api_key": "17track.net API key (optional)"
@@ -186,7 +189,8 @@
           "amazon_custom_img_file": "Path to custom Amazon image: (i.e.: images/my_custom_no_amazon.jpg)",
           "ups_custom_img_file": "Path to custom UPS image: (i.e.: images/my_custom_no_ups.jpg)",
           "walmart_custom_img_file": "Path to custom Walmart image: (i.e.: images/my_custom_no_walmart.jpg)",
-          "fedex_custom_img_file": "Path to custom FedEx image: (i.e.: images/my_custom_no_fedex.jpg)"
+          "fedex_custom_img_file": "Path to custom FedEx image: (i.e.: images/my_custom_no_fedex.jpg)",
+          "post_de_custom_img_file": "Path to custom Post DE image: (i.e.: images/my_custom_no_post_de.gif)"
         },
         "description": "Enter the path and file name to your custom no mail image below.\n\nExample: images/custom_nomail.gif",
         "title": "Mail and Packages (Step 3 of 3)"
@@ -336,6 +340,19 @@
       "configured_accounts": "Configured accounts",
       "last_scan_ok": "Last scan succeeded",
       "last_scan": "Last scan"
+    }
+  },
+  "issues": {
+    "auth_failed": {
+      "title": "Mail and Packages authentication failed",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Re-authenticate Mail Server",
+            "description": "Authentication to your IMAP mail server has failed. Click submit to start the re-authentication flow."
+          }
+        }
+      }
     }
   }
 }

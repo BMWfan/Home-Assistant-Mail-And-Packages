@@ -250,6 +250,17 @@
           "invalid_auth": "Introdueix una clau API de 17track.net vàlida."
         }
       }
+    },
+    "auth_failed": {
+      "title": "L'autenticació de Mail and Packages ha fallat",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Tornar a autenticar el servidor de correu",
+            "description": "L'autenticació amb el vostre servidor de correu IMAP ha fallat. Feu clic a envia per iniciar el flux de reautenticació."
+          }
+        }
+      }
     }
   }
 }
