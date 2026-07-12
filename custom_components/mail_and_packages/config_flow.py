@@ -12,14 +12,15 @@ import voluptuous as vol
 from aioimaplib import AioImapException
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
-from homeassistant.data_entry_flow import section
 from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_RESOURCES,
     CONF_USERNAME,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import config_entry_oauth2_flow, selector
 
 from .const import (
@@ -809,7 +810,7 @@ def _get_schema_step_forwarded_emails(
 
 
 def _get_schema_seventeen_track(user_input: dict, default_dict: dict) -> Any:
-    """Schema for the 17track.net API-key step (shown when the toggle is on)."""
+    """Return the schema for the 17track.net API-key step (shown when the toggle is on)."""
     if user_input is None:
         user_input = {}
 
@@ -1112,7 +1113,9 @@ class MailAndPackagesFlowHandler(
         """Branch after step 2 (and the optional 17track step) during setup."""
         if self._data[CONF_ALLOW_FORWARDED_EMAILS]:
             return await self.async_step_config_forwarded_emails()
-        if self._data.get(CONF_AMAZON_ENABLED):
+        if self._data.get(CONF_AMAZON_ENABLED) or any(
+            sensor in self._data.get(CONF_RESOURCES, []) for sensor in AMAZON_SENSORS
+        ):
             return await self.async_step_config_amazon()
         has_custom_image = (
             self._data.get(CONF_CUSTOM_IMG)
@@ -1390,7 +1393,9 @@ class MailAndPackagesFlowHandler(
         """Branch after step 2 (and the optional 17track step) on reconfigure."""
         if self._data.get(CONF_ALLOW_FORWARDED_EMAILS, False):
             return await self.async_step_reconfig_forwarded_emails()
-        if self._data.get(CONF_AMAZON_ENABLED):
+        if self._data.get(CONF_AMAZON_ENABLED) or any(
+            sensor in self._data.get(CONF_RESOURCES, []) for sensor in AMAZON_SENSORS
+        ):
             return await self.async_step_reconfig_amazon()
         has_custom_image = (
             self._data.get(CONF_CUSTOM_IMG)

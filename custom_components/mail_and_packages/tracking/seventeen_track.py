@@ -78,7 +78,7 @@ class SeventeenTrackClient:
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("17track register failed: %s", err)
 
-    async def get_status_batch(
+    async def get_status_batch(  # noqa: C901
         self,
         tracking_numbers: list[str],
     ) -> dict[str, dict[str, Any]]:

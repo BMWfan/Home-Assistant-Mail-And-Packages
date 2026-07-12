@@ -34,6 +34,18 @@ async def test_sensor(hass, mock_update, entity_registry: er.EntityRegistry):
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
+    # Enable all disabled entities so we can check their states
+    for entity_entry in entity_registry.entities.get_entries_for_config_entry_id(
+        entry.entry_id
+    ):
+        if entity_entry.disabled_by:
+            entity_registry.async_update_entity(
+                entity_entry.entity_id, disabled_by=None
+            )
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
     assert "mail_and_packages" in hass.config.components
 
     def s(type_slug):

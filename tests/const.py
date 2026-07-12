@@ -540,6 +540,7 @@ FAKE_CONFIG_DATA_NO_PATH = {
 FAKE_CONFIG_DATA_NO_RND = {
     "amazon_days": 3,
     "amazon_domain": "amazon.com",
+    "amazon_enabled": True,
     "amazon_fwds": ["fakeuser@fake.email"],
     "amazon_custom_img": False,
     "amazon_custom_img_file": "custom_components/mail_and_packages/no_deliveries_amazon.jpg",

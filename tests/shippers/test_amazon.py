@@ -951,6 +951,7 @@ async def test_process_with_cache(hass):
         "packages_arriving_today": {},
         "delivered_packages": {},
         "order_pattern": re.compile(r"[0-9]{3}-[0-9]{7}-[0-9]{7}"),
+        "tba_pattern": re.compile(r"\bTBA[0-9]{9,15}\b", re.IGNORECASE),
     }
     await shipper._process_amazon_email(mock_account, "1", ctx, cache=cache)
     assert "111-1234567-1234567" in ctx["all_shipped_orders"]

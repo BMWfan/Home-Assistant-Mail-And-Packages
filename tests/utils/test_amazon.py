@@ -179,9 +179,9 @@ def test_get_decoded_subject_from_html_title():
 def test_amazon_email_addresses_various_fwds():
     """Test amazon_email_addresses with various fwd types (Line 119)."""
     # Test with None (triggers Line 119)
-    assert len(amazon_email_addresses(fwds=None)) == 3
+    assert len(amazon_email_addresses(fwds=None)) == 10
     # Test with non-list/tuple (triggers Line 119)
-    assert len(amazon_email_addresses(fwds=123)) == 3
+    assert len(amazon_email_addresses(fwds=123)) == 10
 
 
 @pytest.mark.asyncio

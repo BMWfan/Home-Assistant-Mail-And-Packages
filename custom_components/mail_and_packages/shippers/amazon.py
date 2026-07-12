@@ -18,6 +18,7 @@ from aioimaplib import IMAP4_SSL
 from custom_components.mail_and_packages import const
 from custom_components.mail_and_packages.const import (
     AMAZON_DELIVERED,
+    AMAZON_DELIVERED_ORDERS,
     AMAZON_DELIVERED_SUBJECT,
     AMAZON_EXCEPTION,
     AMAZON_EXCEPTION_BODIES,
@@ -29,9 +30,8 @@ from custom_components.mail_and_packages.const import (
     AMAZON_HUB_SUBJECT,
     AMAZON_HUB_SUBJECT_SEARCH,
     AMAZON_ORDER,
-    AMAZON_ORDERED_SUBJECT,
-    AMAZON_DELIVERED_ORDERS,
     AMAZON_ORDER_TRACKING,
+    AMAZON_ORDERED_SUBJECT,
     AMAZON_OTP,
     AMAZON_OTP_CODE,
     AMAZON_OTP_DETAILS,

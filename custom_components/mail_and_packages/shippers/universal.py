@@ -52,7 +52,7 @@ ORDERED_PATTERNS: list[tuple[str, str, bool]] = [
     # DHL Germany parcel numbers are GS1-based and start with 00 3404
     # (observed live: real DHL shipments were being mislabeled "fedex" via
     # the generic 20-digit pattern below, which is checked later).
-    ("dhl", r"\b003404[0-9]{14}\b", True),
+    ("dhl", r"\b003404[0-9]{14}\b", False),
     # Unlike the other direct-format patterns above, "H" + 15 alphanumeric
     # chars has no distinguishing structure of its own -- it can match any
     # base64-ish fragment (tracking pixels, encoded URL params, hashes) in
@@ -97,8 +97,9 @@ _BRAND_CONTEXT_RE: dict[str, re.Pattern[str]] = {
     # positive: "58303696535936" from a BANDWERK marketing newsletter (a
     # campaign/pixel ID in the HTML, 17track NotFound). Real DPD mail names
     # "DPD" or links to a dpd.de tracking URL near the number (the raw HTML,
-    # incl. link hrefs, is what we scan), so require the brand nearby.
-    "dpd": re.compile(r"\bdpd\b", re.IGNORECASE),
+    # incl. link hrefs, is what we scan), so require the brand nearby -- or
+    # the German parcel-number label ("Sendungsnummer"), which DPD DE uses.
+    "dpd": re.compile(r"\bdpd\b|sendungsnummer", re.IGNORECASE),
 }
 
 # Maps the carrier name from ORDERED_PATTERNS to the sensor prefix used by

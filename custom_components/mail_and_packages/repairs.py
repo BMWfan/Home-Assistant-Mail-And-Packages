@@ -169,4 +169,6 @@ async def async_create_fix_flow(
         return AuthRepairFlow(entry_id)
     if issue_id == SEVENTEEN_TRACK_AUTH_ISSUE:
         return SeventeenTrackKeyRepairFlow(entry_id)
-    return DHLBriefReauthRepairFlow(entry_id)
+    if issue_id == DHL_BRIEF_AUTH_ISSUE:
+        return DHLBriefReauthRepairFlow(entry_id)
+    raise ValueError(f"Unknown issue {issue_id}")

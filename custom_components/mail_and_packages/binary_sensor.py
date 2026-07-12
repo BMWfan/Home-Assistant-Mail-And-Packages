@@ -54,11 +54,6 @@ class PackagesBinarySensor(CoordinatorEntity, BinarySensorEntity):
         )
 
     @property
-    def entity_registry_enabled_default(self) -> bool:
-        """Non-selectable sensors (always-on helpers) start enabled; optional ones start disabled."""
-        return not self.entity_description.selectable
-
-    @property
     def device_info(self) -> dict:
         """Return device information about the mailbox."""
         return {

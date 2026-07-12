@@ -19,11 +19,11 @@ from .const import (
     AMAZON_DELIVERED,
     AMAZON_DELIVERED_ORDERS,
     AMAZON_EXCEPTION,
-    AMAZON_ORDER_TRACKING,
     AMAZON_EXCEPTION_ORDER,
     AMAZON_HUB,
     AMAZON_HUB_CODE,
     AMAZON_ORDER,
+    AMAZON_ORDER_TRACKING,
     AMAZON_OTP,
     AMAZON_OTP_CODE,
     AMAZON_OTP_DETAILS,
@@ -172,7 +172,7 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         return self.coordinator.data is not None
 
     @property
-    def extra_state_attributes(self) -> str | None:
+    def extra_state_attributes(self) -> str | None:  # noqa: C901
         """Return device specific state attributes."""
         attr = {}
         data = self.coordinator.data
@@ -216,7 +216,7 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
                 letter_list.append(item)
             attr["letters"] = letter_list
 
-    def _add_amazon_attributes(self, attr: dict, data: dict) -> None:
+    def _add_amazon_attributes(self, attr: dict, data: dict) -> None:  # noqa: C901
         """Add Amazon specific attributes to the sensor.
 
         Type-specific branches must come first: the generic AMAZON_ORDER
