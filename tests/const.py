@@ -946,6 +946,7 @@ FAKE_UPDATE_DATA_REDACTED = {
     "amazon_packages": 7,
     "amazon_delivered": 2,
     "amazon_order": "**REDACTED**",
+    "amazon_delivered_orders": "**REDACTED**",
     "amazon_hub": 2,
     "amazon_hub_code": 123456,
     "capost_delivered": 1,

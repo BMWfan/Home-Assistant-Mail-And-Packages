@@ -1439,7 +1439,7 @@ async def test_reconfigure(
         # removed the selector from step 2, so reconfigure never resubmits it.
         assert entry.data.copy() == {
             **data,
-            "resources": FAKE_CONFIG_DATA["resources"],
+            "resources": sorted(FAKE_CONFIG_DATA["resources"]),
         }
 
 
@@ -1607,7 +1607,7 @@ async def test_reconfigure_no_amazon(
         # removed the selector from step 2, so reconfigure never resubmits it.
         assert entry.data.copy() == {
             **data,
-            "resources": FAKE_CONFIG_DATA_NO_AMAZON["resources"],
+            "resources": sorted(FAKE_CONFIG_DATA_NO_AMAZON["resources"]),
         }
 
 
@@ -5542,7 +5542,7 @@ async def test_reconfigure_allow_forwarded_emails(
         # removed the selector from step 2, so reconfigure never resubmits it.
         assert entry.data.copy() == {
             **data,
-            "resources": FAKE_CONFIG_DATA["resources"],
+            "resources": sorted(FAKE_CONFIG_DATA["resources"]),
         }
 
 
