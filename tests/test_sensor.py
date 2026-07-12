@@ -450,6 +450,47 @@ async def test_packages_sensor_attributes_edge_cases(hass):
 
 
 @pytest.mark.asyncio
+async def test_packages_history_sensor_state_and_attributes(hass):
+    """packages_history sensor exposes count as state and history as attribute."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_HOST: "test"})
+    coordinator = MagicMock()
+    history_records = [
+        {
+            "carrier": "ups",
+            "number": "1Z123",
+            "delivered": "2026-07-12",
+            "first_seen": "2026-07-10",
+        },
+        {
+            "carrier": "amazon",
+            "number": "TBA123456789",
+            "order": "123-4567890-1234567",
+            "delivered": "2026-07-10",
+            "first_seen": None,
+        },
+    ]
+    coordinator.data = {
+        "packages_history": 2,
+        "packages_history_details": history_records,
+    }
+
+    sensor_desc = MagicMock(key="packages_history")
+    sensor_desc.name = "Mail Packages History"
+    sensor = PackagesSensor(
+        entry,
+        sensor_desc,
+        coordinator,
+    )
+
+    assert sensor.native_value == 2
+    attrs = sensor.extra_state_attributes
+    assert attrs["history"] == history_records
+    # Newest-first ordering is the coordinator's responsibility; the sensor
+    # simply passes the list through unchanged.
+    assert attrs["history"][0]["delivered"] == "2026-07-12"
+
+
+@pytest.mark.asyncio
 async def test_image_path_sensor_grid(hass):
     """Test ImagePathSensors URL generation logic for grid image paths."""
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_HOST: "test"})

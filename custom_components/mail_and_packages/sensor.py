@@ -190,6 +190,8 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
                 attr["tracking_details"] = details
         elif self.type == "dhl_brief_anzahl":
             self._add_dhl_brief_attributes(attr, data)
+        elif self.type == "packages_history":
+            attr["history"] = data.get("packages_history_details", [])
 
         return attr
 

@@ -4,6 +4,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from custom_components.mail_and_packages.const import (
+    AMAZON_DELIVERED_ORDERS,
+    AMAZON_ORDER_TRACKING,
+)
 from custom_components.mail_and_packages.coordinator import MailDataUpdateCoordinator
 
 
@@ -77,7 +81,10 @@ async def test_save_tracking_persists_state(coordinator):
     await coordinator._async_save_tracking()
 
     coordinator._store.async_save.assert_called_once_with(
-        {"in_transit": {"fedex": {"123456789012": "2024-06-10"}}}
+        {
+            "in_transit": {"fedex": {"123456789012": "2024-06-10"}},
+            "history": [],
+        }
     )
 
 
@@ -97,3 +104,119 @@ async def test_tracking_loaded_flag_prevents_double_load(coordinator):
         await coordinator._async_load_tracking()
 
     assert coordinator._store.async_load.call_count == call_count_before
+
+
+@pytest.mark.asyncio
+async def test_delivered_tracking_creates_history_record(coordinator):
+    """Delivered tracking numbers are appended to history instead of disappearing."""
+    coordinator._in_transit_tracking["ups"] = {"1Z123": "2026-07-01"}
+    data = {}
+
+    coordinator._apply_tracking_state(data, {"ups_delivered": ["1Z123"]}, "2026-07-12")
+
+    assert coordinator._history == [
+        {
+            "carrier": "ups",
+            "number": "1Z123",
+            "delivered": "2026-07-12",
+            "first_seen": "2026-07-01",
+        }
+    ]
+    assert "1Z123" not in coordinator._in_transit_tracking.get("ups", {})
+
+
+@pytest.mark.asyncio
+async def test_history_survives_save_and_load(coordinator):
+    """History records persist across a save/load cycle through the Store."""
+    coordinator._history = [
+        {
+            "carrier": "ups",
+            "number": "1Z123",
+            "delivered": "2026-07-12",
+            "first_seen": "2026-07-01",
+        }
+    ]
+    saved_payload = {}
+
+    async def fake_save(payload):
+        saved_payload.update(payload)
+
+    coordinator._store.async_save.side_effect = fake_save
+    await coordinator._async_save_tracking()
+
+    coordinator._store.async_load.return_value = saved_payload
+    coordinator._history = []
+    await coordinator._async_load_tracking()
+
+    assert coordinator._history == [
+        {
+            "carrier": "ups",
+            "number": "1Z123",
+            "delivered": "2026-07-12",
+            "first_seen": "2026-07-01",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_history_prunes_entries_older_than_90_days(coordinator):
+    """Entries older than HISTORY_RETENTION_DAYS are removed when finalized."""
+    coordinator._history = [
+        {
+            "carrier": "ups",
+            "number": "OLD",
+            "delivered": "2026-01-01",  # more than 90 days before 2026-07-12
+            "first_seen": None,
+        },
+        {
+            "carrier": "ups",
+            "number": "NEW",
+            "delivered": "2026-06-01",  # within 90 days of 2026-07-12
+            "first_seen": None,
+        },
+    ]
+    data = {}
+
+    coordinator._finalize_history(data, "2026-07-12")
+
+    numbers = [record["number"] for record in coordinator._history]
+    assert "OLD" not in numbers
+    assert "NEW" in numbers
+    assert data["packages_history"] == len(coordinator._history)
+    assert data["packages_history_details"] == coordinator._history
+
+
+@pytest.mark.asyncio
+async def test_history_sorted_newest_first_on_finalize(coordinator):
+    """Finalized history is sorted with the most recent delivery first."""
+    coordinator._history = [
+        {"carrier": "ups", "number": "A", "delivered": "2026-06-01", "first_seen": None},
+        {"carrier": "ups", "number": "B", "delivered": "2026-07-01", "first_seen": None},
+    ]
+    data = {}
+
+    coordinator._finalize_history(data, "2026-07-12")
+
+    assert [r["number"] for r in coordinator._history] == ["B", "A"]
+
+
+@pytest.mark.asyncio
+async def test_amazon_delivered_history_dedup(coordinator):
+    """Same Amazon order id is not appended twice across repeated scans."""
+    data = {
+        AMAZON_DELIVERED_ORDERS: ["123-4567890-1234567"],
+        AMAZON_ORDER_TRACKING: {"123-4567890-1234567": "TBA123456789"},
+    }
+
+    coordinator._record_amazon_delivered_history(data, "2026-07-12")
+    coordinator._record_amazon_delivered_history(data, "2026-07-12")
+
+    amazon_records = [r for r in coordinator._history if r["carrier"] == "amazon"]
+    assert len(amazon_records) == 1
+    assert amazon_records[0] == {
+        "carrier": "amazon",
+        "number": "TBA123456789",
+        "order": "123-4567890-1234567",
+        "delivered": "2026-07-12",
+        "first_seen": None,
+    }

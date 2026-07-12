@@ -32,6 +32,8 @@ from homeassistant.helpers.update_coordinator import (
 
 from . import const
 from .const import (
+    AMAZON_DELIVERED_ORDERS,
+    AMAZON_ORDER_TRACKING,
     ATTR_USPS_IMAGE,
     AUTH_TYPE_PASSWORD,
     CONF_ALLOW_EXTERNAL,
@@ -45,6 +47,7 @@ from .const import (
     DEFAULT_CUSTOM_DAYS,
     DEFAULT_IMAP_TIMEOUT,
     DOMAIN,
+    HISTORY_RETENTION_DAYS,
     MAX_TRACKING_AGE_DAYS,
 )
 from .helpers import copy_images
@@ -95,6 +98,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         self._file_mtime_cache = {}
         self._hash_cache = {}
         self._in_transit_tracking: dict[str, dict[str, str]] = {}
+        self._history: list[dict] = []
         self._tracking_loaded = False
         self._store: Store = Store(hass, 1, f"{DOMAIN}.tracking")
 
@@ -240,6 +244,8 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 tracking_details = shipper_data.pop("_tracking_details", {})
             data.update(shipper_data)
             self._apply_tracking_state(data, tracking_details, today_iso)
+            self._record_amazon_delivered_history(data, today_iso)
+            self._finalize_history(data, today_iso)
 
             # Persist updated tracking state so it survives restarts
             await self._async_save_tracking()
@@ -483,9 +489,18 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             delivering += list(tracking_details.get(f"{prefix}_exception", []))
             delivered = list(tracking_details.get(f"{prefix}_delivered", []))
 
-            self._update_tracking_for_prefix(
+            delivered_removed = self._update_tracking_for_prefix(
                 prefix, delivering, delivered, today_iso, MAX_TRACKING_AGE_DAYS
             )
+            for tid, first_seen in delivered_removed:
+                self._history.append(
+                    {
+                        "carrier": prefix,
+                        "number": tid,
+                        "delivered": today_iso,
+                        "first_seen": first_seen,
+                    }
+                )
 
             in_transit = self._in_transit_tracking.get(prefix, {})
             if in_transit:
@@ -503,8 +518,13 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         delivered: list[str],
         today_iso: str,
         ttl_days: int,
-    ) -> None:
-        """Add/expire delivering tracking numbers and remove delivered ones."""
+    ) -> list[tuple[str, str | None]]:
+        """Add/expire delivering tracking numbers and remove delivered ones.
+
+        Returns (tracking_number, first_seen) pairs for numbers that were
+        removed because they were delivered, so callers can record them in
+        the persistent history.
+        """
         if prefix not in self._in_transit_tracking:
             self._in_transit_tracking[prefix] = {}
 
@@ -516,8 +536,11 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 in_transit[tid] = today_iso
 
         # Remove delivered tracking numbers
+        delivered_removed: list[tuple[str, str | None]] = []
         for tid in delivered:
-            in_transit.pop(tid, None)
+            if tid in in_transit:
+                first_seen = in_transit.pop(tid)
+                delivered_removed.append((tid, first_seen))
 
         # Expire entries older than TTL
         cutoff = (
@@ -526,6 +549,53 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         expired = [tid for tid, seen in in_transit.items() if seen < cutoff]
         for tid in expired:
             del in_transit[tid]
+
+        return delivered_removed
+
+    def _record_amazon_delivered_history(self, data: dict, today_iso: str) -> None:
+        """Add newly delivered Amazon orders to the persistent history.
+
+        Deduplicated across the whole history by order id so a re-detected
+        delivery on a later scan doesn't produce a duplicate entry.
+        """
+        orders = data.get(AMAZON_DELIVERED_ORDERS) or []
+        if not orders:
+            return
+
+        order_tracking = data.get(AMAZON_ORDER_TRACKING) or {}
+        existing_orders = {
+            record.get("order")
+            for record in self._history
+            if record.get("carrier") == "amazon"
+        }
+
+        for order_id in orders:
+            if order_id in existing_orders:
+                continue
+            self._history.append(
+                {
+                    "carrier": "amazon",
+                    "number": order_tracking.get(order_id),
+                    "order": order_id,
+                    "delivered": today_iso,
+                    "first_seen": None,
+                }
+            )
+            existing_orders.add(order_id)
+
+    def _finalize_history(self, data: dict, today_iso: str) -> None:
+        """Prune expired history entries, sort newest first, expose via data."""
+        cutoff = (
+            datetime.date.fromisoformat(today_iso)
+            - datetime.timedelta(days=HISTORY_RETENTION_DAYS)
+        ).isoformat()
+        self._history = [
+            record for record in self._history if record.get("delivered", "") >= cutoff
+        ]
+        self._history.sort(key=lambda record: record.get("delivered", ""), reverse=True)
+
+        data["packages_history"] = len(self._history)
+        data["packages_history_details"] = list(self._history)
 
     async def _async_load_tracking(self) -> None:
         """Load persisted in-transit tracking state from storage."""
@@ -536,10 +606,18 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 "Loaded %d tracked prefix(es) from storage",
                 len(self._in_transit_tracking),
             )
+        if stored and isinstance(stored.get("history"), list):
+            self._history = stored["history"]
+            _LOGGER.debug(
+                "Loaded %d delivered package history record(s) from storage",
+                len(self._history),
+            )
 
     async def _async_save_tracking(self) -> None:
-        """Persist current in-transit tracking state to storage."""
-        await self._store.async_save({"in_transit": self._in_transit_tracking})
+        """Persist current in-transit tracking state and history to storage."""
+        await self._store.async_save(
+            {"in_transit": self._in_transit_tracking, "history": self._history}
+        )
 
     def _aggregate_package_counts(self, data: dict) -> None:
         """Aggregate global transit and delivered counts from all shippers."""

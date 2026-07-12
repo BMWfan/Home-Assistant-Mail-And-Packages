@@ -102,6 +102,7 @@ DEFAULT_GIF_DURATION = 5
 DEFAULT_SCAN_INTERVAL = 30
 DEFAULT_CUSTOM_DAYS = 3
 MAX_TRACKING_AGE_DAYS = 14
+HISTORY_RETENTION_DAYS = 90
 DEFAULT_GIF_FILE_NAME = "mail_today.gif"
 DEFAULT_AMAZON_FWDS = "(none)"
 DEFAULT_ALLOW_EXTERNAL = False
@@ -1727,6 +1728,13 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         native_unit_of_measurement="piece(s)",
         icon="mdi:email-open",
         key="dhl_brief_anzahl",
+    ),
+    # Persistent 90-day delivered packages history
+    "packages_history": SensorEntityDescription(
+        name="Mail Packages History",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:history",
+        key="packages_history",
     ),
     ###
     # !!! Insert new sensors above these two !!!
