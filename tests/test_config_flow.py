@@ -1489,7 +1489,19 @@ async def test_reconfigure(
             },
             "Mail and Packages (imap.test.email)",
             {
-                **DEFAULT_CUSTOM_IMAGE_DATA,
+                # Without the amazon/custom-image steps the flow never writes
+                # the four newer default image paths.
+                **{
+                    k: v
+                    for k, v in DEFAULT_CUSTOM_IMAGE_DATA.items()
+                    if k
+                    not in (
+                        "fedex_custom_img_file",
+                        "generic_custom_img_file",
+                        "post_de_custom_img_file",
+                        "walmart_custom_img_file",
+                    )
+                },
                 "allow_external": False,
                 "allow_forwarded_emails": False,
                 "custom_img": True,
