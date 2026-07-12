@@ -58,6 +58,8 @@ from custom_components.mail_and_packages.const import (
 )
 from tests.const import (
     DEFAULT_CUSTOM_IMAGE_DATA,
+    FAKE_CONFIG_DATA,
+    FAKE_CONFIG_DATA_NO_AMAZON,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -1433,7 +1435,12 @@ async def test_reconfigure(
 
         _LOGGER.debug("Entries: %s", len(hass.config_entries.async_entries(DOMAIN)))
         entry = hass.config_entries.async_entries(DOMAIN)[0]
-        assert entry.data.copy() == data
+        # The pre-existing entry keeps its legacy resources list; the fork
+        # removed the selector from step 2, so reconfigure never resubmits it.
+        assert entry.data.copy() == {
+            **data,
+            "resources": FAKE_CONFIG_DATA["resources"],
+        }
 
 
 @pytest.mark.parametrize(
@@ -1596,7 +1603,12 @@ async def test_reconfigure_no_amazon(
 
         _LOGGER.debug("Entries: %s", len(hass.config_entries.async_entries(DOMAIN)))
         entry = hass.config_entries.async_entries(DOMAIN)[0]
-        assert entry.data.copy() == data
+        # The pre-existing entry keeps its legacy resources list; the fork
+        # removed the selector from step 2, so reconfigure never resubmits it.
+        assert entry.data.copy() == {
+            **data,
+            "resources": FAKE_CONFIG_DATA_NO_AMAZON["resources"],
+        }
 
 
 @pytest.mark.parametrize(
@@ -1765,6 +1777,9 @@ async def test_reconfigure_with_default_images(
 
         entry = hass.config_entries.async_entries(DOMAIN)[0]
         actual_data = entry.data.copy()
+        # The pre-existing entry keeps its legacy resources list; the fork
+        # removed the selector from step 2, so reconfigure never resubmits it.
+        data = {**data, "resources": FAKE_CONFIG_DATA["resources"]}
         # Compare dictionaries by checking each key-value pair
         for key in data:
             assert key in actual_data, f"Missing key: {key}"
@@ -1898,6 +1913,7 @@ async def test_config_flow_with_amazon_custom_image_only(
             "amazon_domain": "amazon.com",
             "amazon_fwds": "fakeuser@test.email,fakeuser2@test.email",
             "custom_img": False,
+            "amazon_enabled": True,
             "amazon_custom_img": True,
             "amazon_custom_img_file": "images/test_amazon_only.jpg",
             "auth_type": "password",
@@ -5522,7 +5538,12 @@ async def test_reconfigure_allow_forwarded_emails(
 
         entry = hass.config_entries.async_entries(DOMAIN)[0]
 
-        assert entry.data.copy() == data
+        # The pre-existing entry keeps its legacy resources list; the fork
+        # removed the selector from step 2, so reconfigure never resubmits it.
+        assert entry.data.copy() == {
+            **data,
+            "resources": FAKE_CONFIG_DATA["resources"],
+        }
 
 
 @pytest.mark.parametrize(

@@ -190,8 +190,18 @@ async def test_history_prunes_entries_older_than_90_days(coordinator):
 async def test_history_sorted_newest_first_on_finalize(coordinator):
     """Finalized history is sorted with the most recent delivery first."""
     coordinator._history = [
-        {"carrier": "ups", "number": "A", "delivered": "2026-06-01", "first_seen": None},
-        {"carrier": "ups", "number": "B", "delivered": "2026-07-01", "first_seen": None},
+        {
+            "carrier": "ups",
+            "number": "A",
+            "delivered": "2026-06-01",
+            "first_seen": None,
+        },
+        {
+            "carrier": "ups",
+            "number": "B",
+            "delivered": "2026-07-01",
+            "first_seen": None,
+        },
     ]
     data = {}
 

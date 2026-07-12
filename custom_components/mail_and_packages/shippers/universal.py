@@ -270,9 +270,7 @@ class UniversalTrackingShipper(Shipper):
             # the coordinator can use it exclusively and ignore email-based status.
             if self.config.get(CONF_17TRACK_API_KEY):
                 result["_17track_details"] = coordinator_tracking
-        result["_17track_auth_failed"] = getattr(
-            self, "_seventeen_auth_failed", False
-        )
+        result["_17track_auth_failed"] = getattr(self, "_seventeen_auth_failed", False)
         return result
 
     async def _enrich_with_17track(

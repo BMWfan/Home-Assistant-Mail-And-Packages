@@ -445,7 +445,16 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         amazon_enabled = config.get(const.CONF_AMAZON_ENABLED, False)
         sensors_by_shipper: dict[str, list[tuple]] = {}
 
-        for sensor in const.SENSOR_TYPES:
+        # Data-driven binary sensors (search-criteria based, e.g.
+        # usps_mail_delivered) live only in BINARY_SENSORS; upstream covered
+        # them via the resources-driven loop the fork removed, so scan them
+        # alongside the regular SENSOR_TYPES keys.
+        binary_data_sensors = [
+            key
+            for key in const.BINARY_SENSORS
+            if key in const.SENSOR_DATA and key not in const.SENSOR_TYPES
+        ]
+        for sensor in [*const.SENSOR_TYPES, *binary_data_sensors]:
             if not amazon_enabled and sensor.startswith("amazon_"):
                 continue
             shipper = get_shipper_for_sensor(self.hass, config, sensor)
