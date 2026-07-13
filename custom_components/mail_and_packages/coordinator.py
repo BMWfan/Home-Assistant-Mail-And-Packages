@@ -99,6 +99,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         self._hash_cache = {}
         self._in_transit_tracking: dict[str, dict[str, str]] = {}
         self._history: list[dict] = []
+        self._history_backfilled = False
         self._tracking_loaded = False
         self._store: Store = Store(hass, 1, f"{DOMAIN}.tracking")
 
@@ -243,6 +244,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             data.update(shipper_data)
             self._apply_tracking_state(data, tracking_details, today_iso)
             self._record_amazon_delivered_history(data, today_iso)
+            self._backfill_history(data, today_iso)
             self._finalize_history(data, today_iso)
 
             # Persist updated tracking state so it survives restarts
@@ -645,6 +647,60 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             )
             existing_orders.add(order_id)
 
+    def _backfill_history(self, data: dict, today_iso: str) -> None:
+        """One-time backfill of history from already-delivered tracking data.
+
+        Deliveries that happened before this history feature was enabled
+        never went through the in-transit -> delivered transition that
+        normally creates a history record, so they'd be permanently
+        missing. This runs exactly once (guarded by the persisted
+        "history_backfilled" flag) and seeds the history from any
+        currently-known "Delivered" entries the universal scan found (the
+        shipper exports them separately as universal_delivered_details --
+        the card-facing list drops delivered items) so the history section
+        isn't empty just because the feature shipped after the delivery
+        happened.
+
+        Amazon orders are intentionally NOT backfilled here: Amazon order
+        detection is today-only (see _record_amazon_delivered_history /
+        the Amazon shipper), so there is no historical data to draw from.
+        """
+        if self._history_backfilled:
+            return
+
+        existing_numbers = {record.get("number") for record in self._history}
+        delivered_items = list(data.get("universal_delivered_details") or [])
+        # Fallback for setups/tests that still carry Delivered entries in the
+        # card-facing list.
+        delivered_items += [
+            item
+            for item in data.get("universal_tracking_details") or []
+            if item.get("status") == "Delivered"
+        ]
+        for item in delivered_items:
+            number = item.get("number")
+            if not number or number in existing_numbers:
+                continue
+
+            last_update = item.get("last_update") or ""
+            delivered = last_update[:10]
+            try:
+                datetime.date.fromisoformat(delivered)
+            except ValueError:
+                delivered = today_iso
+
+            self._history.append(
+                {
+                    "carrier": item.get("carrier"),
+                    "number": number,
+                    "delivered": delivered,
+                    "first_seen": None,
+                }
+            )
+            existing_numbers.add(number)
+
+        self._history_backfilled = True
+
     def _finalize_history(self, data: dict, today_iso: str) -> None:
         """Prune expired history entries, sort newest first, expose via data."""
         cutoff = (
@@ -674,11 +730,17 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 "Loaded %d delivered package history record(s) from storage",
                 len(self._history),
             )
+        if stored and isinstance(stored.get("history_backfilled"), bool):
+            self._history_backfilled = stored["history_backfilled"]
 
     async def _async_save_tracking(self) -> None:
         """Persist current in-transit tracking state and history to storage."""
         await self._store.async_save(
-            {"in_transit": self._in_transit_tracking, "history": self._history}
+            {
+                "in_transit": self._in_transit_tracking,
+                "history": self._history,
+                "history_backfilled": self._history_backfilled,
+            }
         )
 
     def _aggregate_package_counts(self, data: dict) -> None:

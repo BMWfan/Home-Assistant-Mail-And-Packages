@@ -59,6 +59,8 @@ _DEFAULT_ENABLED: frozenset[str] = frozenset(
         "universal_packages",
         # DHL Briefankündigung – enabled when the feature is on
         "dhl_brief_anzahl",
+        # Data source for the custom card's history section (auto-discovery)
+        "packages_history",
     }
 )
 

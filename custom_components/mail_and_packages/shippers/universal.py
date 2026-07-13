@@ -264,6 +264,12 @@ class UniversalTrackingShipper(Shipper):
         ]
         result[SENSOR_TYPE] = len(active_details)
         result["universal_tracking_details"] = active_details
+        # Delivered entries drop out of the card list above, but the
+        # coordinator's one-time history backfill needs them to seed past
+        # deliveries still visible in the scan window.
+        result["universal_delivered_details"] = [
+            item for item in tracking_details if item.get("status_code") == 40
+        ]
         if coordinator_tracking:
             result["_tracking_details"] = coordinator_tracking
             # When 17track is the status source, publish under a separate key so

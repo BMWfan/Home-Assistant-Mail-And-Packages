@@ -139,7 +139,16 @@ class DHLBriefankundigungClient:
         return self._tokens.get("id_token", "")
 
     async def _refresh(self) -> None:
-        """Refresh access and id tokens using the stored refresh token."""
+        """Refresh access and id tokens using the stored refresh token.
+
+        Only a definitive rejection by DHL (HTTP 400/401/403 -- the refresh
+        token is dead or the client credentials were rejected) marks the
+        login as failed and triggers a repair issue, since only a fresh
+        interactive login can fix that. Transient failures (timeouts,
+        network errors, 5xx) are left alone -- they don't mean the login is
+        actually broken, so raising a repair issue for them would be a
+        false alarm and the next scheduled refresh can simply retry.
+        """
         refresh_token = self._tokens.get("refresh_token")
         if not refresh_token:
             _LOGGER.error("DHL Briefankündigung: kein Refresh-Token vorhanden")
@@ -158,6 +167,16 @@ class DHLBriefankundigungClient:
         }
         try:
             async with session.post(_TOKEN_URL, data=data, headers=headers) as resp:
+                if resp.status in (400, 401, 403):
+                    body = await resp.text()
+                    _LOGGER.error(
+                        "DHL Briefankündigung Token-Refresh fehlgeschlagen "
+                        "(HTTP %s): %s",
+                        resp.status,
+                        body[:500],
+                    )
+                    self._auth_failed = True
+                    return
                 resp.raise_for_status()
                 new_tokens: dict = await resp.json(content_type=None)
                 new_tokens["expires_at"] = time.time() + new_tokens.get(
@@ -168,7 +187,6 @@ class DHLBriefankundigungClient:
                 _LOGGER.debug("DHL Briefankündigung: Token erfolgreich erneuert")
         except Exception as err:  # noqa: BLE001
             _LOGGER.error("DHL Briefankündigung Token-Refresh fehlgeschlagen: %s", err)
-            self._auth_failed = True
 
     async def fetch_letters(self) -> list[dict]:
         """Fetch letter announcements from the DHL advices API."""

@@ -84,6 +84,7 @@ async def test_save_tracking_persists_state(coordinator):
         {
             "in_transit": {"fedex": {"123456789012": "2024-06-10"}},
             "history": [],
+            "history_backfilled": False,
         }
     )
 
@@ -230,3 +231,93 @@ async def test_amazon_delivered_history_dedup(coordinator):
         "delivered": "2026-07-12",
         "first_seen": None,
     }
+
+
+@pytest.mark.asyncio
+async def test_backfill_history_creates_record_from_delivered_entry(coordinator):
+    """First-run backfill picks up an already-delivered universal_tracking_details entry."""
+    data = {
+        "universal_tracking_details": [
+            {
+                "carrier": "ups",
+                "number": "1Z999",
+                "status": "Delivered",
+                "status_code": 40,
+                "last_update": "2026-07-10T08:00:00",
+            }
+        ]
+    }
+
+    coordinator._backfill_history(data, "2026-07-12")
+
+    assert coordinator._history == [
+        {
+            "carrier": "ups",
+            "number": "1Z999",
+            "delivered": "2026-07-10",
+            "first_seen": None,
+        }
+    ]
+    assert coordinator._history_backfilled is True
+
+
+@pytest.mark.asyncio
+async def test_backfill_history_runs_only_once_no_duplicate(coordinator):
+    """Second run (or a second call) does not duplicate the backfilled record."""
+    data = {
+        "universal_tracking_details": [
+            {
+                "carrier": "ups",
+                "number": "1Z999",
+                "status": "Delivered",
+                "status_code": 40,
+                "last_update": "2026-07-10T08:00:00",
+            }
+        ]
+    }
+
+    coordinator._backfill_history(data, "2026-07-12")
+    coordinator._backfill_history(data, "2026-07-12")
+
+    assert len(coordinator._history) == 1
+
+    # Flag persists across a save/load cycle through the Store.
+    saved_payload = {}
+
+    async def fake_save(payload):
+        saved_payload.update(payload)
+
+    coordinator._store.async_save.side_effect = fake_save
+    await coordinator._async_save_tracking()
+
+    coordinator._store.async_load.return_value = saved_payload
+    coordinator._history_backfilled = False
+    await coordinator._async_load_tracking()
+
+    assert coordinator._history_backfilled is True
+
+    # Even with the flag reset to simulate a second scan attempt, a later
+    # call after reloading (flag True) must not add another record.
+    coordinator._backfill_history(data, "2026-07-12")
+    assert len(coordinator._history) == 1
+
+
+@pytest.mark.asyncio
+async def test_backfill_history_ignores_non_delivered_entries(coordinator):
+    """Entries that are not status 'Delivered' are not backfilled."""
+    data = {
+        "universal_tracking_details": [
+            {
+                "carrier": "fedex",
+                "number": "999888777",
+                "status": "InTransit",
+                "status_code": 10,
+                "last_update": "2026-07-10T08:00:00",
+            }
+        ]
+    }
+
+    coordinator._backfill_history(data, "2026-07-12")
+
+    assert coordinator._history == []
+    assert coordinator._history_backfilled is True
