@@ -164,10 +164,16 @@ async def async_setup_entry(
                 translation_key="auth_failed",
                 data={"entry_id": config_entry.entry_id},
             )
+            # Platforms were already forwarded above -- unload them before
+            # raising, or HA's setup retry forwards them a second time and
+            # every platform dies with "has already been setup!" (observed
+            # live: 246 repeats while scans were timing out).
+            await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
             raise coordinator.last_exception
         exc = coordinator.last_exception
         detail = (str(exc) or type(exc).__name__) if exc else "unknown error"
         _LOGGER.error("Error updating sensor data: %s", detail)
+        await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
         raise ConfigEntryNotReady
 
     return True
