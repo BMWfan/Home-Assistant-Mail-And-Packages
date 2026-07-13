@@ -262,6 +262,7 @@ async def test_setup_entry_coordinator_failure():
     """Test setup_entry when coordinator fails to update."""
     mock_hass = MagicMock()
     mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
+    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
     data = FAKE_CONFIG_DATA.copy()
     data["resources"] = ["usps_mail"]  # Override for this test
     mock_config_entry = MockConfigEntry(
@@ -293,6 +294,7 @@ async def test_setup_entry_auth_failure():
     """Test setup_entry when coordinator fails with ConfigEntryAuthFailed."""
     mock_hass = MagicMock()
     mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
+    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
     mock_config_entry = MockConfigEntry(
         domain=DOMAIN,
         data=FAKE_CONFIG_DATA.copy(),
@@ -572,6 +574,7 @@ async def test_setup_entry_refresh_failure():
     """Test setup_entry when the coordinator fails to refresh data."""
     mock_hass = MagicMock()
     mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
+    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
     mock_config_entry = MockConfigEntry(
         domain=DOMAIN,
         data={
