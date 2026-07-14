@@ -1226,9 +1226,19 @@ full scan budget again, doubling the time until the failure is reported.
 
 
 async def logout(account: IMAP4_SSL | IMAP4) -> None:
-    """Logout from IMAP server asynchronously."""
+    """Logout from IMAP server asynchronously.
+
+    asyncio.CancelledError must not be swallowed here: if this cleanup runs
+    while the caller's own asyncio.timeout() budget expires, that timeout
+    delivers a CancelledError at this exact await point. Suppressing it
+    would silently defeat the outer time budget, letting the scan run
+    unbounded until Home Assistant's own bootstrap timeout kills it instead.
+    """
     try:
         async with asyncio.timeout(LOGOUT_TIMEOUT):
             await account.logout()
-    except (TimeoutError, AioImapException, OSError, asyncio.CancelledError) as err:
+    except asyncio.CancelledError:
+        _LOGGER.debug("Logout cancelled; propagating to caller")
+        raise
+    except (TimeoutError, AioImapException, OSError) as err:
         _LOGGER.debug("Error logging out of IMAP Server: %s", err)

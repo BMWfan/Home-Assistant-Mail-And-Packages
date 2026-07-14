@@ -715,8 +715,27 @@ async def test_logout_success():
 
 
 @pytest.mark.asyncio
-async def test_logout_timeout(caplog):
-    """Test logout timeout handling."""
+async def test_logout_cancelled_error_propagates(caplog):
+    """CancelledError must propagate, not be swallowed.
+
+    Regression test: logout() previously caught asyncio.CancelledError in
+    the same broad except tuple as TimeoutError/AioImapException/OSError,
+    silently suppressing it. If logout() runs during cleanup while the
+    caller's own outer asyncio.timeout() budget expires, that timeout
+    delivers a CancelledError at this exact await point -- suppressing it
+    defeats the outer time budget entirely.
+    """
+    mock_acc = AsyncMock()
+    mock_acc.logout.side_effect = asyncio.CancelledError()
+    caplog.set_level("DEBUG")
+
+    with pytest.raises(asyncio.CancelledError):
+        await logout(mock_acc)
+
+
+@pytest.mark.asyncio
+async def test_logout_timeout_error_suppressed(caplog):
+    """Test logout TimeoutError handling is still suppressed."""
     mock_acc = AsyncMock()
     mock_acc.logout.side_effect = TimeoutError("Logout timed out")
     caplog.set_level("DEBUG")
@@ -726,10 +745,10 @@ async def test_logout_timeout(caplog):
 
 
 @pytest.mark.asyncio
-async def test_logout_cancelled(caplog):
-    """Test logout cancellation handling."""
+async def test_logout_aioimap_exception_suppressed(caplog):
+    """Test logout AioImapException handling is still suppressed."""
     mock_acc = AsyncMock()
-    mock_acc.logout.side_effect = asyncio.CancelledError()
+    mock_acc.logout.side_effect = AioImapException("IMAP protocol error")
     caplog.set_level("DEBUG")
 
     await logout(mock_acc)
@@ -737,8 +756,8 @@ async def test_logout_cancelled(caplog):
 
 
 @pytest.mark.asyncio
-async def test_logout_oserror(caplog):
-    """Test logout OSError handling."""
+async def test_logout_oserror_suppressed(caplog):
+    """Test logout OSError handling is still suppressed."""
     mock_acc = AsyncMock()
     mock_acc.logout.side_effect = OSError("Connection lost")
     caplog.set_level("DEBUG")
