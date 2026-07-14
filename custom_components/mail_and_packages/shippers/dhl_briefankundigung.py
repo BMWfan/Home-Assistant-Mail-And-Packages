@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import logging
+import secrets
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -24,7 +25,6 @@ _AUTH_URL = "https://login.dhl.de/af5f9bb6-27ad-4af4-9445-008e7a5cddb8/login/aut
 _ADVICES_URL = "https://www.dhl.de/int-aviseanzeigen/advices"
 _CLIENT_ID = "83471082-5c13-4fce-8dcb-19d2a3fca413"
 _CLIENT_BASIC_AUTH = "Basic ODM0NzEwODItNWMxMy00ZmNlLThkY2ItMTlkMmEzZmNhNDEzOg=="
-_CODE_VERIFIER = "zmVs5AKfGvv45a9aUvuOid9a_erOirp7XL1sn9kWT_o"
 _REDIRECT_URI = "dhllogin://de.deutschepost.dhl/login"
 
 # DHL's login/token endpoint sits behind Akamai bot protection and rejects
@@ -43,9 +43,24 @@ _AUTH_CLAIMS = (
 )
 
 
-def get_auth_url() -> str:
+def generate_code_verifier() -> str:
+    """Generate a fresh PKCE code verifier for a single authorization attempt.
+
+    RFC 7636 requires a code_verifier that's randomly generated per
+    authorization attempt, not reused. Live symptom that led here: every
+    reauth attempt failed with a generic "code not found or expired" from
+    DHL, even with a fresh code submitted immediately -- consistent with
+    the login stack rejecting a reused code_challenge as a replay, though
+    that server-side behavior is DHL's and can't be confirmed from our
+    side. A new verifier is minted every time the auth URL is shown either
+    way, since a static one violates the spec regardless of root cause.
+    """
+    return secrets.token_urlsafe(64)
+
+
+def get_auth_url(code_verifier: str) -> str:
     """Return the DHL OAuth2 PKCE authorization URL."""
-    verifier_bytes = _CODE_VERIFIER.encode()
+    verifier_bytes = code_verifier.encode()
     digest = hashlib.sha256(verifier_bytes).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
     params = {
@@ -77,7 +92,7 @@ def extract_code(raw: str) -> str:
     return raw
 
 
-async def exchange_code(hass: HomeAssistant, code: str) -> dict:
+async def exchange_code(hass: HomeAssistant, code: str, code_verifier: str) -> dict:
     """Exchange an authorization code for DHL tokens."""
     session = async_get_clientsession(hass)
     # client_id is intentionally NOT in the body: the client is already
@@ -87,7 +102,7 @@ async def exchange_code(hass: HomeAssistant, code: str) -> dict:
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": _REDIRECT_URI,
-        "code_verifier": _CODE_VERIFIER,
+        "code_verifier": code_verifier,
     }
     headers = {
         "Authorization": _CLIENT_BASIC_AUTH,

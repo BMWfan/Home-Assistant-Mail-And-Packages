@@ -19,7 +19,12 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import issue_registry as ir
 
 from .const import CONF_17TRACK_API_KEY, CONF_DHL_BRIEF_TOKENS, DOMAIN
-from .shippers.dhl_briefankundigung import exchange_code, extract_code, get_auth_url
+from .shippers.dhl_briefankundigung import (
+    exchange_code,
+    extract_code,
+    generate_code_verifier,
+    get_auth_url,
+)
 
 DHL_BRIEF_AUTH_ISSUE = "dhl_brief_auth_failed"
 SEVENTEEN_TRACK_AUTH_ISSUE = "seventeen_track_auth_failed"
@@ -31,6 +36,7 @@ class DHLBriefReauthRepairFlow(RepairsFlow):
     def __init__(self, entry_id: str | None) -> None:
         """Initialize with the config entry to update once re-authenticated."""
         self._entry_id = entry_id
+        self._code_verifier: str | None = None
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -54,7 +60,7 @@ class DHLBriefReauthRepairFlow(RepairsFlow):
                 errors["dhl_brief_code"] = "invalid_auth"
             else:
                 try:
-                    tokens = await exchange_code(self.hass, code)
+                    tokens = await exchange_code(self.hass, code, self._code_verifier)
                 except Exception:  # noqa: BLE001
                     errors["dhl_brief_code"] = "invalid_auth"
                 else:
@@ -73,10 +79,13 @@ class DHLBriefReauthRepairFlow(RepairsFlow):
                     ir.async_delete_issue(self.hass, DOMAIN, DHL_BRIEF_AUTH_ISSUE)
                     return self.async_create_entry(title="", data={})
 
+        # A new PKCE code_verifier is minted every time the form is (re)shown
+        # -- reusing one across attempts gets rejected by DHL as a replay.
+        self._code_verifier = generate_code_verifier()
         return self.async_show_form(
             step_id="reauth",
             data_schema=vol.Schema({vol.Required("dhl_brief_code"): str}),
-            description_placeholders={"auth_url": get_auth_url()},
+            description_placeholders={"auth_url": get_auth_url(self._code_verifier)},
             errors=errors,
         )
 

@@ -100,7 +100,12 @@ from .const import (
     OAUTH_IMAP_DEFAULTS,
     OAUTH_SCOPES,
 )
-from .shippers.dhl_briefankundigung import exchange_code, extract_code, get_auth_url
+from .shippers.dhl_briefankundigung import (
+    exchange_code,
+    extract_code,
+    generate_code_verifier,
+    get_auth_url,
+)
 from .utils.email import generate_service_email_domains, validate_email_address
 from .utils.image import _check_ffmpeg
 from .utils.imap import InvalidAuth, decode_imap_utf7, login, logout
@@ -936,6 +941,7 @@ class MailAndPackagesFlowHandler(
         self._entry = None
         self._data = {}
         self._errors = {}
+        self._dhl_code_verifier: str | None = None
 
     async def async_step_user(self, user_input=None):
         """Handle a flow initialized by the user."""
@@ -1597,7 +1603,9 @@ class MailAndPackagesFlowHandler(
                 self._errors["dhl_brief_code"] = "invalid_auth"
             else:
                 try:
-                    tokens = await exchange_code(self.hass, code)
+                    tokens = await exchange_code(
+                        self.hass, code, self._dhl_code_verifier
+                    )
                     self._data[CONF_DHL_BRIEF_TOKENS] = tokens
                 except Exception:  # noqa: BLE001
                     self._errors["dhl_brief_code"] = "invalid_auth"
@@ -1607,10 +1615,15 @@ class MailAndPackagesFlowHandler(
                     data=self._data,
                 )
 
+        # A new PKCE code_verifier is minted every time the form is (re)shown
+        # -- reusing one across attempts gets rejected by DHL as a replay.
+        self._dhl_code_verifier = generate_code_verifier()
         return self.async_show_form(
             step_id="config_dhl_brief_auth",
             data_schema=vol.Schema({vol.Required("dhl_brief_code"): cv.string}),
-            description_placeholders={"auth_url": get_auth_url()},
+            description_placeholders={
+                "auth_url": get_auth_url(self._dhl_code_verifier)
+            },
             errors=self._errors,
         )
 
@@ -1624,7 +1637,9 @@ class MailAndPackagesFlowHandler(
                 self._errors["dhl_brief_code"] = "invalid_auth"
             else:
                 try:
-                    tokens = await exchange_code(self.hass, code)
+                    tokens = await exchange_code(
+                        self.hass, code, self._dhl_code_verifier
+                    )
                     self._data[CONF_DHL_BRIEF_TOKENS] = tokens
                 except Exception:  # noqa: BLE001
                     self._errors["dhl_brief_code"] = "invalid_auth"
@@ -1637,9 +1652,14 @@ class MailAndPackagesFlowHandler(
                 _LOGGER.debug("%s reconfigured (DHL).", DOMAIN)
                 return self.async_abort(reason="reconfigure_successful")
 
+        # A new PKCE code_verifier is minted every time the form is (re)shown
+        # -- reusing one across attempts gets rejected by DHL as a replay.
+        self._dhl_code_verifier = generate_code_verifier()
         return self.async_show_form(
             step_id="reconfig_dhl_brief_auth",
             data_schema=vol.Schema({vol.Required("dhl_brief_code"): cv.string}),
-            description_placeholders={"auth_url": get_auth_url()},
+            description_placeholders={
+                "auth_url": get_auth_url(self._dhl_code_verifier)
+            },
             errors=self._errors,
         )

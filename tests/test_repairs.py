@@ -1,6 +1,9 @@
 """Test the Repairs platform and flow for Mail and Packages."""
 
+import base64
+import hashlib
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -17,10 +20,20 @@ from custom_components.mail_and_packages.const import (
 from custom_components.mail_and_packages.coordinator import MailDataUpdateCoordinator
 from custom_components.mail_and_packages.repairs import (
     AuthRepairFlow,
+    DHLBriefReauthRepairFlow,
     async_create_fix_flow,
 )
 from custom_components.mail_and_packages.sensor import ImagePathSensors, PackagesSensor
 from custom_components.mail_and_packages.utils.imap import InvalidAuth
+
+
+def _challenge_from_auth_url(auth_url: str) -> str:
+    return parse_qs(urlparse(auth_url).query)["code_challenge"][0]
+
+
+def _expected_challenge(verifier: str) -> str:
+    digest = hashlib.sha256(verifier.encode()).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
 
 
 @pytest.mark.asyncio
@@ -131,3 +144,73 @@ async def test_sensors_unpopulated_coordinator(hass: HomeAssistant):
         BINARY_SENSORS["post_de_update"], mock_coordinator, mock_entry
     )
     assert binary_sensor.is_on is False
+
+
+@pytest.mark.asyncio
+async def test_dhl_brief_reauth_form_challenge_matches_stored_verifier(
+    hass: HomeAssistant,
+):
+    """The shown auth_url's code_challenge matches the stored code_verifier."""
+    flow = DHLBriefReauthRepairFlow(entry_id=None)
+    flow.hass = hass
+
+    result = await flow.async_step_reauth(user_input=None)
+
+    assert result["type"] == "form"
+    assert flow._code_verifier is not None
+    auth_url = result["description_placeholders"]["auth_url"]
+    assert _challenge_from_auth_url(auth_url) == _expected_challenge(
+        flow._code_verifier
+    )
+
+
+@pytest.mark.asyncio
+async def test_dhl_brief_reauth_submit_uses_previously_shown_verifier(
+    hass: HomeAssistant,
+):
+    """Submitting a code exchanges it with the verifier shown in the form."""
+    flow = DHLBriefReauthRepairFlow(entry_id=None)
+    flow.hass = hass
+
+    # First render generates the verifier the user is expected to have used.
+    await flow.async_step_reauth(user_input=None)
+    shown_verifier = flow._code_verifier
+
+    with patch(
+        "custom_components.mail_and_packages.repairs.exchange_code",
+        new_callable=AsyncMock,
+        return_value={"access_token": "at"},
+    ) as mock_exchange:
+        result = await flow.async_step_reauth(user_input={"dhl_brief_code": "abc123"})
+
+    assert result["type"] == "create_entry"
+    mock_exchange.assert_called_once_with(hass, "abc123", shown_verifier)
+
+
+@pytest.mark.asyncio
+async def test_dhl_brief_reauth_failed_submit_regenerates_verifier(
+    hass: HomeAssistant,
+):
+    """After a failed exchange, the re-shown form uses a fresh verifier."""
+    flow = DHLBriefReauthRepairFlow(entry_id=None)
+    flow.hass = hass
+
+    first_result = await flow.async_step_reauth(user_input=None)
+    first_challenge = _challenge_from_auth_url(
+        first_result["description_placeholders"]["auth_url"]
+    )
+
+    with patch(
+        "custom_components.mail_and_packages.repairs.exchange_code",
+        new_callable=AsyncMock,
+        side_effect=Exception("boom"),
+    ):
+        second_result = await flow.async_step_reauth(
+            user_input={"dhl_brief_code": "abc123"}
+        )
+
+    assert second_result["type"] == "form"
+    second_challenge = _challenge_from_auth_url(
+        second_result["description_placeholders"]["auth_url"]
+    )
+    assert second_challenge != first_challenge
