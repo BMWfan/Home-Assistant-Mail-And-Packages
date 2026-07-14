@@ -218,7 +218,11 @@ async def login(
 
 
 async def selectfolder(account: IMAP4_SSL, folder: str) -> bool:
-    """Select folder inside the mailbox asynchronously."""
+    """Select folder inside the mailbox asynchronously.
+
+    See IMAP_COMMAND_TIMEOUT below -- same live Exchange stall this bounds in
+    the batch pre-fetch path can happen here too.
+    """
     if getattr(account, "_current_folder", None) == folder:
         return True
 
@@ -226,7 +230,8 @@ async def selectfolder(account: IMAP4_SSL, folder: str) -> bool:
     quoted_folder = quote_folder(encoded_folder)
 
     try:
-        await account.select(quoted_folder)
+        async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+            await account.select(quoted_folder)
     except TimeoutError:
         raise
     except (AioImapException, OSError) as err:
@@ -484,15 +489,18 @@ async def _execute_single_search(account: IMAP4_SSL, search_query: str) -> list[
             timeout = getattr(account, "timeout", None)
             if not isinstance(timeout, (int, float)):
                 timeout = None
-            res = await account.protocol.execute(
-                Command(
-                    "ESEARCH",
-                    account.protocol.new_tag(),
-                    *args,
-                    loop=account.protocol.loop,
-                    timeout=timeout,
+            # See IMAP_COMMAND_TIMEOUT below -- same live Exchange stall this
+            # bounds in the batch pre-fetch path can happen here too.
+            async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                res = await account.protocol.execute(
+                    Command(
+                        "ESEARCH",
+                        account.protocol.new_tag(),
+                        *args,
+                        loop=account.protocol.loop,
+                        timeout=timeout,
+                    )
                 )
-            )
             if res.result == "OK":
                 for line in res.lines:
                     if line:
@@ -514,7 +522,10 @@ async def _execute_single_search(account: IMAP4_SSL, search_query: str) -> list[
                 search_cache[cache_key] = []
                 continue
             try:
-                res = await account.uid_search(search_query, charset=None)
+                # See IMAP_COMMAND_TIMEOUT below -- same live Exchange stall
+                # this bounds in the batch pre-fetch path can happen here too.
+                async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                    res = await account.uid_search(search_query, charset=None)
                 if res.result == "OK" and res.lines:
                     parsed = parse_search_response(res.lines)
                     folder_uids = [
@@ -979,7 +990,10 @@ async def email_search(  # noqa: C901
                 parsed = search_cache[cache_key]
                 return ("OK", [b" ".join(parsed)])
             try:
-                res = await account.search(search, charset=None)
+                # See IMAP_COMMAND_TIMEOUT above -- same live Exchange stall
+                # this bounds in the batch pre-fetch path can happen here too.
+                async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                    res = await account.search(search, charset=None)
             except TimeoutError:
                 raise
             except (AioImapException, OSError) as err:
@@ -1003,7 +1017,10 @@ async def email_search(  # noqa: C901
                 all_matched_ids.extend(search_cache[cache_key])
                 continue
             try:
-                res = await account.search(search, charset=None)
+                # See IMAP_COMMAND_TIMEOUT above -- same live Exchange stall
+                # this bounds in the batch pre-fetch path can happen here too.
+                async with asyncio.timeout(IMAP_COMMAND_TIMEOUT):
+                    res = await account.search(search, charset=None)
                 if res.result == "OK" and res.lines:
                     parsed = parse_search_response(res.lines)
                     search_cache[cache_key] = parsed

@@ -1,6 +1,7 @@
 """Tests for IMAP and email utilities."""
 
 import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1986,6 +1987,66 @@ async def test_email_search_multifolders_batch_timeout_error():
         await email_search(
             mock_imap, ["test@example.com"], "25-Mar-2026", subject=subjects
         )
+
+
+@pytest.mark.asyncio
+async def test_selectfolder_hang_raises_timeout(monkeypatch):
+    """Test selectfolder aborts a genuinely hanging select() within IMAP_COMMAND_TIMEOUT."""
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_TIMEOUT", 0.05)
+    mock_imap = AsyncMock()
+    mock_imap._current_folder = None
+
+    async def _hang(*args, **kwargs):
+        await asyncio.sleep(10)
+
+    mock_imap.select.side_effect = _hang
+
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        await selectfolder(mock_imap, "Junk")
+    elapsed = time.monotonic() - start
+    assert elapsed < 1
+
+
+@pytest.mark.asyncio
+async def test_execute_single_search_sequential_hang_raises_timeout(monkeypatch):
+    """Test _execute_single_search's sequential uid_search aborts a genuine hang."""
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_TIMEOUT", 0.05)
+    mock_imap = AsyncMock()
+    mock_imap._folders = ["INBOX", "Junk"]
+    mock_imap._current_folder = None
+    mock_imap.has_capability.return_value = False
+    mock_imap.select.return_value = MagicMock()
+
+    async def _hang(*args, **kwargs):
+        await asyncio.sleep(10)
+
+    mock_imap.uid_search.side_effect = _hang
+
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        await _execute_single_search(mock_imap, "SEARCH_QUERY")
+    elapsed = time.monotonic() - start
+    assert elapsed < 1
+
+
+@pytest.mark.asyncio
+async def test_email_search_single_folder_hang_raises_timeout(monkeypatch):
+    """Test email_search single-folder fastpath aborts a genuinely hanging search()."""
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_TIMEOUT", 0.05)
+    mock_imap = AsyncMock()
+    mock_imap._folders = ["INBOX"]
+
+    async def _hang(*args, **kwargs):
+        await asyncio.sleep(10)
+
+    mock_imap.search.side_effect = _hang
+
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        await email_search(mock_imap, ["test@example.com"], "25-Mar-2026")
+    elapsed = time.monotonic() - start
+    assert elapsed < 1
 
 
 @pytest.mark.asyncio
