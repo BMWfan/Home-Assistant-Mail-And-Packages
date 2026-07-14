@@ -16,6 +16,7 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_RESOURCES,
     CONF_SCAN_INTERVAL,
     CONF_USERNAME,
     CONF_VERIFY_SSL,
@@ -429,6 +430,15 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             )
         return account
 
+    # Fork-native sensors that didn't exist when a user's legacy `resources`
+    # list (the old "which carrier to scan" UI selection) was created, so
+    # they can never appear in that list. A legacy filter must not hide them.
+    _ALWAYS_SCANNED_SENSORS = {
+        "universal_packages",
+        "dhl_brief_anzahl",
+        "packages_history",
+    }
+
     async def _update_shippers(
         self,
         account: IMAP4_SSL,
@@ -445,6 +455,11 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         """
         data = {}
         amazon_enabled = config.get(const.CONF_AMAZON_ENABLED, False)
+        # Legacy `resources` field (pre-fork UI's carrier selection). Only
+        # non-empty for old configs migrated from before the fork removed
+        # the resources-editing UI; new installations never set it, so the
+        # filter below is a no-op for them.
+        active_resources = config.get(CONF_RESOURCES)
         sensors_by_shipper: dict[str, list[tuple]] = {}
 
         # Data-driven binary sensors (search-criteria based, e.g.
@@ -458,6 +473,19 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         ]
         for sensor in [*const.SENSOR_TYPES, *binary_data_sensors]:
             if not amazon_enabled and sensor.startswith("amazon_"):
+                continue
+            # Revive the legacy `resources` field as an opt-in performance
+            # filter: old configs with a long, unused carrier list (e.g.
+            # auspost, poczta_polska, ...) previously caused every carrier to
+            # be scanned regardless of that selection, blowing up scan times.
+            # Only filters when a non-empty legacy list is present; fork-
+            # native sensors and binary data sensors are never filtered.
+            if (
+                active_resources
+                and sensor not in active_resources
+                and sensor not in self._ALWAYS_SCANNED_SENSORS
+                and sensor not in binary_data_sensors
+            ):
                 continue
             shipper = get_shipper_for_sensor(self.hass, config, sensor)
             if shipper:

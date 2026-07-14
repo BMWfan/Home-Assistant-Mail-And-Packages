@@ -811,3 +811,153 @@ async def test_process_emails_delivered_tracking_reversed_order(hass):
     # In-transit tracking should still correctly exclude the delivered ones
     assert set(data["ups_tracking"]) == {"UPS_IN_TRANSIT"}
     assert set(data["ups_delivered_tracking"]) == {"UPS_DELIVERED_TODAY"}
+
+
+@pytest.mark.asyncio
+async def test_update_shippers_resources_missing_scans_everything(hass):
+    """No CONF_RESOURCES set -> unchanged behavior, every sensor reaches shipper lookup."""
+    config = {k: v for k, v in FAKE_CONFIG_DATA.items() if k != "resources"}
+    with patch("homeassistant.helpers.frame.report_usage"):
+        coordinator = MailDataUpdateCoordinator(hass, config)
+
+    called_sensors = []
+
+    def _get_shipper(hass_, cfg, sensor):
+        called_sensors.append(sensor)
+
+    with (
+        patch(
+            "custom_components.mail_and_packages.coordinator.login",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.selectfolder",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.get_shipper_for_sensor",
+            side_effect=_get_shipper,
+        ),
+    ):
+        await coordinator.process_emails(hass, config)
+
+    assert "auspost_delivered" in called_sensors
+    assert "dhl_delivered" in called_sensors
+
+
+@pytest.mark.asyncio
+async def test_update_shippers_resources_empty_list_scans_everything(hass):
+    """CONF_RESOURCES present but empty -> unchanged behavior, every sensor reaches shipper lookup."""
+    config = {**FAKE_CONFIG_DATA, "resources": []}
+    with patch("homeassistant.helpers.frame.report_usage"):
+        coordinator = MailDataUpdateCoordinator(hass, config)
+
+    called_sensors = []
+
+    def _get_shipper(hass_, cfg, sensor):
+        called_sensors.append(sensor)
+
+    with (
+        patch(
+            "custom_components.mail_and_packages.coordinator.login",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.selectfolder",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.get_shipper_for_sensor",
+            side_effect=_get_shipper,
+        ),
+    ):
+        await coordinator.process_emails(hass, config)
+
+    assert "auspost_delivered" in called_sensors
+    assert "dhl_delivered" in called_sensors
+
+
+@pytest.mark.asyncio
+async def test_update_shippers_resources_filter_restricts_legacy_carriers(hass):
+    """A non-empty legacy resources list filters out unselected carriers.
+
+    The fork-native sensors and data-driven binary sensors are never filtered.
+    """
+    config = {
+        **FAKE_CONFIG_DATA,
+        "resources": ["dhl_delivered", "dhl_delivering"],
+    }
+    with patch("homeassistant.helpers.frame.report_usage"):
+        coordinator = MailDataUpdateCoordinator(hass, config)
+
+    called_sensors = []
+
+    def _get_shipper(hass_, cfg, sensor):
+        called_sensors.append(sensor)
+
+    with (
+        patch(
+            "custom_components.mail_and_packages.coordinator.login",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.selectfolder",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.get_shipper_for_sensor",
+            side_effect=_get_shipper,
+        ),
+    ):
+        await coordinator.process_emails(hass, config)
+
+    # (b) unlisted international carrier is filtered out
+    assert "auspost_delivered" not in called_sensors
+    # listed sensors are still scanned
+    assert "dhl_delivered" in called_sensors
+    assert "dhl_delivering" in called_sensors
+    # (c) fork-native sensors always scanned despite the restrictive list
+    assert "universal_packages" in called_sensors
+    assert "packages_history" in called_sensors
+    assert "dhl_brief_anzahl" in called_sensors
+    # (d) data-driven binary sensor always scanned, never filtered
+    assert "usps_mail_delivered" in called_sensors
+
+
+@pytest.mark.asyncio
+async def test_update_shippers_amazon_disabled_skip_unaffected_by_resources(hass):
+    """(e) amazon_enabled=False still skips amazon sensors.
+
+    This holds even when the legacy resources list explicitly includes amazon keys.
+    """
+    config = {
+        **FAKE_CONFIG_DATA,
+        "resources": ["amazon_delivered", "amazon_packages", "dhl_delivered"],
+        "amazon_enabled": False,
+    }
+    with patch("homeassistant.helpers.frame.report_usage"):
+        coordinator = MailDataUpdateCoordinator(hass, config)
+
+    called_sensors = []
+
+    def _get_shipper(hass_, cfg, sensor):
+        called_sensors.append(sensor)
+
+    with (
+        patch(
+            "custom_components.mail_and_packages.coordinator.login",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.selectfolder",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.get_shipper_for_sensor",
+            side_effect=_get_shipper,
+        ),
+    ):
+        await coordinator.process_emails(hass, config)
+
+    assert not any(sensor.startswith("amazon_") for sensor in called_sensors)
+    assert "dhl_delivered" in called_sensors
