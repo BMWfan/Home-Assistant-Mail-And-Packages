@@ -193,6 +193,9 @@ async def test_sensor(hass, mock_update, entity_registry: er.EntityRegistry):
     assert state
     assert state.state == "7"
 
+    state = s("packages_history")
+    assert state, "packages_history entity missing from registry"
+
 
 @pytest.mark.parametrize(
     ("external_url", "internal_url", "expected_url"),
