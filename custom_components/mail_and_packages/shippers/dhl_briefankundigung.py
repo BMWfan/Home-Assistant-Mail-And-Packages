@@ -292,9 +292,25 @@ class DHLBriefankundigungClient:
 
         Returns the saved file path on success, None on failure.
         """
+        # Live-verified 2026-07-17: this endpoint sits behind the same
+        # dhli-cookie auth as the advices API (fetch_letters) and returns a
+        # bare 401 without it -- image_url alone is not enough.
+        id_token = await self._ensure_token_valid()
+        if not id_token:
+            _LOGGER.error(
+                "DHL Briefankündigung: Bild-Download übersprungen (%s) -- "
+                "kein gültiges Token",
+                image_url,
+            )
+            return None
+
         session = async_get_clientsession(self._hass)
+        headers = {
+            "Cookie": f"dhli={id_token}",
+            "User-Agent": _APP_USER_AGENT,
+        }
         try:
-            async with session.get(image_url) as resp:
+            async with session.get(image_url, headers=headers) as resp:
                 resp.raise_for_status()
                 encrypted_data = await resp.read()
         except Exception as err:  # noqa: BLE001
