@@ -235,9 +235,24 @@ class DHLBriefankundigungClient:
             return []
 
         if isinstance(data, list):
+            _LOGGER.debug(
+                "DHL Briefankündigung: Antwort ist Liste mit %d Eintrag/-trägen",
+                len(data),
+            )
             return data
         if isinstance(data, dict):
-            return data.get("advices", data.get("items", []))
+            letters = data.get("advices", data.get("items", []))
+            _LOGGER.debug(
+                "DHL Briefankündigung: Antwort-Keys=%s, advices/items-Treffer=%d",
+                list(data.keys()),
+                len(letters),
+            )
+            return letters
+        _LOGGER.debug(
+            "DHL Briefankündigung: unerwarteter Antworttyp %s: %r",
+            type(data).__name__,
+            data,
+        )
         return []
 
     async def fetch_and_decrypt_image(

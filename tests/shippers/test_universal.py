@@ -1,6 +1,6 @@
 """Tests for UniversalTrackingShipper."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -225,6 +225,48 @@ async def test_universal_search_error(hass, mock_imap_universal_ups):
 
     assert result[ATTR_COUNT] == 0
     assert result[ATTR_TRACKING] == []
+
+
+@pytest.mark.asyncio
+async def test_universal_scans_all_configured_folders(hass):
+    """Regression test: universal scan must cover every folder in account._folders.
+
+    Sets up a fake multi-folder account (INBOX + INBOX/Sonstiges/Hermes) with a
+    matching tracking-number email sitting ONLY in the second folder, and
+    exercises the real email_search_since/email_fetch_batch IMAP pipeline
+    (unmocked) instead of stubbing email_search_since directly. This would have
+    caught a regression where the universal shipper only scanned whichever
+    single folder happened to be currently SELECTed.
+    """
+    shipper = UniversalTrackingShipper(hass, {})
+
+    account = AsyncMock()
+    account._folders = ["INBOX", "INBOX/Sonstiges/Hermes"]
+    account._current_folder = None
+    account.has_capability = MagicMock(return_value=False)
+    account.host = "imap.example.com"
+    account.select = AsyncMock(return_value=("OK", [b""]))
+
+    # INBOX has no matches; the second folder has the one matching email.
+    res_inbox = MagicMock(result="OK", lines=[b""])
+    res_hermes = MagicMock(result="OK", lines=[b"5"])
+    account.uid_search = AsyncMock(side_effect=[res_inbox, res_hermes])
+
+    body = (
+        b"Subject: Your parcel\r\n\r\n"
+        b"Sendungsnummer: 05085100012345 ist unterwegs.\r\n"
+    )
+    header = b"5 (UID 5 BODY[TEXT] {1234}"
+    account.uid = AsyncMock(
+        return_value=MagicMock(result="OK", lines=[header, body])
+    )
+
+    result = await shipper.process(account, "10-Jun-2024", "universal_packages")
+
+    assert "05085100012345" in result[ATTR_TRACKING]
+    assert result[ATTR_COUNT] == 1
+    # Both folders must have been searched, not just whichever was selected.
+    assert account.uid_search.call_count == 2
 
 
 @pytest.mark.asyncio

@@ -53,12 +53,18 @@ ORDERED_PATTERNS: list[tuple[str, str, bool]] = [
     # (observed live: real DHL shipments were being mislabeled "fedex" via
     # the generic 20-digit pattern below, which is checked later).
     ("dhl", r"\b003404[0-9]{14}\b", False),
-    # Unlike the other direct-format patterns above, "H" + 15 alphanumeric
-    # chars has no distinguishing structure of its own -- it can match any
+    # Unlike the other direct-format patterns above, "H" + alphanumeric chars
+    # has no distinguishing structure of its own -- it can match any
     # base64-ish fragment (tracking pixels, encoded URL params, hashes) in
     # HTML mail. Require the same delivery-keyword context the bare-digit
     # patterns below use, or this matches far too often.
-    ("evri", r"\bH[0-9A-Z]{15}\b", True),
+    # Length range covers both the 16-char format and the 20-char German
+    # Hermes/Evri format observed live (e.g. "H1033370005537701050", next
+    # to "Sendungsnummer" -- a retailer-sent shipping confirmation, not an
+    # email from Hermes/Evri itself, hence why this must be caught by the
+    # generic universal scan rather than the hermes_delivering/_delivered
+    # sender-filtered sensors).
+    ("evri", r"\bH[0-9A-Z]{15,19}\b", True),
     ("post_at", r"\b[0-9]{22}\b", True),
     ("dpd", r"\b[0-9]{14}\b", True),
     ("fedex", r"\b(?:[0-9]{12}|[0-9]{15}|[0-9]{20})\b", True),
