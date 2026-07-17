@@ -241,10 +241,25 @@ class DHLBriefankundigungClient:
             )
             return data
         if isinstance(data, dict):
-            letters = data.get("advices", data.get("items", []))
+            # Live response shape (verified 2026-07-17) has neither "advices"
+            # nor "items" -- the actual letter data sits under "currentAdvice"
+            # (a single dict for today's announced letter, or falsy/None if
+            # none) and "oldAdvices" (a list of previously-seen letters).
+            letters: list[dict] = []
+            current = data.get("currentAdvice")
+            if isinstance(current, dict) and current:
+                letters.append(current)
+            elif isinstance(current, list):
+                letters.extend(item for item in current if isinstance(item, dict))
+            old = data.get("oldAdvices")
+            if isinstance(old, list):
+                letters.extend(item for item in old if isinstance(item, dict))
             _LOGGER.debug(
-                "DHL Briefankündigung: Antwort-Keys=%s, advices/items-Treffer=%d",
+                "DHL Briefankündigung: Antwort-Keys=%s, currentAdvice=%r, "
+                "oldAdvices-Anzahl=%d, gesamt=%d",
                 list(data.keys()),
+                current,
+                len(old) if isinstance(old, list) else 0,
                 len(letters),
             )
             return letters
