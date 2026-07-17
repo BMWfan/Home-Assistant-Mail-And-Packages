@@ -243,23 +243,38 @@ class DHLBriefankundigungClient:
         if isinstance(data, dict):
             # Live response shape (verified 2026-07-17) has neither "advices"
             # nor "items" -- the actual letter data sits under "currentAdvice"
-            # (a single dict for today's announced letter, or falsy/None if
-            # none) and "oldAdvices" (a list of previously-seen letters).
+            # and "oldAdvices", each a list of DATE GROUPS (not letters
+            # themselves): [{"date": "17.07.2026", "advices": [{"image_url":
+            # ..., "thumbnail_url": ..., ...}, ...]}, ...]. Flatten each
+            # group's nested "advices" into individual letter dicts, carrying
+            # the group's date along (coordinator._process_dhl_brief already
+            # reads "date"/"image_url" directly off each letter).
             letters: list[dict] = []
-            current = data.get("currentAdvice")
-            if isinstance(current, dict) and current:
-                letters.append(current)
-            elif isinstance(current, list):
-                letters.extend(item for item in current if isinstance(item, dict))
-            old = data.get("oldAdvices")
-            if isinstance(old, list):
-                letters.extend(item for item in old if isinstance(item, dict))
+            for group_source in (data.get("currentAdvice"), data.get("oldAdvices")):
+                if not isinstance(group_source, list):
+                    continue
+                for group in group_source:
+                    if not isinstance(group, dict):
+                        continue
+                    date = group.get("date")
+                    for advice in group.get("advices", []):
+                        if not isinstance(advice, dict):
+                            continue
+                        letter = dict(advice)
+                        letter.setdefault("date", date)
+                        # No explicit id in the API response -- the image URL
+                        # (which embeds a stable UUID) is unique per letter,
+                        # so it doubles as a de-facto id for storage/dedup.
+                        letter.setdefault("id", advice.get("image_url", ""))
+                        letters.append(letter)
             _LOGGER.debug(
-                "DHL Briefankündigung: Antwort-Keys=%s, currentAdvice=%r, "
-                "oldAdvices-Anzahl=%d, gesamt=%d",
+                "DHL Briefankündigung: Antwort-Keys=%s, Datumsgruppen "
+                "(current+old)=%d, geflacht auf %d Brief(e)",
                 list(data.keys()),
-                current,
-                len(old) if isinstance(old, list) else 0,
+                sum(
+                    len(g) if isinstance(g, list) else 0
+                    for g in (data.get("currentAdvice"), data.get("oldAdvices"))
+                ),
                 len(letters),
             )
             return letters
