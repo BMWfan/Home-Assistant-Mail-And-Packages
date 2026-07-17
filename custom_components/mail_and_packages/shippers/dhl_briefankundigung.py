@@ -277,6 +277,15 @@ class DHLBriefankundigungClient:
                 ),
                 len(letters),
             )
+            # TEMP diagnostic: image download 401s despite dhli cookie --
+            # these three top-level fields look like a separate auth scheme
+            # for the image domain (briefankuendigung.enplify.dhl.de).
+            _LOGGER.debug(
+                "DHL Briefankündigung: accessTokenUrl=%r grantToken=%r basicAuth=%r",
+                data.get("accessTokenUrl"),
+                data.get("grantToken"),
+                data.get("basicAuth"),
+            )
             return letters
         _LOGGER.debug(
             "DHL Briefankündigung: unerwarteter Antworttyp %s: %r",
