@@ -178,9 +178,6 @@ class SeventeenTrackClient:
                     if providers
                     else None
                 )
-                _LOGGER.debug(
-                    "17track raw providers for %s: %s", number, providers
-                )
                 # Full event history (for a per-shipment timeline UI) lives
                 # alongside latest_event on the resolved provider -- same
                 # per-event shape (description/location/time_iso) as
