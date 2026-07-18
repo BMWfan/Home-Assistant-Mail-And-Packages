@@ -126,22 +126,22 @@ class SeventeenTrackClient:
                     "status", ""
                 ) or "Unknown"
                 latest_event = track_info.get("latest_event") or {}
-                # TEMP diagnostic: check if 17track exposes an estimated
-                # delivery time window we're currently not surfacing.
-                _LOGGER.debug(
-                    "17track track_info keys for %s: %s | time_metrics=%r | "
-                    "milestone=%r",
-                    number,
-                    list(track_info.keys()),
-                    track_info.get("time_metrics"),
-                    track_info.get("milestone"),
-                )
+                # Live-verified 2026-07-18: 17track's v2 response carries an
+                # official estimated-delivery timestamp under
+                # time_metrics.estimated_delivery_date.to (a "by" deadline,
+                # not a from/to window -- "from" was None on every live
+                # shipment observed). Surface it so the card can show an
+                # actual delivery time instead of just a relative "X ago".
+                eta = ((track_info.get("time_metrics") or {}).get(
+                    "estimated_delivery_date"
+                ) or {}).get("to")
                 results[number] = {
                     "status": status_str,
                     "status_code": _V2_STATUS_TO_CODE.get(status_str, 0),
                     "last_event": latest_event.get("description", ""),
                     "last_location": latest_event.get("location") or "",
                     "last_update": latest_event.get("time_iso", ""),
+                    "estimated_delivery": eta or "",
                 }
 
             for item in data.get("data", {}).get("rejected", []):
