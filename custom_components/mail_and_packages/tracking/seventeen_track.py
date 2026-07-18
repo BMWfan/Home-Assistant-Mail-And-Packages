@@ -126,6 +126,16 @@ class SeventeenTrackClient:
                     "status", ""
                 ) or "Unknown"
                 latest_event = track_info.get("latest_event") or {}
+                # TEMP diagnostic: check if 17track exposes an estimated
+                # delivery time window we're currently not surfacing.
+                _LOGGER.debug(
+                    "17track track_info keys for %s: %s | time_metrics=%r | "
+                    "milestone=%r",
+                    number,
+                    list(track_info.keys()),
+                    track_info.get("time_metrics"),
+                    track_info.get("milestone"),
+                )
                 results[number] = {
                     "status": status_str,
                     "status_code": _V2_STATUS_TO_CODE.get(status_str, 0),
