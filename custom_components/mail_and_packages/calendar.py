@@ -54,6 +54,22 @@ def _parse_date(raw) -> datetime.date | None:
         return None
 
 
+def _as_dt(value: datetime.date | datetime.datetime) -> datetime.datetime:
+    """Normalize a CalendarEvent's start/end (date OR datetime) for comparison.
+
+    DHL letters/Amazon produce all-day events (plain `date`), package ETAs
+    produce timed events (`datetime`) -- comparing the two directly raises
+    "'>' not supported between instances of 'datetime.datetime' and
+    'datetime.date'" (live-verified 2026-07-18: the calendar's `event`
+    property and `async_get_events` both did this, so the entity silently
+    showed no next-event data at all despite _build_events() producing
+    real events).
+    """
+    if isinstance(value, datetime.datetime):
+        return value
+    return dt_util.start_of_local_day(value)
+
+
 class MailDeliveryCalendar(CoordinatorEntity, CalendarEntity):
     """A calendar of announced/expected deliveries."""
 
@@ -134,10 +150,10 @@ class MailDeliveryCalendar(CoordinatorEntity, CalendarEntity):
     @property
     def event(self) -> CalendarEvent | None:
         """Return the next upcoming event."""
-        today = dt_util.now().date()
+        now = dt_util.now()
         upcoming = sorted(
-            (e for e in self._build_events() if e.end > today),
-            key=lambda e: e.start,
+            (e for e in self._build_events() if _as_dt(e.end) > now),
+            key=lambda e: _as_dt(e.start),
         )
         return upcoming[0] if upcoming else None
 
@@ -148,6 +164,8 @@ class MailDeliveryCalendar(CoordinatorEntity, CalendarEntity):
         end_date: datetime.datetime,
     ) -> list[CalendarEvent]:
         """Return events within the requested window."""
-        start = start_date.date()
-        end = end_date.date()
-        return [e for e in self._build_events() if e.start < end and e.end > start]
+        return [
+            e
+            for e in self._build_events()
+            if _as_dt(e.start) < end_date and _as_dt(e.end) > start_date
+        ]
