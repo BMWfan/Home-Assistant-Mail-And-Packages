@@ -32,11 +32,24 @@ async def async_setup_entry(
 
 
 def _parse_date(raw) -> datetime.date | None:
-    """Parse a YYYY-MM-DD(...) string into a date, or return None."""
+    """Parse a YYYY-MM-DD(...) or DD.MM.YYYY string into a date, or None.
+
+    DHL's Briefankündigung API returns dates as "DD.MM.YYYY" (German
+    order), not ISO -- fromisoformat alone silently failed on every real
+    letter date, so this calendar never showed any (live-verified
+    2026-07-18). Try the German format first, then fall back to ISO for
+    any other source (e.g. a future YYYY-MM-DD field).
+    """
     if not raw:
         return None
+    raw = str(raw).strip()
     try:
-        return datetime.date.fromisoformat(str(raw)[:10])
+        day, month, year = raw.split(".")
+        return datetime.date(int(year), int(month), int(day))
+    except (ValueError, TypeError):
+        pass
+    try:
+        return datetime.date.fromisoformat(raw[:10])
     except (ValueError, TypeError):
         return None
 
@@ -80,6 +93,29 @@ class MailDeliveryCalendar(CoordinatorEntity, CalendarEntity):
                         end=day + datetime.timedelta(days=1),
                     )
                 )
+
+        # Tracked packages (universal scanner + 17track) with an official
+        # estimated-delivery time -- one timed event per shipment instead
+        # of an all-day block, since 17track gives an actual "by" time.
+        for detail in data.get("universal_tracking_details", []) or []:
+            eta_raw = detail.get("estimated_delivery")
+            if not eta_raw or detail.get("status") == "Delivered":
+                continue
+            try:
+                eta = dt_util.parse_datetime(eta_raw)
+            except (ValueError, TypeError):
+                eta = None
+            if not eta:
+                continue
+            carrier = str(detail.get("carrier") or "").upper()
+            number = detail.get("number", "")
+            events.append(
+                CalendarEvent(
+                    summary=f"{carrier} {number}".strip() or "Package delivery",
+                    start=eta,
+                    end=eta + datetime.timedelta(minutes=30),
+                )
+            )
 
         # Amazon packages arriving today.
         amazon = data.get("amazon_packages")
