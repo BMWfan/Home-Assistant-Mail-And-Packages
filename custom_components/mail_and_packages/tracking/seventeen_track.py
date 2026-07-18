@@ -178,6 +178,22 @@ class SeventeenTrackClient:
                     if providers
                     else None
                 )
+                _LOGGER.debug(
+                    "17track raw providers for %s: %s", number, providers
+                )
+                # Full event history (for a per-shipment timeline UI) lives
+                # alongside latest_event on the resolved provider -- same
+                # per-event shape (description/location/time_iso) as
+                # latest_event itself.
+                raw_events = (providers[0].get("events") if providers else None) or []
+                history = [
+                    {
+                        "time": e.get("time_iso", ""),
+                        "description": e.get("description", ""),
+                        "location": e.get("location") or "",
+                    }
+                    for e in raw_events
+                ]
                 results[number] = {
                     "status": status_str,
                     "status_code": _V2_STATUS_TO_CODE.get(status_str, 0),
@@ -186,6 +202,7 @@ class SeventeenTrackClient:
                     "last_update": latest_event.get("time_iso", ""),
                     "estimated_delivery": eta or "",
                     "resolved_carrier": _RESOLVED_CARRIER_NAMES.get(provider_key),
+                    "history": history,
                 }
 
             for item in data.get("data", {}).get("rejected", []):
