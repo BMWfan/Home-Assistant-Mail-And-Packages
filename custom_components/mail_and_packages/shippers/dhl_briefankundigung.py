@@ -272,9 +272,15 @@ class DHLBriefankundigungClient:
                         letter = dict(advice)
                         letter.setdefault("date", date)
                         # No explicit id in the API response -- the image URL
-                        # (which embeds a stable UUID) is unique per letter,
-                        # so it doubles as a de-facto id for storage/dedup.
-                        letter.setdefault("id", advice.get("image_url", ""))
+                        # embeds a stable UUID unique per letter. Extract
+                        # just that (not the full URL, which coordinator.py
+                        # uses directly as a filename component -- the raw
+                        # URL there produced a broken path with literal "/"
+                        # and "?" characters, live-verified 2026-07-18).
+                        raw_url = advice.get("image_url", "")
+                        letter.setdefault(
+                            "id", raw_url.rsplit("/", 1)[-1].split("?", maxsplit=1)[0]
+                        )
                         letters.append(letter)
             _LOGGER.debug(
                 "DHL Briefankündigung: Antwort-Keys=%s, Datumsgruppen "
