@@ -131,6 +131,15 @@ class DHLBriefankundigungClient:
         self._hass = hass
         self._tokens: dict = dict(tokens)
         self._auth_failed = False
+        # Image downloads (briefankuendigung.enplify.dhl.de) use a SEPARATE
+        # auth scheme from the advices API's dhli cookie: the advices
+        # response carries a short-lived grantToken + the URL to exchange
+        # it for an AccessToken cookie (live-verified 2026-07-18). Cached
+        # here per-instance since one exchange covers every letter image in
+        # a scan (the AccessToken cookie itself is valid 24h).
+        self._image_access_token_url: str | None = None
+        self._image_grant_token: str | None = None
+        self._image_access_token: str | None = None
 
     @property
     def tokens(self) -> dict:
@@ -277,15 +286,13 @@ class DHLBriefankundigungClient:
                 ),
                 len(letters),
             )
-            # TEMP diagnostic: image download 401s despite dhli cookie --
-            # these three top-level fields look like a separate auth scheme
-            # for the image domain (briefankuendigung.enplify.dhl.de).
-            _LOGGER.debug(
-                "DHL Briefankündigung: accessTokenUrl=%r grantToken=%r basicAuth=%r",
-                data.get("accessTokenUrl"),
-                data.get("grantToken"),
-                data.get("basicAuth"),
-            )
+            # Save the image-domain grant for fetch_and_decrypt_image(). A
+            # fresh grantToken arrives on every advices call; only exchange
+            # it for a new AccessToken cookie if we don't already have one
+            # (see _ensure_image_access_token) -- the cookie outlives the
+            # short-lived grantToken by a wide margin (24h vs. 5min).
+            self._image_access_token_url = data.get("accessTokenUrl") or None
+            self._image_grant_token = data.get("grantToken") or None
             return letters
         _LOGGER.debug(
             "DHL Briefankündigung: unerwarteter Antworttyp %s: %r",
@@ -294,6 +301,54 @@ class DHLBriefankundigungClient:
         )
         return []
 
+    async def _ensure_image_access_token(self) -> str | None:
+        """Return a valid AccessToken cookie value for the image domain.
+
+        Live-verified 2026-07-18: briefankuendigung.enplify.dhl.de/pdapp-web
+        image downloads do NOT accept the advices API's dhli cookie (bare
+        401). They need a separate AccessToken cookie, obtained by POSTing
+        the advices response's short-lived grantToken (5 min TTL) to its
+        accessTokenUrl as {"grant_token": <token>} -- the exchange returns
+        204 with the real token in a Set-Cookie header (24h TTL), not the
+        response body. Cached until we no longer have one; a stale cookie
+        just fails with 403 and the caller falls through to the next scan's
+        fresh grantToken (fetch_letters runs before this every scan).
+        """
+        if self._image_access_token:
+            return self._image_access_token
+        if not self._image_access_token_url or not self._image_grant_token:
+            return None
+
+        session = async_get_clientsession(self._hass)
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": _APP_USER_AGENT,
+        }
+        try:
+            async with session.post(
+                self._image_access_token_url,
+                json={"grant_token": self._image_grant_token},
+                headers=headers,
+            ) as resp:
+                resp.raise_for_status()
+                cookie = resp.cookies.get("AccessToken")
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error(
+                "DHL Briefankündigung: Access-Token-Tausch fehlgeschlagen: %s",
+                err,
+            )
+            return None
+
+        if not cookie:
+            _LOGGER.error(
+                "DHL Briefankündigung: Access-Token-Tausch ohne AccessToken-Cookie "
+                "in der Antwort"
+            )
+            return None
+
+        self._image_access_token = cookie.value
+        return self._image_access_token
+
     async def fetch_and_decrypt_image(
         self, image_url: str, save_path: str
     ) -> str | None:
@@ -301,25 +356,27 @@ class DHLBriefankundigungClient:
 
         Returns the saved file path on success, None on failure.
         """
-        # Live-verified 2026-07-17: this endpoint sits behind the same
-        # dhli-cookie auth as the advices API (fetch_letters) and returns a
-        # bare 401 without it -- image_url alone is not enough.
-        id_token = await self._ensure_token_valid()
-        if not id_token:
+        access_token = await self._ensure_image_access_token()
+        if not access_token:
             _LOGGER.error(
                 "DHL Briefankündigung: Bild-Download übersprungen (%s) -- "
-                "kein gültiges Token",
+                "kein Access-Token für die Bild-Domain",
                 image_url,
             )
             return None
 
         session = async_get_clientsession(self._hass)
         headers = {
-            "Cookie": f"dhli={id_token}",
+            "Cookie": f"AccessToken={access_token}",
             "User-Agent": _APP_USER_AGENT,
         }
         try:
             async with session.get(image_url, headers=headers) as resp:
+                if resp.status == 403:
+                    # Cookie stale/expired -- drop it so the next scan's
+                    # fresh grantToken (from fetch_letters) gets exchanged
+                    # for a new one instead of retrying the dead cookie.
+                    self._image_access_token = None
                 resp.raise_for_status()
                 encrypted_data = await resp.read()
         except Exception as err:  # noqa: BLE001
