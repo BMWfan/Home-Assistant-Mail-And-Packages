@@ -303,10 +303,38 @@ class UniversalTrackingShipper(Shipper):
         # 17track API key becomes a repair issue.
         self._seventeen_auth_failed = client.auth_failed
 
+        # "dpd" is our weakest classification (bare 14-digit run + only the
+        # generic "sendungsnummer" context, per _BRAND_CONTEXT_RE) and
+        # collides in format with Hermes (DE) 14-digit numbers -- 17track's
+        # unhinted auto-detect flatly rejects real Hermes numbers of this
+        # shape (live-verified 2026-07-18: user-confirmed Hermes shipment,
+        # status_code -1). Retry those specific rejects once, hinting
+        # Hermes (DE) explicitly. Safe: a genuine non-tracking number (e.g.
+        # the BANDWERK marketing-newsletter phantom that motivated the
+        # dpd brand-context tightening) still fails carrier-format
+        # validation under the Hermes hint too, so this can't resurrect
+        # actual false positives -- it only rescues numbers that validate
+        # as a real Hermes tracking number.
+        retry_numbers = [
+            n
+            for n in tracking_list
+            if found.get(n) == "dpd" and status_map.get(n, {}).get("status_code") == -1
+        ]
+        if retry_numbers:
+            await client.register(
+                retry_numbers, carrier_hints=dict.fromkeys(retry_numbers, 100031)
+            )
+            retry_status = await client.get_status_batch(retry_numbers)
+            for n in retry_numbers:
+                resolved = retry_status.get(n, {})
+                if resolved.get("status_code") != -1:
+                    found[n] = "evri"
+                    status_map[n] = resolved
+
         enriched = []
-        for item in base_details:
-            detail = dict(item)
-            detail.update(status_map.get(item["number"], {}))
+        for number in tracking_list:
+            detail = {"number": number, "carrier": found[number]}
+            detail.update(status_map.get(number, {}))
             enriched.append(detail)
         return enriched
 

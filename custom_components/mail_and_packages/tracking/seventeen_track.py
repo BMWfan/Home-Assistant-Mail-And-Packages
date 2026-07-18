@@ -49,18 +49,34 @@ class SeventeenTrackClient:
         }
         self.auth_failed = False
 
-    async def register(self, tracking_numbers: list[str]) -> None:
+    async def register(
+        self,
+        tracking_numbers: list[str],
+        carrier_hints: dict[str, int] | None = None,
+    ) -> None:
         """Register tracking numbers with 17track before the first status query.
 
         17track is idempotent: re-registering an already-known number is safe.
         Only net-new registrations count against the monthly quota.
+
+        `carrier_hints` (number -> 17track numeric carrier id, from
+        https://res.17track.net/asset/carrier/info/apicarrier.all.json)
+        lets a caller force which courier 17track validates a number
+        against when auto-detection can't tell -- e.g. bare 14-digit
+        numbers are ambiguous between DPD (DE, id 100007) and Hermes (DE,
+        id 100031); live-verified 2026-07-18 that 17track's unhinted
+        auto-detect rejects a real Hermes number of that format outright.
         """
         if not tracking_numbers:
             return
+        carrier_hints = carrier_hints or {}
         session = async_get_clientsession(self._hass)
         for i in range(0, len(tracking_numbers), _BATCH_LIMIT):
             chunk = tracking_numbers[i : i + _BATCH_LIMIT]
-            payload = [{"number": n} for n in chunk]
+            payload = [
+                {"number": n, **({"carrier": carrier_hints[n]} if n in carrier_hints else {})}
+                for n in chunk
+            ]
             try:
                 async with session.post(
                     f"{_API_BASE}/register",
