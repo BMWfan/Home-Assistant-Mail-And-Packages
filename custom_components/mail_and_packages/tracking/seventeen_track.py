@@ -36,6 +36,17 @@ _V2_STATUS_TO_CODE: dict[str, int] = {
     "Exception": 50,
 }
 
+# 17track's own resolved-carrier numeric ids (from track_info.tracking.
+# providers[0].provider.key), mapped to this integration's internal carrier
+# names -- only the ids we've verified live so far via
+# https://res.17track.net/asset/carrier/info/apicarrier.all.json. Extend as
+# more carrier-resolution mismatches turn up; an unmapped id is left as
+# None so the caller falls back to its own text-based classification.
+_RESOLVED_CARRIER_NAMES: dict[int, str] = {
+    100007: "dpd",
+    100031: "evri",  # "Hermes (DE)" in 17track's carrier list
+}
+
 
 class SeventeenTrackClient:
     """Async client for the 17track.net shipment tracking API."""
@@ -151,16 +162,21 @@ class SeventeenTrackClient:
                 eta = ((track_info.get("time_metrics") or {}).get(
                     "estimated_delivery_date"
                 ) or {}).get("to")
-                # TEMP diagnostic: our own carrier guess can be wrong (bare
-                # 14-digit DPD/Hermes-DE collision) while 17track's own
-                # resolution is right (its event text names the real
-                # carrier) -- check if it exposes that resolved carrier
-                # somewhere so we can trust it over our regex guess.
-                _LOGGER.debug(
-                    "17track shipping_info=%r misc_info=%r tracking=%r",
-                    track_info.get("shipping_info"),
-                    track_info.get("misc_info"),
-                    track_info.get("tracking"),
+                # Live-verified 2026-07-18: track_info.tracking.providers[0]
+                # .provider carries 17track's OWN resolved carrier (numeric
+                # "key" + "name") -- ground truth, independent of whichever
+                # carrier we guessed from email text or hinted at register()
+                # time. Prefer this over our own regex-based classification
+                # whenever it maps to a carrier we know (see
+                # _RESOLVED_CARRIER_NAMES) -- our text classification can be
+                # wrong (bare 14-digit DPD/Hermes-DE collision, no brand
+                # name in the email at all), 17track's own carrier database
+                # match is authoritative.
+                providers = (track_info.get("tracking") or {}).get("providers") or []
+                provider_key = (
+                    (providers[0].get("provider") or {}).get("key")
+                    if providers
+                    else None
                 )
                 results[number] = {
                     "status": status_str,
@@ -169,6 +185,7 @@ class SeventeenTrackClient:
                     "last_location": latest_event.get("location") or "",
                     "last_update": latest_event.get("time_iso", ""),
                     "estimated_delivery": eta or "",
+                    "resolved_carrier": _RESOLVED_CARRIER_NAMES.get(provider_key),
                 }
 
             for item in data.get("data", {}).get("rejected", []):

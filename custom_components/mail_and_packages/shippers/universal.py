@@ -328,13 +328,27 @@ class UniversalTrackingShipper(Shipper):
             for n in retry_numbers:
                 resolved = retry_status.get(n, {})
                 if resolved.get("status_code") != -1:
-                    found[n] = "evri"
                     status_map[n] = resolved
+
+        # Trust 17track's own carrier resolution (results[number]
+        # ["resolved_carrier"], set from track_info.tracking.providers[0]
+        # .provider.key -- see seventeen_track.py) over our own text-based
+        # guess whenever it disagrees. Live-verified 2026-07-18: our regex
+        # guessed "dpd" for a bare 14-digit number with no brand name
+        # anywhere in the email, 17track's carrier database correctly
+        # resolved it as Hermes (DE) even on a scan where status_code was
+        # no longer -1 (so the retry-and-reclassify block above never ran)
+        # -- relying only on the retry path missed this case entirely.
+        for number in tracking_list:
+            resolved_carrier = status_map.get(number, {}).get("resolved_carrier")
+            if resolved_carrier:
+                found[number] = resolved_carrier
 
         enriched = []
         for number in tracking_list:
             detail = {"number": number, "carrier": found[number]}
             detail.update(status_map.get(number, {}))
+            detail.pop("resolved_carrier", None)  # internal-only, folded into "carrier" above
             enriched.append(detail)
         return enriched
 
