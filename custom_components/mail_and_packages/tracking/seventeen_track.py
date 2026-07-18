@@ -151,6 +151,17 @@ class SeventeenTrackClient:
                 eta = ((track_info.get("time_metrics") or {}).get(
                     "estimated_delivery_date"
                 ) or {}).get("to")
+                # TEMP diagnostic: our own carrier guess can be wrong (bare
+                # 14-digit DPD/Hermes-DE collision) while 17track's own
+                # resolution is right (its event text names the real
+                # carrier) -- check if it exposes that resolved carrier
+                # somewhere so we can trust it over our regex guess.
+                _LOGGER.debug(
+                    "17track shipping_info=%r misc_info=%r tracking=%r",
+                    track_info.get("shipping_info"),
+                    track_info.get("misc_info"),
+                    track_info.get("tracking"),
+                )
                 results[number] = {
                     "status": status_str,
                     "status_code": _V2_STATUS_TO_CODE.get(status_str, 0),
