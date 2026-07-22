@@ -123,6 +123,43 @@ async def exchange_code(hass: HomeAssistant, code: str, code_verifier: str) -> d
         return tokens
 
 
+def _flatten_advices(data: dict) -> list[dict]:
+    """Flatten DHL date-grouped advices into individual letter dicts.
+
+    Live response shape (verified 2026-07-17) has neither "advices" nor
+    "items" -- the actual letter data sits under "currentAdvice" and
+    "oldAdvices", each a list of DATE GROUPS (not letters themselves):
+    [{"date": "17.07.2026", "advices": [{"image_url": ..., ...}, ...]}, ...].
+    Flatten each group's nested "advices" into individual letter dicts,
+    carrying the group's date along (coordinator._process_dhl_brief already
+    reads "date"/"image_url" directly off each letter).
+    """
+    letters: list[dict] = []
+    for group_source in (data.get("currentAdvice"), data.get("oldAdvices")):
+        if not isinstance(group_source, list):
+            continue
+        for group in group_source:
+            if not isinstance(group, dict):
+                continue
+            date = group.get("date")
+            for advice in group.get("advices", []):
+                if not isinstance(advice, dict):
+                    continue
+                letter = dict(advice)
+                letter.setdefault("date", date)
+                # No explicit id in the API response -- the image URL embeds
+                # a stable UUID unique per letter. Extract just that (not the
+                # full URL, which coordinator.py uses directly as a filename
+                # component -- the raw URL there produced a broken path with
+                # literal "/" and "?" characters, live-verified 2026-07-18).
+                raw_url = advice.get("image_url", "")
+                letter.setdefault(
+                    "id", raw_url.rsplit("/", 1)[-1].split("?", maxsplit=1)[0]
+                )
+                letters.append(letter)
+    return letters
+
+
 class DHLBriefankundigungClient:
     """Client for the DHL Briefankündigung (letter preview) API."""
 
@@ -250,46 +287,10 @@ class DHLBriefankundigungClient:
             )
             return data
         if isinstance(data, dict):
-            # Live response shape (verified 2026-07-17) has neither "advices"
-            # nor "items" -- the actual letter data sits under "currentAdvice"
-            # and "oldAdvices", each a list of DATE GROUPS (not letters
-            # themselves): [{"date": "17.07.2026", "advices": [{"image_url":
-            # ..., "thumbnail_url": ..., ...}, ...]}, ...]. Flatten each
-            # group's nested "advices" into individual letter dicts, carrying
-            # the group's date along (coordinator._process_dhl_brief already
-            # reads "date"/"image_url" directly off each letter).
-            letters: list[dict] = []
-            for group_source in (data.get("currentAdvice"), data.get("oldAdvices")):
-                if not isinstance(group_source, list):
-                    continue
-                for group in group_source:
-                    if not isinstance(group, dict):
-                        continue
-                    date = group.get("date")
-                    for advice in group.get("advices", []):
-                        if not isinstance(advice, dict):
-                            continue
-                        letter = dict(advice)
-                        letter.setdefault("date", date)
-                        # No explicit id in the API response -- the image URL
-                        # embeds a stable UUID unique per letter. Extract
-                        # just that (not the full URL, which coordinator.py
-                        # uses directly as a filename component -- the raw
-                        # URL there produced a broken path with literal "/"
-                        # and "?" characters, live-verified 2026-07-18).
-                        raw_url = advice.get("image_url", "")
-                        letter.setdefault(
-                            "id", raw_url.rsplit("/", 1)[-1].split("?", maxsplit=1)[0]
-                        )
-                        letters.append(letter)
+            letters = _flatten_advices(data)
             _LOGGER.debug(
-                "DHL Briefankündigung: Antwort-Keys=%s, Datumsgruppen "
-                "(current+old)=%d, geflacht auf %d Brief(e)",
+                "DHL Briefankündigung: Antwort-Keys=%s, geflacht auf %d Brief(e)",
                 list(data.keys()),
-                sum(
-                    len(g) if isinstance(g, list) else 0
-                    for g in (data.get("currentAdvice"), data.get("oldAdvices"))
-                ),
                 len(letters),
             )
             # Save the image-domain grant for fetch_and_decrypt_image(). A
