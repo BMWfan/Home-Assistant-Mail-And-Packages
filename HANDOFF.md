@@ -1,11 +1,54 @@
 # Handoff – Mail and Packages (branch `test/all-features`)
 
-Stand: 2026-07-04 (aktualisiert)  
-Aktuelles Release: **v0.5.9-test56** (prerelease auf GitHub)
+Stand: 2026-07-22 (aktualisiert)  
+Aktuelles Release: **v0.6.2-test78** (prerelease auf GitHub)
 
 > Abschnitte 2–3 unten dokumentieren die **historische** IMAP-Timeout-Saga (test11–17).
 > Das Problem ist seit **test16 (Reconnect)** + **test21 (Batch-Fetch)** gelöst – siehe Abschnitt 0.
 > Für den aktuellen Stand und den Deploy-Workflow **zuerst Abschnitt 0 lesen.**
+
+**Testsuite (nur WSL/Linux, HA braucht `fcntl`):**
+WSL-native venv liegt unter `~/.venvs/mnp` (Python 3.13, Deps aus `requirements_test.txt`).
+Im WSL-Terminal: `cd '/mnt/c/Users/danie/OneDrive/Documents/New project' && ~/.venvs/mnp/bin/python -m pytest -q`
+→ Stand 2026-07-22: **648 passed, Coverage ~91 %**. Die Repo-eigene Windows-`.venv` ist unbrauchbar
+(OneDrive-Lock, veraltet) — nicht aus WSL löschbar, bei Gelegenheit von Windows-Seite entfernen.
+
+### test57–test78 (2026-07-04 → 2026-07-22) — Überblick
+
+Drei Themenblöcke (Details pro Commit in `git log v0.5.9-test56..HEAD`):
+
+**17track-Saga (Trackingnummern + Timeline):**
+- test59: Amazon-TBA-Trackingnummern erkannt (0d46a05).
+- test66: Evri 20-Zeichen-DE-Format (f1c086f).
+- test76: Hermes-DE-Hint-Retry für bare 14-stellige Nummern (6524dde).
+- test78: 17track-resolved Carrier hat Vorrang vor Text-Guess (c5a4783).
+- e43655f: volle 17track-Event-History pro Shipment — Datenbasis für die Timeline-UI
+  im Schwester-Repo `mail-packages-card` (Custom Card, Stand v0.1.1-beta.15,
+  Branch `feat/shipment-list-redesign`: „Details"-Textlink klappt Verlauf auf,
+  nächster Meilenstein statt Status-Duplikat).
+
+**DHL-Brief-Saga (PKCE-Auth + Briefankündigung):**
+- test62: frischer PKCE `code_verifier` pro Reauth (5aeed17).
+- test63: `CancelledError` in `logout()` nicht schlucken (66bb621).
+- test65: `IMAP_COMMAND_TIMEOUT` auf allen Fallback-Pfaden (1351d7c).
+- test67/68: Letter-Advices aus `currentAdvice`/`oldAdvices` lesen, Date-Groups flachziehen (548742b, c5e4330).
+- test69–71: dhli-Auth-Cookie + grantToken→AccessToken-Exchange für Image-Download (418a8ef, fbe0a44, c078bbd).
+- test72: kurze UUID als Letter-ID-Dateiname statt Image-URL (3994a31).
+- test74: DHL-Letter-Daten `DD.MM.YYYY` im Kalender + Package-ETA-Events (d8a489a).
+- test75: date/datetime-Normalisierung vor Compare in `async_get_events` (0f9421a).
+
+**Sonstiges:**
+- 0e835b6 + 412f639: persistenter 90-Tage-Delivered-Packages-Verlauf + einmaliger History-Backfill; DHL-Login-Failures sichtbar.
+- 469c2a9: Plattformen vor `ConfigEntryNotReady` entladen.
+- test64: Legacy-Resources-Liste als Opt-in-Scan-Filter (d371c49).
+- 9285b5c: Upstream-Merge `dev` (18 Commits, 0.5.9–0.5.13: #1291–#1305 amazon/dhl/hermes/imap/setup).
+- deac772/7802234/50aa1e9/15e5215/41f2ecf/fa59279: Fork↔Upstream Test-Reconciliation + Test-Alignments (Testsuite bleibt strukturell kaputt, siehe Offene Punkte).
+
+**Live-Status (verifiziert 2026-07-22):** Integration gesund auf homeassistant.mackcloud.de —
+Coordinator-Update in ~30 s erfolgreich (Timeout-Saga bleibt gelöst), keine Fehler im Log,
+alle 29 Sensoren zählen 0 (keine Pakete unterwegs), `mail_updated` aktuell.
+Ausstehende Verifikation: amazon_delivered (test34) ohne Amazon-Mails nicht prüfbar;
+Fahrer-Foto-Host (test33) wartet auf echte Foto-Zustellung.
 
 ---
 
