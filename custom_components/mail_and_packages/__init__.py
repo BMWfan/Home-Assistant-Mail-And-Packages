@@ -1,11 +1,12 @@
 """Mail and Packages Integration."""
 
 import asyncio
+import datetime
 import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_RESOURCES
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import (
     config_validation as cv,
@@ -16,6 +17,7 @@ from homeassistant.helpers import (
 from homeassistant.helpers import (
     issue_registry as ir,
 )
+from homeassistant.util import dt as dt_util
 
 from . import const
 from .const import (
@@ -175,6 +177,56 @@ async def async_setup_entry(
         _LOGGER.error("Error updating sensor data: %s", detail)
         await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
         raise ConfigEntryNotReady
+
+    # TEMPORARY -- ad-hoc test service to seed one fake delivered-history
+    # record with a real-shaped event history, for verifying the card's new
+    # history-timeline UI without waiting for a real delivery. Remove once
+    # verified.
+    async def _debug_seed_history(_call: ServiceCall) -> None:
+        c = config_entry.runtime_data.coordinator
+        delivered_date = (dt_util.now().date() - datetime.timedelta(days=2)).isoformat()
+        c._history.append(  # noqa: SLF001
+            {
+                "carrier": "evri",
+                "number": "H1033370005537701050",
+                "delivered": delivered_date,
+                "first_seen": None,
+                "history": [
+                    {
+                        "time": "2026-07-18T11:41:45+02:00",
+                        "description": "Die Sendung wurde an der Empfangsadresse zugestellt.",
+                        "location": "",
+                    },
+                    {
+                        "time": "2026-07-18T06:40:54+02:00",
+                        "description": "Die Sendung wurde ins Zustellfahrzeug geladen und wird voraussichtlich heute zugestellt.",
+                        "location": "",
+                    },
+                    {
+                        "time": "2026-07-18T00:21:41+02:00",
+                        "description": "Die Sendung ist in der Zielregion Bad Rappenau (Heilbronn) angekommen.",
+                        "location": "",
+                    },
+                    {
+                        "time": "2026-07-17T07:32:30+02:00",
+                        "description": "Die Sendung wurde von Hermes in Kabelsketal-Leipzig übernommen und wird für den weiteren Versand vorbereitet.",
+                        "location": "",
+                    },
+                    {
+                        "time": "2026-07-16T18:09:20+02:00",
+                        "description": "Die Sendung wurde Hermes elektronisch angekündigt. Weitere Informationen folgen, sobald Hermes die Sendung erhalten hat.",
+                        "location": "",
+                    },
+                ],
+            }
+        )
+        await c._async_save_tracking()  # noqa: SLF001
+        c.data["packages_history"] = len(c._history)  # noqa: SLF001
+        c.data["packages_history_details"] = list(c._history)  # noqa: SLF001
+        c.async_set_updated_data(c.data)
+
+    if not hass.services.has_service(DOMAIN, "debug_seed_history"):
+        hass.services.async_register(DOMAIN, "debug_seed_history", _debug_seed_history)
 
     return True
 
