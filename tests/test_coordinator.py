@@ -8,7 +8,11 @@ import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.mail_and_packages.const import CONF_FOLDER
+from custom_components.mail_and_packages import const
+from custom_components.mail_and_packages.const import (
+    CONF_17TRACK_API_KEY,
+    CONF_FOLDER,
+)
 from custom_components.mail_and_packages.coordinator import MailDataUpdateCoordinator
 from custom_components.mail_and_packages.utils.imap import InvalidAuth
 from tests.const import FAKE_CONFIG_DATA
@@ -961,3 +965,182 @@ async def test_update_shippers_amazon_disabled_skip_unaffected_by_resources(hass
 
     assert not any(sensor.startswith("amazon_") for sensor in called_sensors)
     assert "dhl_delivered" in called_sensors
+
+
+@pytest.mark.asyncio
+async def test_update_shippers_seventeen_track_skips_status_sensors(hass):
+    """17track API key set -> per-carrier IMAP status searches are skipped.
+
+    Mail sensors, binary data sensors, fork-native sensors and Amazon
+    (not covered by 17track) must keep scanning.
+    """
+    config = {k: v for k, v in FAKE_CONFIG_DATA.items() if k != "resources"}
+    config[CONF_17TRACK_API_KEY] = "fake-api-key"
+    config["amazon_enabled"] = True
+    with patch("homeassistant.helpers.frame.report_usage"):
+        coordinator = MailDataUpdateCoordinator(hass, config)
+
+    called_sensors = []
+
+    def _get_shipper(hass_, cfg, sensor):
+        called_sensors.append(sensor)
+
+    with (
+        patch(
+            "custom_components.mail_and_packages.coordinator.login",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.selectfolder",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.get_shipper_for_sensor",
+            side_effect=_get_shipper,
+        ),
+    ):
+        await coordinator.process_emails(hass, config)
+
+    for sensor in called_sensors:
+        # universal_packages is fork-native discovery (always scanned),
+        # usps_mail_delivered is a binary mail sensor, amazon_ keeps scanning
+        if sensor in ("universal_packages", "usps_mail_delivered"):
+            continue
+        if sensor.startswith("amazon_"):
+            continue
+        assert not sensor.endswith(
+            ("_delivering", "_delivered", "_exception", "_packages")
+        ), f"status sensor {sensor} should have been skipped in 17track mode"
+
+    # Amazon is not covered by 17track and keeps its email scans
+    assert "amazon_packages" in called_sensors
+    # mail, binary and fork-native sensors keep scanning
+    assert "universal_packages" in called_sensors
+    assert "usps_mail" in called_sensors
+    assert "usps_mail_delivered" in called_sensors
+    assert "capost_mail" in called_sensors
+    assert "post_de_mail" in called_sensors
+
+
+@pytest.mark.asyncio
+async def test_update_shippers_mail_mode_unchanged(hass):
+    """No 17track key -> requested sensor set identical to current behavior."""
+    config = {k: v for k, v in FAKE_CONFIG_DATA.items() if k != "resources"}
+    with patch("homeassistant.helpers.frame.report_usage"):
+        coordinator = MailDataUpdateCoordinator(hass, config)
+
+    called_sensors = []
+
+    def _get_shipper(hass_, cfg, sensor):
+        called_sensors.append(sensor)
+
+    with (
+        patch(
+            "custom_components.mail_and_packages.coordinator.login",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.selectfolder",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.get_shipper_for_sensor",
+            side_effect=_get_shipper,
+        ),
+    ):
+        await coordinator.process_emails(hass, config)
+
+    binary_data_sensors = [
+        key
+        for key in const.BINARY_SENSORS
+        if key in const.SENSOR_DATA and key not in const.SENSOR_TYPES
+    ]
+    expected = {
+        sensor
+        for sensor in [*const.SENSOR_TYPES, *binary_data_sensors]
+        if not sensor.startswith("amazon_")
+    }
+    assert set(called_sensors) == expected
+
+
+@pytest.mark.asyncio
+async def test_prefetch_receives_no_status_queries_in_seventeen_track_mode(hass):
+    """17track mode -> only the remaining mail QuerySpecs reach batch_search_folders."""
+    config = {k: v for k, v in FAKE_CONFIG_DATA.items() if k != "resources"}
+    config[CONF_17TRACK_API_KEY] = "fake-api-key"
+    with patch("homeassistant.helpers.frame.report_usage"):
+        coordinator = MailDataUpdateCoordinator(hass, config)
+
+    captured = []
+
+    async def _batch_search(account, queries):
+        captured.extend(queries)
+        return account
+
+    with (
+        patch(
+            "custom_components.mail_and_packages.coordinator.login",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.selectfolder",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.batch_search_folders",
+            side_effect=_batch_search,
+        ),
+    ):
+        await coordinator.process_emails(hass, config)
+
+    # Only capost_mail and usps_mail_delivered route to a shipper that
+    # collects queries (GenericShipper); usps_mail/post_de_mail have
+    # dedicated shippers without collect_queries. usps_mail_delivered is a
+    # _delivered sensor and produces 2 specs (SINCE window + today pass).
+    assert len(captured) == 3
+    queries = " ".join(spec.query for spec in captured)
+    assert "canadapost" in queries
+    assert "usps" in queries.lower()
+
+
+@pytest.mark.asyncio
+async def test_process_emails_17track_delivered_count_derived(hass):
+    """17track mode -> delivered counts derived from today's history records."""
+    config = {k: v for k, v in FAKE_CONFIG_DATA.items() if k != "resources"}
+    config[CONF_17TRACK_API_KEY] = "fake-api-key"
+    with patch("homeassistant.helpers.frame.report_usage"):
+        coordinator = MailDataUpdateCoordinator(hass, config)
+
+    today_iso = datetime.datetime.now().date().isoformat()
+    coordinator._history.append(
+        {
+            "carrier": "ups",
+            "number": "1Z12345E0291980793",
+            "delivered": today_iso,
+            "first_seen": None,
+        }
+    )
+    # Keep the seeded history: don't reload persisted (empty) state.
+    coordinator._tracking_loaded = True
+
+    mock_shipper = AsyncMock()
+    mock_shipper.name = "test_shipper"
+    mock_shipper.process_batch.return_value = {}
+
+    with (
+        patch(
+            "custom_components.mail_and_packages.coordinator.login",
+            return_value=AsyncMock(),
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.selectfolder",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.mail_and_packages.coordinator.get_shipper_for_sensor",
+            return_value=mock_shipper,
+        ),
+    ):
+        data = await coordinator.process_emails(hass, config)
+
+    assert data["ups_delivered"] == 1

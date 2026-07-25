@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.mail_and_packages.const import ATTR_COUNT, ATTR_TRACKING
+from custom_components.mail_and_packages.const import (
+    ATTR_COUNT,
+    ATTR_TRACKING,
+    CONF_17TRACK_API_KEY,
+)
 from custom_components.mail_and_packages.shippers.universal import (
     UniversalTrackingShipper,
     _extract_tracking_numbers,
@@ -288,3 +292,46 @@ async def test_process_batch(hass, mock_imap_universal_ups):
 
     assert "universal_packages" in result
     assert result["universal_packages"] == result[ATTR_COUNT]
+
+
+@pytest.mark.asyncio
+async def test_process_batch_publishes_17track_details_with_api_key(
+    hass, mock_imap_universal_ups
+):
+    """_17track_details is published only when a 17track API key is set."""
+    client = MagicMock()
+    client.register = AsyncMock()
+    client.get_status_batch = AsyncMock(
+        return_value={"1Z12345E0291980793": {"status_code": 10}}
+    )
+    client.auth_failed = False
+
+    with (
+        patch(
+            "custom_components.mail_and_packages.shippers.universal.email_search_since",
+            return_value=[b"1"],
+        ),
+        patch(
+            "custom_components.mail_and_packages.shippers.universal.SeventeenTrackClient",
+            return_value=client,
+        ),
+    ):
+        with_key = UniversalTrackingShipper(hass, {CONF_17TRACK_API_KEY: "fake-key"})
+        result = await with_key.process_batch(
+            mock_imap_universal_ups,
+            "10-Jun-2024",
+            ["universal_packages"],
+            None,
+        )
+        assert "_17track_details" in result
+        assert result["_17track_details"]["ups_delivering"] == ["1Z12345E0291980793"]
+
+        no_key = UniversalTrackingShipper(hass, {})
+        result = await no_key.process_batch(
+            mock_imap_universal_ups,
+            "10-Jun-2024",
+            ["universal_packages"],
+            None,
+        )
+        assert "_17track_details" not in result
+        assert result["_tracking_details"]["ups_delivering"] == ["1Z12345E0291980793"]
