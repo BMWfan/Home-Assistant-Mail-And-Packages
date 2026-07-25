@@ -67,6 +67,12 @@ from .utils.imap import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Per-carrier email status sensor suffixes. In 17track mode (API key set)
+# sensors with these suffixes are skipped: the API is the authoritative
+# status source, and each skipped sensor saves IMAP commands on servers
+# with tight per-connection command budgets (e.g. Exchange Online).
+_STATUS_SENSOR_SUFFIXES = ("_delivering", "_delivered", "_exception", "_packages")
+
 
 @dataclass
 class MailAndPackagesData:
@@ -247,6 +253,8 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             self._record_amazon_delivered_history(data, today_iso)
             self._backfill_history(data, today_iso)
             self._finalize_history(data, today_iso)
+            if config.get(const.CONF_17TRACK_API_KEY):
+                self._derive_17track_delivered_counts(data, today_iso)
 
             # Persist updated tracking state so it survives restarts
             await self._async_save_tracking()
@@ -455,6 +463,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         """
         data = {}
         amazon_enabled = config.get(const.CONF_AMAZON_ENABLED, False)
+        seventeen_track_mode = bool(config.get(const.CONF_17TRACK_API_KEY))
         # Legacy `resources` field (pre-fork UI's carrier selection). Only
         # non-empty for old configs migrated from before the fork removed
         # the resources-editing UI; new installations never set it, so the
@@ -473,6 +482,19 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         ]
         for sensor in [*const.SENSOR_TYPES, *binary_data_sensors]:
             if not amazon_enabled and sensor.startswith("amazon_"):
+                continue
+            # 17track mode: the API is the authoritative package status
+            # source, so per-carrier email status searches are skipped to
+            # save IMAP commands. Mail sensors, binary data sensors, fork-
+            # native sensors, and Amazon (not covered by 17track) keep
+            # scanning.
+            if (
+                seventeen_track_mode
+                and sensor.endswith(_STATUS_SENSOR_SUFFIXES)
+                and not sensor.startswith("amazon_")
+                and sensor not in self._ALWAYS_SCANNED_SENSORS
+                and sensor not in binary_data_sensors
+            ):
                 continue
             # Revive the legacy `resources` field as an opt-in performance
             # filter: old configs with a long, unused carrier list (e.g.
@@ -534,6 +556,18 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         today_iso: str,
     ) -> None:
         """Update in-transit tracking state and override sensor counts."""
+        # Full per-number detail (incl. 17track's event "history") only
+        # lives in the universal shipper's own lists -- look it up by
+        # number so a delivered record retains its event history instead of
+        # losing it the moment the number drops out of active tracking.
+        details_by_number = {
+            item.get("number"): item
+            for item in (
+                list(data.get("universal_tracking_details") or [])
+                + list(data.get("universal_delivered_details") or [])
+            )
+            if item.get("number")
+        }
         prefixes: set[str] = set(self._in_transit_tracking.keys())
         for sensor_key in tracking_details:
             prefix = "_".join(sensor_key.split("_")[:-1])
@@ -566,6 +600,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                         "number": tid,
                         "delivered": today_iso,
                         "first_seen": first_seen,
+                        "history": details_by_number.get(tid, {}).get("history") or [],
                     }
                 )
 
@@ -723,6 +758,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                     "number": number,
                     "delivered": delivered,
                     "first_seen": None,
+                    "history": item.get("history") or [],
                 }
             )
             existing_numbers.add(number)
@@ -742,6 +778,22 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
         data["packages_history"] = len(self._history)
         data["packages_history_details"] = list(self._history)
+
+    def _derive_17track_delivered_counts(self, data: dict, today_iso: str) -> None:
+        """Derive per-carrier delivered counts from today's history records.
+
+        17track mode skips the per-carrier email status sensors, so the
+        *_delivered counts come from the persistent delivery history
+        instead. Runs every cycle so the counts reset naturally at
+        midnight when today_iso changes.
+        """
+        for prefix in ("ups", "usps", "fedex", "gls", "dhl"):
+            data[f"{prefix}_delivered"] = sum(
+                1
+                for record in self._history
+                if record.get("carrier") == prefix
+                and record.get("delivered") == today_iso
+            )
 
     async def _async_load_tracking(self) -> None:
         """Load persisted in-transit tracking state from storage."""
