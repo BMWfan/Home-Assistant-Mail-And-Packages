@@ -245,6 +245,13 @@ async def async_setup_entry(
                 continue
 
             await c._async_save_tracking()  # noqa: SLF001
+            # had_manual means the number was still in the active manual
+            # list (a delivered manual number is popped from it already, see
+            # _process_manual_tracking), so it was still counted in
+            # universal_packages -- decrement to match the row we're
+            # dropping from universal_tracking_details below.
+            if had_manual:
+                c.data["universal_packages"] = max(0, c.data.get("universal_packages", 0) - 1)
             c.data["universal_tracking_details"] = [
                 item
                 for item in (c.data.get("universal_tracking_details") or [])
