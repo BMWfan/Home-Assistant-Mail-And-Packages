@@ -237,8 +237,14 @@ async def async_setup_entry(
             c = entry.runtime_data.coordinator
             had_manual = c._manual_tracking.pop(number, None) is not None  # noqa: SLF001
             before = len(c._history)  # noqa: SLF001
+            # Amazon history records are keyed by "order", not "number" (see
+            # _record_amazon_delivered_history) -- match either so an
+            # Amazon archive entry can be removed the same way as a
+            # tracking-number one.
             c._history = [  # noqa: SLF001
-                record for record in c._history if record.get("number") != number  # noqa: SLF001
+                record
+                for record in c._history  # noqa: SLF001
+                if record.get("number") != number and record.get("order") != number
             ]
             had_history = len(c._history) != before  # noqa: SLF001
             if not (had_manual or had_history):
