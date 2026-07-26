@@ -1,9 +1,9 @@
 """Mail and Packages Integration."""
 
 import asyncio
-import datetime
 import logging
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_RESOURCES
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -24,6 +24,7 @@ from .const import (
     ATTR_IMAGE_NAME,
     ATTR_IMAGE_PATH,
     AUTH_TYPE_PASSWORD,
+    CONF_17TRACK_API_KEY,
     CONF_AMAZON_CUSTOM_IMG,
     CONF_AMAZON_CUSTOM_IMG_FILE,
     CONF_AMAZON_DAYS,
@@ -64,6 +65,7 @@ from .coordinator import (
     MailAndPackagesData,
     MailDataUpdateCoordinator,
 )
+from .shippers.universal import guess_carrier
 from .utils.image import default_image_path, hash_file
 
 __all__ = [
@@ -178,55 +180,86 @@ async def async_setup_entry(
         await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
         raise ConfigEntryNotReady
 
-    # TEMPORARY -- ad-hoc test service to seed one fake delivered-history
-    # record with a real-shaped event history, for verifying the card's new
-    # history-timeline UI without waiting for a real delivery. Remove once
-    # verified.
-    async def _debug_seed_history(_call: ServiceCall) -> None:
-        c = config_entry.runtime_data.coordinator
-        delivered_date = (dt_util.now().date() - datetime.timedelta(days=2)).isoformat()
-        c._history.append(  # noqa: SLF001
-            {
-                "carrier": "evri",
-                "number": "H1033370005537701050",
-                "delivered": delivered_date,
-                "first_seen": None,
-                "history": [
-                    {
-                        "time": "2026-07-18T11:41:45+02:00",
-                        "description": "Die Sendung wurde an der Empfangsadresse zugestellt.",
-                        "location": "",
-                    },
-                    {
-                        "time": "2026-07-18T06:40:54+02:00",
-                        "description": "Die Sendung wurde ins Zustellfahrzeug geladen und wird voraussichtlich heute zugestellt.",
-                        "location": "",
-                    },
-                    {
-                        "time": "2026-07-18T00:21:41+02:00",
-                        "description": "Die Sendung ist in der Zielregion Bad Rappenau (Heilbronn) angekommen.",
-                        "location": "",
-                    },
-                    {
-                        "time": "2026-07-17T07:32:30+02:00",
-                        "description": "Die Sendung wurde von Hermes in Kabelsketal-Leipzig übernommen und wird für den weiteren Versand vorbereitet.",
-                        "location": "",
-                    },
-                    {
-                        "time": "2026-07-16T18:09:20+02:00",
-                        "description": "Die Sendung wurde Hermes elektronisch angekündigt. Weitere Informationen folgen, sobald Hermes die Sendung erhalten hat.",
-                        "location": "",
-                    },
-                ],
+    # Manual shipment add/remove -- gated behind a 17track API key, since
+    # that's what gets a manually-added number its status/history at all
+    # (no email ever mentions it, so the normal IMAP scan can't find it).
+    async def _handle_add_tracking(call: ServiceCall) -> None:
+        number = call.data["tracking_number"].strip()
+        if not number:
+            return
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if not entry.data.get(CONF_17TRACK_API_KEY):
+                _LOGGER.warning(
+                    "mail_and_packages.add_tracking: no 17track API key "
+                    "configured on entry %s, ignoring",
+                    entry.entry_id,
+                )
+                continue
+            c = entry.runtime_data.coordinator
+            c._manual_tracking[number] = {  # noqa: SLF001
+                "carrier": guess_carrier(number),
+                "retailer": call.data.get("retailer") or None,
+                "memo": call.data.get("memo") or None,
+                "added": dt_util.now().date().isoformat(),
             }
-        )
-        await c._async_save_tracking()  # noqa: SLF001
-        c.data["packages_history"] = len(c._history)  # noqa: SLF001
-        c.data["packages_history_details"] = list(c._history)  # noqa: SLF001
-        c.async_set_updated_data(c.data)
+            await c._async_save_tracking()  # noqa: SLF001
 
-    if not hass.services.has_service(DOMAIN, "debug_seed_history"):
-        hass.services.async_register(DOMAIN, "debug_seed_history", _debug_seed_history)
+            # Enrich immediately via 17track instead of waiting for the next
+            # scheduled scan -- this touches only 17track, not IMAP, so it's
+            # cheap. Strip any stale manual entries first so repeat calls
+            # (add another number before the next real scan) don't
+            # duplicate previously-added ones.
+            c.data["universal_tracking_details"] = [  # noqa: SLF001
+                item
+                for item in (c.data.get("universal_tracking_details") or [])
+                if item.get("source") != "manual"
+            ]
+            today_iso = dt_util.now().date().isoformat()
+            await c._process_manual_tracking(c.data, entry.data, today_iso)  # noqa: SLF001
+            c.async_set_updated_data(c.data)
+
+    hass.services.async_register(
+        DOMAIN,
+        "add_tracking",
+        _handle_add_tracking,
+        schema=vol.Schema(
+            {
+                vol.Required("tracking_number"): cv.string,
+                vol.Optional("retailer"): cv.string,
+                vol.Optional("memo"): cv.string,
+            }
+        ),
+    )
+
+    async def _handle_remove_tracking(call: ServiceCall) -> None:
+        number = call.data["tracking_number"].strip()
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            c = entry.runtime_data.coordinator
+            had_manual = c._manual_tracking.pop(number, None) is not None  # noqa: SLF001
+            before = len(c._history)  # noqa: SLF001
+            c._history = [  # noqa: SLF001
+                record for record in c._history if record.get("number") != number  # noqa: SLF001
+            ]
+            had_history = len(c._history) != before  # noqa: SLF001
+            if not (had_manual or had_history):
+                continue
+
+            await c._async_save_tracking()  # noqa: SLF001
+            c.data["universal_tracking_details"] = [
+                item
+                for item in (c.data.get("universal_tracking_details") or [])
+                if item.get("number") != number
+            ]
+            c.data["packages_history"] = len(c._history)  # noqa: SLF001
+            c.data["packages_history_details"] = list(c._history)  # noqa: SLF001
+            c.async_set_updated_data(c.data)
+
+    hass.services.async_register(
+        DOMAIN,
+        "remove_tracking",
+        _handle_remove_tracking,
+        schema=vol.Schema({vol.Required("tracking_number"): cv.string}),
+    )
 
     return True
 

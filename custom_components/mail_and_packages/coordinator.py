@@ -54,6 +54,7 @@ from .const import (
 from .helpers import copy_images
 from .shippers import get_shipper_for_sensor
 from .shippers.dhl_briefankundigung import DHLBriefankundigungClient
+from .shippers.universal import UniversalTrackingShipper
 from .utils.cache import EmailCache
 from .utils.image import default_image_path, hash_file, image_file_name
 from .utils.imap import (
@@ -107,6 +108,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         self._in_transit_tracking: dict[str, dict[str, str]] = {}
         self._history: list[dict] = []
         self._history_backfilled = False
+        self._manual_tracking: dict[str, dict] = {}
         self._tracking_loaded = False
         self._store: Store = Store(hass, 1, f"{DOMAIN}.tracking")
 
@@ -249,6 +251,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             else:
                 tracking_details = shipper_data.pop("_tracking_details", {})
             data.update(shipper_data)
+            await self._process_manual_tracking(data, config, today_iso)
             self._apply_tracking_state(data, tracking_details, today_iso)
             self._record_amazon_delivered_history(data, today_iso)
             self._backfill_history(data, today_iso)
@@ -795,6 +798,56 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 and record.get("delivered") == today_iso
             )
 
+    async def _process_manual_tracking(
+        self, data: dict, config: dict, today_iso: str
+    ) -> None:
+        """Enrich manually-added shipments via 17track and fold them into the
+        card-facing active list, exactly like automatically-discovered ones.
+
+        Delivered manual entries transition into the persistent history
+        store and drop out of the manual list, mirroring the automatic
+        in-transit -> delivered transition in _apply_tracking_state.
+        """
+        if not self._manual_tracking:
+            return
+        api_key = config.get(const.CONF_17TRACK_API_KEY)
+        if not api_key:
+            return
+
+        numbers = list(self._manual_tracking.keys())
+        found = {n: self._manual_tracking[n].get("carrier") or "unknown" for n in numbers}
+        shipper = UniversalTrackingShipper(self.hass, config)
+        enriched = await shipper._enrich_with_17track(numbers, found)  # noqa: SLF001
+
+        active_list = data.setdefault("universal_tracking_details", [])
+        for detail in enriched:
+            number = detail["number"]
+            manual_meta = self._manual_tracking.get(number, {})
+            detail["source"] = "manual"
+            if manual_meta.get("retailer"):
+                detail["retailer"] = manual_meta["retailer"]
+            if manual_meta.get("memo"):
+                detail["memo"] = manual_meta["memo"]
+
+            if detail.get("status_code") == 40:
+                self._history.append(
+                    {
+                        "carrier": detail.get("carrier"),
+                        "number": number,
+                        "delivered": today_iso,
+                        "first_seen": manual_meta.get("added"),
+                        "history": detail.get("history") or [],
+                    }
+                )
+                del self._manual_tracking[number]
+            else:
+                active_list.append(detail)
+                # active_details' count was already fixed by process_batch
+                # before manual entries existed -- bump it so the
+                # universal_packages sensor state matches its own
+                # tracking_details attribute list length.
+                data["universal_packages"] = data.get("universal_packages", 0) + 1
+
     async def _async_load_tracking(self) -> None:
         """Load persisted in-transit tracking state from storage."""
         stored = await self._store.async_load()
@@ -812,6 +865,12 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             )
         if stored and isinstance(stored.get("history_backfilled"), bool):
             self._history_backfilled = stored["history_backfilled"]
+        if stored and isinstance(stored.get("manual"), dict):
+            self._manual_tracking = stored["manual"]
+            _LOGGER.debug(
+                "Loaded %d manually-added tracking number(s) from storage",
+                len(self._manual_tracking),
+            )
 
     async def _async_save_tracking(self) -> None:
         """Persist current in-transit tracking state and history to storage."""
@@ -820,6 +879,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 "in_transit": self._in_transit_tracking,
                 "history": self._history,
                 "history_backfilled": self._history_backfilled,
+                "manual": self._manual_tracking,
             }
         )
 

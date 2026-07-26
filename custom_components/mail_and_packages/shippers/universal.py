@@ -364,6 +364,24 @@ class UniversalTrackingShipper(Shipper):
         return "\n".join(parts)
 
 
+def guess_carrier(number: str) -> str | None:
+    """Guess a carrier for a bare tracking number with no surrounding email.
+
+    For manually-added shipments there's no delivery-keyword context window
+    to satisfy ORDERED_PATTERNS' requires_context entries, so this just
+    full-matches the number itself against each pattern in order (most
+    specific first) and ignores the context flag entirely. Returns None if
+    nothing matches -- the number can still be tracked, 17track's own
+    carrier auto-detection (see seventeen_track.py's resolved_carrier) may
+    still resolve it even without a hint.
+    """
+    number = number.strip()
+    for carrier, pattern, _requires_context in ORDERED_PATTERNS:
+        if re.fullmatch(pattern, number):
+            return carrier
+    return None
+
+
 def _extract_tracking_numbers(text: str, found: dict[str, str]) -> None:
     """Apply ORDERED_PATTERNS to text and populate found dict."""
     claimed: set[str] = set()  # numbers already assigned in this email

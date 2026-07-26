@@ -11,3 +11,45 @@ update_image:
         entity:
           domain: camera
           integration: mail_and_packages
+add_tracking:
+  name: Add a tracking number manually
+  description: >-
+    Manually track a shipment that no scanned email mentions. Requires a
+    17track API key to be configured -- that's what fetches status/history
+    for the number afterward. Carrier is auto-detected from the number's
+    format where possible.
+  fields:
+    tracking_number:
+      name: Tracking number
+      description: The tracking number to add.
+      example: "1Z12345E0291980793"
+      required: true
+      selector:
+        text:
+    retailer:
+      name: Retailer (optional)
+      description: Free-text shop/retailer name, shown on the shipment row.
+      example: Zalando
+      required: false
+      selector:
+        text:
+    memo:
+      name: Note (optional)
+      description: Free-text note, shown on the shipment row.
+      example: Geburtstagsgeschenk
+      required: false
+      selector:
+        text:
+remove_tracking:
+  name: Remove a tracked shipment
+  description: >-
+    Fully removes a shipment by tracking number -- both from active
+    tracking and its entire event history in the archive.
+  fields:
+    tracking_number:
+      name: Tracking number
+      description: The tracking number to remove.
+      example: "1Z12345E0291980793"
+      required: true
+      selector:
+        text:
