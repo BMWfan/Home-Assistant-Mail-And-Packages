@@ -85,6 +85,7 @@ async def test_save_tracking_persists_state(coordinator):
             "in_transit": {"fedex": {"123456789012": "2024-06-10"}},
             "history": [],
             "history_backfilled": False,
+            "manual": {},
         }
     )
 
@@ -121,6 +122,7 @@ async def test_delivered_tracking_creates_history_record(coordinator):
             "number": "1Z123",
             "delivered": "2026-07-12",
             "first_seen": "2026-07-01",
+            "history": [],
         }
     ]
     assert "1Z123" not in coordinator._in_transit_tracking.get("ups", {})
@@ -256,6 +258,7 @@ async def test_backfill_history_creates_record_from_delivered_entry(coordinator)
             "number": "1Z999",
             "delivered": "2026-07-10",
             "first_seen": None,
+            "history": [],
         }
     ]
     assert coordinator._history_backfilled is True
