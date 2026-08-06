@@ -1,5 +1,9 @@
 ## Developing with Visual Studio Code + devcontainer
 
+> **Alternative:** for a plain Docker Compose setup running the official HA
+> image (no HAOS/Supervisor, no VS Code requirement), see `HANDOFF.md` and
+> `docker-compose.yml` in the repo root instead.
+
 The easiest way to get started with custom integration development is to use Visual Studio Code with devcontainers. This approach will create a preconfigured development environment with all the tools you need.
 
 In the container you will have a dedicated Home Assistant core instance running with your custom component code. You can configure this instance by updating the `./devcontainer/configuration.yaml` file.

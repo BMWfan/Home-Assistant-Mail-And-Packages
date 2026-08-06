@@ -1,0 +1,32 @@
+services:
+  homeassistant:
+    container_name: mail_and_packages_dev
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      # config/configuration.yaml enables the `debugpy:` integration for
+      # VS Code remote debugging (Python -> Remote Attach on this port).
+      - "5678:5678"
+    volumes:
+      # HA's own config dir (entities, .storage, configuration.yaml). Kept
+      # out of git except configuration.yaml itself -- see .gitignore.
+      - ./config:/config
+      # The integration's actual source lives at <repo>/custom_components/
+      # (not under config/), so it stays a single source of truth shared
+      # with the non-Docker devcontainer setup (see DEVCONTAINER.md) and
+      # with tests/. This bind-mounts just that one directory into the path
+      # HA expects (/config/custom_components/mail_and_packages) instead of
+      # duplicating or symlinking the code into config/.
+      - ./custom_components/mail_and_packages:/config/custom_components/mail_and_packages
+      # Companion Lovelace card -- a SEPARATE repo
+      # (github.com/BMWfan/Home-Assistant-Mail-And-Packages-Custom-Card),
+      # not a subfolder of this one. Clone it next to this repo and mount
+      # its dist/ into HA's www/ (served at /local/...). Override the path
+      # with a .env file or `CARD_DIST_PATH=... docker compose up` if you
+      # cloned it somewhere else or under its full GitHub name
+      # (Home-Assistant-Mail-And-Packages-Custom-Card) instead of
+      # mail-packages-card.
+      - ${CARD_DIST_PATH:-../mail-packages-card/dist}:/config/www/mail-packages-card:ro
+    environment:
+      - TZ=Europe/Berlin

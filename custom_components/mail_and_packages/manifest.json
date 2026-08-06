@@ -21,7 +21,8 @@
     "Pillow>=9.0",
     "dateparser",
     "aioimaplib",
-    "cryptography>=41.0"
+    "cryptography>=41.0",
+    "anyio"
   ],
   "version": "0.6.2"
 }
