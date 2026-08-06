@@ -1,0 +1,23 @@
+services:
+  homeassistant:
+    container_name: mail_and_packages_dev
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      # config/configuration.yaml enables the `debugpy:` integration for
+      # VS Code remote debugging (Python -> Remote Attach on this port).
+      - "5678:5678"
+    volumes:
+      # HA's own config dir (entities, .storage, configuration.yaml). Kept
+      # out of git except configuration.yaml itself -- see .gitignore.
+      - ./config:/config
+      # The integration's actual source lives at <repo>/custom_components/
+      # (not under config/), so it stays a single source of truth shared
+      # with the non-Docker devcontainer setup (see DEVCONTAINER.md) and
+      # with tests/. This bind-mounts just that one directory into the path
+      # HA expects (/config/custom_components/mail_and_packages) instead of
+      # duplicating or symlinking the code into config/.
+      - ./custom_components/mail_and_packages:/config/custom_components/mail_and_packages
+    environment:
+      - TZ=Europe/Berlin
