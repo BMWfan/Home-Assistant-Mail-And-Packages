@@ -265,3 +265,26 @@ docker compose up
 use) into `/config/custom_components/mail_and_packages` inside the official
 `ghcr.io/home-assistant/home-assistant:stable` image — no code duplication,
 no symlinks, no HAOS/Supervisor involved.
+
+### Companion card (separate repo)
+
+The Lovelace card that renders this integration's sensors
+(`Home-Assistant-Mail-And-Packages-Custom-Card`, branch
+`feat/shipment-list-redesign`, own `feature/docker-devcontainer` branch
+there too) is a **different git repository**, not a subfolder here. Clone
+it as a sibling directory (default assumed name: `mail-packages-card`;
+override via `.env` — copy `.env.example` and set `CARD_DIST_PATH` if you
+cloned it under its full GitHub name or elsewhere). `docker-compose.yml`
+mounts its `dist/` read-only into `/config/www/mail-packages-card`.
+
+`docker compose up` will **fail to start** if that path doesn't exist
+(bind-mount sources must exist) — either clone the card repo first, or
+comment out that volume line in `docker-compose.yml` if you only need the
+integration/backend side (sensors, services) and not the card UI.
+
+Once HA is up, the card still needs registering as a dashboard resource
+once (HA doesn't auto-discover files under `www/`): Settings > Dashboards
+> (⋮) > Resources > Add Resource >
+`/local/mail-packages-card/Home-Assistant-Mail-And-Packages-Custom-Card.js`,
+type **JavaScript Module** — then add the card itself via
+`type: custom:mail-and-packages-card` on any dashboard.
