@@ -92,3 +92,10 @@ test/*
 custom_components/mail_and_packages/images/*
 !custom_components/mail_and_packages/images/.PLACEHOLDER
 .claude/launch.json
+
+# Local tooling/session artifacts -- never project content, and .mcp.json
+# in particular carries a live webhook secret in its URL.
+.claude/
+.omo/
+graphify-out/
+.mcp.json
