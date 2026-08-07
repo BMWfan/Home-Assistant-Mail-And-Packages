@@ -66,14 +66,25 @@ commit on `test/all-features` before this branch:
   purge on removal (incl. Amazon `order`-keyed history records).
 - Repairs UI entries for auth failures (DHL, Office365 OAuth, 17track).
 
-**NOT yet verified in a fresh/Docker environment (do this first):**
-- Whether the integration even starts cleanly with a bare `pip install -r
-  requirements` from `manifest.json` — it was always tested on a machine
-  where the Python env had accumulated extra packages over time. **`anyio`
-  was found missing from `manifest.json` requirements during this handoff
-  prep (fixed in this branch) despite being imported in 5 files** — there
-  may be others; do a fresh `docker compose up` and watch the log for
-  `ModuleNotFoundError` on first start.
+**Verified in Docker since (2026-08-06):**
+- Fresh `docker compose up` starts cleanly, zero errors, integration loads.
+  Dependencies are complete: an AST cross-check of every external import
+  against `manifest.json` found no gaps beyond the `anyio` one already
+  fixed here, so the "there may be others" worry is settled.
+- **`pytest` runs.** Full suite: **657 passed in ~77s**. Recipe (the HA
+  image has no test deps, so use a throwaway container):
+  ```
+  docker compose run --rm --no-deps -v $PWD:/repo -w /repo --entrypoint sh homeassistant -c "
+    pip install -q pytest pytest-asyncio pytest-aiohttp \
+      pytest-homeassistant-custom-component freezegun aioresponses
+    python -m pytest tests/ --no-cov"
+  ```
+  `--no-cov` matters: the 90% fail-under threshold aborts any partial run.
+- A fresh config entry used to crash setup with `KeyError: 'resources'`
+  (fixed + covered here). Only new installs were affected; migrated
+  entries carry the legacy key, which is also why no test caught it.
+
+**Still NOT verified in a fresh/Docker environment:**
 - OAuth flows (Microsoft/Google) — never tested outside the production
   instance's stable public URL; a throwaway Docker container without a
   reachable callback URL likely can't complete them. Use Password auth
@@ -87,11 +98,19 @@ commit on `test/all-features` before this branch:
   with `_process_manual_tracking`'s 17track enrichment path (unit tests
   exist for the simpler pieces; the full add→enrich→deliver→history
   transition isn't covered).
-- `pytest` could not be run at all in the Windows dev environment this was
-  built in (`.venv` had no `pip`, no working interpreter found) — the
-  `HANDOFF_HISTORY.md` mentions a working WSL venv (`~/.venvs/mnp`) that
-  may or may not still be valid; verify fresh in Docker instead of chasing
-  that.
+- `pytest` could not be run in the original Windows dev environment. This is
+  resolved — see the Docker recipe in §2; ignore the `~/.venvs/mnp` trail in
+  `HANDOFF_HISTORY.md`.
+- The subfolder test covers the sequential select+search fallback only; the
+  ESEARCH path (servers advertising MULTISEARCH) is still uncovered.
+- The card contract test pins the attribute keys on the *producing* side
+  only — nothing verifies the card actually reads them under those names.
+- **Unresolved suspicion:** the IMAP search cache hangs off the connection
+  object (`account._search_cache`) and is documented as "per-scan". With the
+  long-lived, reconnect-on-timeout connections this integration uses, it may
+  outlive a scan and keep serving a stale empty result. It was *not* the
+  cause of the Amazon miss (that was folder scope, see §6), but nobody has
+  confirmed the cache is actually reset between scans.
 
 ## 3. Entity IDs — how they're built
 
@@ -178,6 +197,17 @@ against the one production HA instance the user actually depends on.
   `requirements` after adding any new import; nothing catches this
   automatically, and it silently works if your dev Python env happens to
   already have the package from something else.
+- **IMAP SEARCH does not descend into subfolders.** If a mail rule files
+  carrier mail into e.g. `INBOX/Online-Shops/Amazon`, a scan configured for
+  `INBOX` finds nothing — and it looks *exactly* like broken carrier
+  detection. This is what actually caused the "Amazon mails are ignored"
+  report (2026-08-06): subject, sender, language filter, domain config and
+  the generated IMAP query were all verified correct; the mail simply sat
+  outside the searched folder. **Check the configured folder(s) against the
+  mailbox's rules before touching detection code.** `CONF_FOLDER` accepts a
+  list (the config flow renders a multi-select and stores a string for one
+  folder, a list for several), so the fix is to select every relevant folder
+  rather than moving mail or narrowing the scan.
 - **`amazon_packages` / `amazon_delivered` are TODAY-ONLY counters, reset
   each scan against the current date** — an Amazon order that shipped a few
   days ago and hasn't had a *fresh* email today will correctly show `0`.
