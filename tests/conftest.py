@@ -668,6 +668,25 @@ def mock_imap_amazon_delivered_it(mock_imap):
 
 
 @pytest.fixture
+def mock_imap_amazon_delivered_de(mock_imap):
+    """Mock IMAP search with Amazon delivered email, German format.
+
+    Guards the amazon.de path: `filter_amazon_strings` narrows the delivered
+    subjects to the German ones for this domain, so a regression there (or in
+    the MIME-decoding of the umlauted subject) silently drops every German
+    delivery. The IT/UK fixtures do not cover it.
+    """
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/amazon_delivered_de.eml").read_text(
+        encoding="utf-8",
+    )
+    mock_imap.search.side_effect = _generate_search_side_effect(count=20, unique=True)
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
 def mock_imap_amazon_the_hub(mock_imap):
     """Mock IMAP search with Amazon hub email."""
     mock_imap.select.return_value = ("OK", [b""])

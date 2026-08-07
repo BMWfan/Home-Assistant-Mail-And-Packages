@@ -352,6 +352,57 @@ async def test_selectfolder_failure(caplog):
     assert "Error selecting folder" in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_email_search_covers_configured_subfolders():
+    """A mail filed into a subfolder must still be found when that folder is configured.
+
+    IMAP SEARCH never descends into subfolders: searching "INBOX" does not look
+    inside "INBOX/Online-Shops/Amazon". A mail rule that files carrier mail away
+    therefore makes it invisible to a single-folder scan -- which looks exactly
+    like broken carrier detection but is purely a folder-scope issue. The
+    integration supports a folder LIST for this; this pins that every configured
+    folder really is selected and searched (sequential fallback path, i.e. a
+    server without MULTISEARCH).
+    """
+    account = MagicMock()
+    account._folders = ["INBOX", "INBOX/Online-Shops/Amazon"]
+    account._current_folder = None
+    account.host = "outlook.office365.com"
+    account.timeout = None
+    # Force the sequential select+search fallback instead of ESEARCH.
+    account.has_capability = MagicMock(return_value=False)
+
+    selected: list[str] = []
+
+    async def _select(folder, *args, **kwargs):
+        selected.append(folder.strip('"'))
+        return MagicMock(result="OK", lines=[b"1"])
+
+    async def _search(query, **kwargs):
+        # Only the subfolder actually holds the message. The multi-folder path
+        # goes through uid_search per selected folder.
+        hit = bool(selected) and selected[-1].endswith("/Amazon")
+        return MagicMock(result="OK", lines=[b"1"] if hit else [b""])
+
+    account.select = AsyncMock(side_effect=_select)
+    account.search = AsyncMock(side_effect=_search)
+    account.uid_search = AsyncMock(side_effect=_search)
+
+    result, data = await email_search(
+        account=account,
+        address=["order-update@amazon.de"],
+        date="06-Aug-2026",
+        subject=["Geliefert:"],
+    )
+
+    assert result == "OK"
+    assert "INBOX" in selected, f"INBOX was never selected: {selected}"
+    assert "INBOX/Online-Shops/Amazon" in selected, (
+        f"subfolder was never selected: {selected}"
+    )
+    assert data[0], "message in the subfolder was not returned"
+
+
 def test_build_search_empty_address_raises():
     """Test build_search raises ValueError when address list is empty."""
     with pytest.raises(ValueError, match="address list must not be empty"):

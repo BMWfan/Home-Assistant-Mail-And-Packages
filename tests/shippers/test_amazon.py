@@ -519,6 +519,37 @@ async def test_amazon_search_delivered(hass, mock_imap_amazon_delivered, caplog)
 
 
 @pytest.mark.asyncio
+async def test_amazon_search_delivered_de(hass, mock_imap_amazon_delivered_de):
+    """Test Amazon search for delivered items (DE domain).
+
+    Regression guard: for amazon.de the delivered-subject list is filtered down
+    to the German entries only ("Geliefert:", "Zugestellt:"). If that filter or
+    the MIME decoding of the subject breaks, German deliveries stop being
+    counted while IT/UK keep passing.
+    """
+    shipper = AmazonShipper(
+        hass,
+        {
+            "amazon_domain": "amazon.de",
+            "image_path": "test/path/amazon/",
+            "amazon_image": "testfilename.jpg",
+        },
+    )
+    with (
+        patch("custom_components.mail_and_packages.shippers.amazon.cleanup_images"),
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.download_amazon_img",
+        ),
+    ):
+        result = await shipper.process(
+            mock_imap_amazon_delivered_de,
+            "today",
+            AMAZON_DELIVERED,
+        )
+        assert result[AMAZON_DELIVERED] == 1
+
+
+@pytest.mark.asyncio
 async def test_amazon_search_delivered_it(hass, mock_imap_amazon_delivered_it):
     """Test Amazon search for delivered items (IT domain)."""
     shipper = AmazonShipper(

@@ -22,6 +22,60 @@ from tests.const import FAKE_CONFIG_DATA_NO_RND
 
 
 @pytest.mark.asyncio
+async def test_card_contract_attribute_shapes(
+    hass, mock_update, entity_registry: er.EntityRegistry
+):
+    """Pin the sensor attribute shapes the companion Lovelace card reads.
+
+    The card lives in a separate repo and consumes these attributes directly.
+    Nothing validates that contract at runtime -- renaming a key here just
+    makes the card render an empty section, with no error anywhere. This test
+    is the missing schema check: it fails loudly on the producing side.
+
+    Keep in sync with the card's reader code when the contract changes on
+    purpose.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="imap.test.email",
+        data=FAKE_CONFIG_DATA_NO_RND,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    for entity_entry in entity_registry.entities.get_entries_for_config_entry_id(
+        entry.entry_id
+    ):
+        if entity_entry.disabled_by:
+            entity_registry.async_update_entity(
+                entity_entry.entity_id, disabled_by=None
+            )
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    history_state = hass.states.get("sensor.imap_test_email_mail_packages_history")
+    assert history_state is not None, "packages_history sensor missing"
+    assert "history" in history_state.attributes, (
+        "card reads `history` off packages_history"
+    )
+    history = history_state.attributes["history"]
+    assert isinstance(history, list)
+    for record in history:
+        # The card keys its archive rows off these; a rename breaks it silently.
+        for key in ("carrier", "order", "delivered"):
+            assert key in record, f"history record lost `{key}`: {record}"
+
+    amazon_state = hass.states.get(
+        "sensor.imap_test_email_mail_amazon_packages_delivered"
+    )
+    if amazon_state is not None:
+        assert "order" in amazon_state.attributes, (
+            "card reads `order` off amazon_packages_delivered"
+        )
+
+
 async def test_sensor(hass, mock_update, entity_registry: er.EntityRegistry):
     """Test the setup and state of standard sensors."""
     entry = MockConfigEntry(
