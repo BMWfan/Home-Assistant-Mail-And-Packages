@@ -100,3 +100,6 @@ custom_components/mail_and_packages/images/*
 .omo/
 graphify-out/
 .mcp.json
+
+# Docker Compose local overrides (CARD_DIST_PATH etc.) -- keep out of git
+.env
