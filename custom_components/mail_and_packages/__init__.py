@@ -136,8 +136,14 @@ async def async_setup_entry(
     hass.data.setdefault(DOMAIN, {})
     updated_config = config_entry.data.copy()
 
-    # Sort the resources
-    updated_config[CONF_RESOURCES] = sorted(updated_config[CONF_RESOURCES])
+    # Sort the legacy `resources` list when present. It only exists on configs
+    # migrated from before the fork replaced the resources-editing UI with the
+    # per-carrier `*_enabled` flags -- fresh installs never get the key, and
+    # accessing it unconditionally made every new config entry fail setup with
+    # KeyError: 'resources'. The coordinator treats a missing key as "no
+    # filter", so leaving it absent is the intended state, not an empty list.
+    if CONF_RESOURCES in updated_config:
+        updated_config[CONF_RESOURCES] = sorted(updated_config[CONF_RESOURCES])
 
     if updated_config != config_entry.data:
         hass.config_entries.async_update_entry(config_entry, data=updated_config)

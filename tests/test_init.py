@@ -258,6 +258,48 @@ async def test_migration_from_version_16_to_18():
     assert kwargs["version"] == 19
 
 
+async def test_setup_entry_without_legacy_resources():
+    """Setup must work for a config entry that has no `resources` key.
+
+    The fork replaced the resources-editing UI with per-carrier `*_enabled`
+    flags, so the config flow no longer writes `resources` -- only entries
+    migrated from older versions still carry it. `async_setup_entry` used to
+    index it unconditionally, which made every FRESH install fail with
+    KeyError: 'resources' while migrated entries kept working.
+
+    Every FAKE_CONFIG_* fixture in tests/const.py includes `resources`, so no
+    existing test covered the fresh-install shape -- hence this one.
+    """
+    mock_hass = MagicMock()
+    mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
+    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+
+    data = FAKE_CONFIG_DATA.copy()
+    data.pop("resources", None)
+    assert "resources" not in data
+
+    mock_config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=data,
+        entry_id="fresh_entry_id",
+    )
+
+    mock_coordinator = MagicMock()
+    mock_coordinator.last_update_success = True
+    mock_coordinator.async_refresh = AsyncMock()
+    mock_coordinator.async_config_entry_first_refresh = AsyncMock()
+
+    with (
+        patch("homeassistant.helpers.frame.report_usage"),
+        patch(
+            "custom_components.mail_and_packages.MailDataUpdateCoordinator",
+        ) as mock_coordinator_class,
+    ):
+        mock_coordinator_class.return_value = mock_coordinator
+        # Must not raise KeyError: 'resources'
+        assert await async_setup_entry(mock_hass, mock_config_entry) is True
+
+
 async def test_setup_entry_coordinator_failure():
     """Test setup_entry when coordinator fails to update."""
     mock_hass = MagicMock()
