@@ -105,7 +105,8 @@ DEFAULT_GIF_DURATION = 5
 DEFAULT_SCAN_INTERVAL = 30
 DEFAULT_CUSTOM_DAYS = 3
 MAX_TRACKING_AGE_DAYS = 14
-HISTORY_RETENTION_DAYS = 21  # DHL keeps its own tracking history ~21 days -- match that
+HISTORY_RETENTION_DAYS = 90
+HISTORY_ARCHIVE_AFTER_DAYS = 21  # UI split point -- card shows "recently delivered" below this, "archived" above it, matching DHL's own tracking-history window
 DEFAULT_GIF_FILE_NAME = "mail_today.gif"
 DEFAULT_AMAZON_FWDS = "(none)"
 DEFAULT_ALLOW_EXTERNAL = False
@@ -1825,7 +1826,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         icon="mdi:email-open",
         key="dhl_brief_anzahl",
     ),
-    # Persistent delivered packages history (HISTORY_RETENTION_DAYS)
+    # Persistent 90-day delivered packages history
     "packages_history": SensorEntityDescription(
         name="Mail Packages History",
         native_unit_of_measurement="package(s)",
