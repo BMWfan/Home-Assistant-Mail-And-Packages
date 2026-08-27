@@ -162,19 +162,19 @@ async def test_history_survives_save_and_load(coordinator):
 
 
 @pytest.mark.asyncio
-async def test_history_prunes_entries_older_than_90_days(coordinator):
+async def test_history_prunes_entries_older_than_21_days(coordinator):
     """Entries older than HISTORY_RETENTION_DAYS are removed when finalized."""
     coordinator._history = [
         {
             "carrier": "ups",
             "number": "OLD",
-            "delivered": "2026-01-01",  # more than 90 days before 2026-07-12
+            "delivered": "2026-01-01",  # more than 21 days before 2026-07-12
             "first_seen": None,
         },
         {
             "carrier": "ups",
             "number": "NEW",
-            "delivered": "2026-06-01",  # within 90 days of 2026-07-12
+            "delivered": "2026-06-25",  # within 21 days of 2026-07-12
             "first_seen": None,
         },
     ]
@@ -196,7 +196,7 @@ async def test_history_sorted_newest_first_on_finalize(coordinator):
         {
             "carrier": "ups",
             "number": "A",
-            "delivered": "2026-06-01",
+            "delivered": "2026-06-25",
             "first_seen": None,
         },
         {
