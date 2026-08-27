@@ -1,5 +1,64 @@
 # Projektkontext und Regeln für GitHub Copilot
 
+# Infrastructure & Environment
+
+This section describes the *dev environment*, not the code -- read this
+before touching anything, especially in a fresh session with no memory of
+prior work here.
+
+## What this is
+
+Two things exist for this project, do not confuse them:
+
+- **Production**: a real Home Assistant instance at
+  `homeassistant.mack-cloud.de` (behind Cloudflare, mTLS client
+  certificate required -- browser needs that cert or an
+  AutoSelectCertificateForUrls policy entry for the domain, or it just
+  hangs on "Unable to connect"). Real mailbox, real home automation
+  alongside it. Installed via HACS from tagged GitHub releases
+  (`vX.Y.Z-testNN`), not from source.
+- **Dev**: a disposable plain-Docker HA instance (no HAOS/Supervisor,
+  `ghcr.io/home-assistant/home-assistant:stable` via `docker compose`,
+  container `mail_and_packages_dev`) with this repo's
+  `custom_components/mail_and_packages/` bind-mounted live -- code
+  changes take effect on container restart, no HACS/release/tag cycle
+  needed. See `docker-compose.yml` + `HANDOFF.md` for the full setup,
+  including the optional companion-card mount.
+
+**Never assume a finding on one applies to the other** -- different entity
+IDs, different `.storage/`, different auth path (dev commonly uses simple
+IMAP password auth; prod's config entry uses Office365 OAuth, which can
+expire and needs a Repairs-UI reauth -- that already happened once this
+project's life, see `HANDOFF_HISTORY.md`).
+
+## Starting the dev container
+
+```bash
+cp .env.example .env    # fill in HA_OWNER_USERNAME/PASSWORD to skip onboarding
+docker compose up -d
+docker compose ps        # confirm "healthy", not just "running"
+```
+
+`bootstrap-owner` creates the HA owner account non-interactively if
+`HA_OWNER_*` are set; otherwise onboard manually in the browser once. If HA
+flags "country not configured" afterward: `pip install websockets && python3
+scripts/set-core-config.py`.
+
+## Known pitfalls specific to this setup
+
+- IMAP `SEARCH` does not descend into subfolders -- a mail rule filing
+  carrier mail into e.g. `INBOX/Online-Shops/Amazon` makes it invisible to
+  a scan configured for `INBOX` alone, and it looks exactly like broken
+  carrier detection. This already caused one false "detection is broken"
+  report; check the configured folder(s) before touching detection code.
+- The dev container's `bootstrap-owner` only handles HA's own onboarding.
+  The `mail_and_packages` config flow itself (IMAP credentials, 17track
+  key) is separate and always manual.
+- A `docker compose up` that changes any volume/mount on the
+  `homeassistant` service forces a recreate, not just a restart -- brief
+  downtime, harmless here, but don't be surprised by it.
+
+
 Dieses Dokument definiert globale Regeln, die der Copilot Coding Agent und alle Custom Agents projektspezifisch beachten sollen.
 
 ## Build und Test
