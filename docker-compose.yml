@@ -28,8 +28,6 @@ services:
       # (Home-Assistant-Mail-And-Packages-Custom-Card) instead of
       # mail-packages-card.
       - ${CARD_DIST_PATH:-../mail-packages-card/dist}:/config/www/mail-packages-card:ro
-      # Bootstrap script (see bootstrap-owner service below).
-      - ./scripts/bootstrap-owner.sh:/bootstrap-owner.sh:ro
     environment:
       - TZ=Europe/Berlin
     healthcheck:
@@ -46,7 +44,14 @@ services:
   # or when onboarding already ran. This is only HA's own onboarding -- the Mail
   # and Packages config flow (IMAP credentials) is separate and still manual.
   bootstrap-owner:
-    image: alpine:3.20
+    # Dedicated image (scripts/bootstrap-owner.Dockerfile) with bash/curl/jq
+    # baked in at build time, instead of apk-installing them on every
+    # `docker compose up` via a bare alpine base. The env-var skip check
+    # (HA_OWNER_USERNAME/PASSWORD unset -> no-op) now lives in the script
+    # itself, run directly as the image ENTRYPOINT.
+    build:
+      context: ./scripts
+      dockerfile: bootstrap-owner.Dockerfile
     depends_on:
       homeassistant:
         condition: service_healthy
@@ -55,14 +60,3 @@ services:
       - HA_OWNER_PASSWORD=${HA_OWNER_PASSWORD:-}
       - HA_OWNER_NAME=${HA_OWNER_NAME:-}
       - HA_BASE_URL=http://homeassistant:8123
-    volumes:
-      - ./scripts/bootstrap-owner.sh:/bootstrap-owner.sh:ro
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        if [ -z "$$HA_OWNER_USERNAME" ] || [ -z "$$HA_OWNER_PASSWORD" ]; then
-          echo "[bootstrap-owner] HA_OWNER_USERNAME/HA_OWNER_PASSWORD nicht gesetzt, ueberspringe.";
-          exit 0;
-        fi;
-        apk add --no-cache bash curl jq >/dev/null &&
-        bash /bootstrap-owner.sh

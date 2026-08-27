@@ -16,8 +16,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-: "${HA_OWNER_USERNAME:?HA_OWNER_USERNAME nicht gesetzt}"
-: "${HA_OWNER_PASSWORD:?HA_OWNER_PASSWORD nicht gesetzt}"
+if [ -z "${HA_OWNER_USERNAME:-}" ] || [ -z "${HA_OWNER_PASSWORD:-}" ]; then
+  echo "[bootstrap-owner] HA_OWNER_USERNAME/HA_OWNER_PASSWORD nicht gesetzt, ueberspringe."
+  exit 0
+fi
 HA_OWNER_NAME="${HA_OWNER_NAME:-$HA_OWNER_USERNAME}"
 
 if [ -f .env ]; then
