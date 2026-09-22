@@ -55,7 +55,10 @@ async def test_card_contract_attribute_shapes(
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
 
-    history_state = hass.states.get("sensor.imap_test_email_mail_packages_history")
+    history_entity_id = resolve_entity_id(
+        entity_registry, entry.entry_id, "sensor", "packages_history"
+    )
+    history_state = hass.states.get(history_entity_id) if history_entity_id else None
     assert history_state is not None, "packages_history sensor missing"
     assert "history" in history_state.attributes, (
         "card reads `history` off packages_history"
@@ -67,9 +70,10 @@ async def test_card_contract_attribute_shapes(
         for key in ("carrier", "order", "delivered"):
             assert key in record, f"history record lost `{key}`: {record}"
 
-    amazon_state = hass.states.get(
-        "sensor.imap_test_email_mail_amazon_packages_delivered"
+    amazon_entity_id = resolve_entity_id(
+        entity_registry, entry.entry_id, "sensor", "amazon_packages_delivered"
     )
+    amazon_state = hass.states.get(amazon_entity_id) if amazon_entity_id else None
     if amazon_state is not None:
         assert "order" in amazon_state.attributes, (
             "card reads `order` off amazon_packages_delivered"
