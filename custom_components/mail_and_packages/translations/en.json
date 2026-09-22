@@ -300,6 +300,17 @@
     }
   },
   "issues": {
+    "auth_failed": {
+      "title": "Mail and Packages authentication failed",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Re-authenticate Mail Server",
+            "description": "Authentication to your IMAP mail server has failed. Click submit to start the re-authentication flow."
+          }
+        }
+      }
+    },
     "dhl_brief_auth_failed": {
       "title": "DHL letter preview: sign-in expired",
       "fix_flow": {
@@ -340,19 +351,6 @@
       "configured_accounts": "Configured accounts",
       "last_scan_ok": "Last scan succeeded",
       "last_scan": "Last scan"
-    }
-  },
-  "issues": {
-    "auth_failed": {
-      "title": "Mail and Packages authentication failed",
-      "fix_flow": {
-        "step": {
-          "confirm": {
-            "title": "Re-authenticate Mail Server",
-            "description": "Authentication to your IMAP mail server has failed. Click submit to start the re-authentication flow."
-          }
-        }
-      }
     }
   }
 }
