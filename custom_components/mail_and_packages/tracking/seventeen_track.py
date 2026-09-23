@@ -85,7 +85,10 @@ class SeventeenTrackClient:
         for i in range(0, len(tracking_numbers), _BATCH_LIMIT):
             chunk = tracking_numbers[i : i + _BATCH_LIMIT]
             payload = [
-                {"number": n, **({"carrier": carrier_hints[n]} if n in carrier_hints else {})}
+                {
+                    "number": n,
+                    **({"carrier": carrier_hints[n]} if n in carrier_hints else {}),
+                }
                 for n in chunk
             ]
             try:
@@ -159,9 +162,12 @@ class SeventeenTrackClient:
                 # not a from/to window -- "from" was None on every live
                 # shipment observed). Surface it so the card can show an
                 # actual delivery time instead of just a relative "X ago".
-                eta = ((track_info.get("time_metrics") or {}).get(
-                    "estimated_delivery_date"
-                ) or {}).get("to")
+                eta = (
+                    (track_info.get("time_metrics") or {}).get(
+                        "estimated_delivery_date"
+                    )
+                    or {}
+                ).get("to")
                 # Live-verified 2026-07-18: track_info.tracking.providers[0]
                 # .provider carries 17track's OWN resolved carrier (numeric
                 # "key" + "name") -- ground truth, independent of whichever

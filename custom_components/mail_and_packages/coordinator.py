@@ -815,7 +815,9 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             return
 
         numbers = list(self._manual_tracking.keys())
-        found = {n: self._manual_tracking[n].get("carrier") or "unknown" for n in numbers}
+        found = {
+            n: self._manual_tracking[n].get("carrier") or "unknown" for n in numbers
+        }
         shipper = UniversalTrackingShipper(self.hass, config)
         enriched = await shipper._enrich_with_17track(numbers, found)  # noqa: SLF001
 

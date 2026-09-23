@@ -348,7 +348,9 @@ class UniversalTrackingShipper(Shipper):
         for number in tracking_list:
             detail = {"number": number, "carrier": found[number]}
             detail.update(status_map.get(number, {}))
-            detail.pop("resolved_carrier", None)  # internal-only, folded into "carrier" above
+            detail.pop(
+                "resolved_carrier", None
+            )  # internal-only, folded into "carrier" above
             enriched.append(detail)
         return enriched
 

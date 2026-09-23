@@ -257,13 +257,10 @@ async def test_universal_scans_all_configured_folders(hass):
     account.uid_search = AsyncMock(side_effect=[res_inbox, res_hermes])
 
     body = (
-        b"Subject: Your parcel\r\n\r\n"
-        b"Sendungsnummer: 05085100012345 ist unterwegs.\r\n"
+        b"Subject: Your parcel\r\n\r\nSendungsnummer: 05085100012345 ist unterwegs.\r\n"
     )
     header = b"5 (UID 5 BODY[TEXT] {1234}"
-    account.uid = AsyncMock(
-        return_value=MagicMock(result="OK", lines=[header, body])
-    )
+    account.uid = AsyncMock(return_value=MagicMock(result="OK", lines=[header, body]))
 
     result = await shipper.process(account, "10-Jun-2024", "universal_packages")
 
