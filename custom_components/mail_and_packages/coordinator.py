@@ -801,10 +801,10 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
     async def _process_manual_tracking(
         self, data: dict, config: dict, today_iso: str
     ) -> None:
-        """Enrich manually-added shipments via 17track and fold them into the
-        card-facing active list, exactly like automatically-discovered ones.
+        """Enrich manually-added shipments and fold them into the active list.
 
-        Delivered manual entries transition into the persistent history
+        Uses 17track, exactly like automatically-discovered ones. Delivered
+        manual entries transition into the persistent history
         store and drop out of the manual list, mirroring the automatic
         in-transit -> delivered transition in _apply_tracking_state.
         """

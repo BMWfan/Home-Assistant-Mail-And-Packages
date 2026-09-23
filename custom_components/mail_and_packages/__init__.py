@@ -1,6 +1,7 @@
 """Mail and Packages Integration."""
 
 import asyncio
+import functools
 import logging
 
 import voluptuous as vol
@@ -189,45 +190,10 @@ async def async_setup_entry(
     # Manual shipment add/remove -- gated behind a 17track API key, since
     # that's what gets a manually-added number its status/history at all
     # (no email ever mentions it, so the normal IMAP scan can't find it).
-    async def _handle_add_tracking(call: ServiceCall) -> None:
-        number = call.data["tracking_number"].strip()
-        if not number:
-            return
-        for entry in hass.config_entries.async_entries(DOMAIN):
-            if not entry.data.get(CONF_17TRACK_API_KEY):
-                _LOGGER.warning(
-                    "mail_and_packages.add_tracking: no 17track API key "
-                    "configured on entry %s, ignoring",
-                    entry.entry_id,
-                )
-                continue
-            c = entry.runtime_data.coordinator
-            c._manual_tracking[number] = {  # noqa: SLF001
-                "carrier": guess_carrier(number),
-                "retailer": call.data.get("retailer") or None,
-                "memo": call.data.get("memo") or None,
-                "added": dt_util.now().date().isoformat(),
-            }
-            await c._async_save_tracking()  # noqa: SLF001
-
-            # Enrich immediately via 17track instead of waiting for the next
-            # scheduled scan -- this touches only 17track, not IMAP, so it's
-            # cheap. Strip any stale manual entries first so repeat calls
-            # (add another number before the next real scan) don't
-            # duplicate previously-added ones.
-            c.data["universal_tracking_details"] = [  # noqa: SLF001
-                item
-                for item in (c.data.get("universal_tracking_details") or [])
-                if item.get("source") != "manual"
-            ]
-            today_iso = dt_util.now().date().isoformat()
-            await c._process_manual_tracking(c.data, entry.data, today_iso)  # noqa: SLF001
-            c.async_set_updated_data(c.data)
-
     hass.services.async_register(
         DOMAIN,
         "add_tracking",
-        _handle_add_tracking,
+        functools.partial(_handle_add_tracking, hass),
         schema=vol.Schema(
             {
                 vol.Required("tracking_number"): cv.string,
@@ -237,50 +203,89 @@ async def async_setup_entry(
         ),
     )
 
-    async def _handle_remove_tracking(call: ServiceCall) -> None:
-        number = call.data["tracking_number"].strip()
-        for entry in hass.config_entries.async_entries(DOMAIN):
-            c = entry.runtime_data.coordinator
-            had_manual = c._manual_tracking.pop(number, None) is not None  # noqa: SLF001
-            before = len(c._history)  # noqa: SLF001
-            # Amazon history records are keyed by "order", not "number" (see
-            # _record_amazon_delivered_history) -- match either so an
-            # Amazon archive entry can be removed the same way as a
-            # tracking-number one.
-            c._history = [  # noqa: SLF001
-                record
-                for record in c._history  # noqa: SLF001
-                if record.get("number") != number and record.get("order") != number
-            ]
-            had_history = len(c._history) != before  # noqa: SLF001
-            if not (had_manual or had_history):
-                continue
-
-            await c._async_save_tracking()  # noqa: SLF001
-            # had_manual means the number was still in the active manual
-            # list (a delivered manual number is popped from it already, see
-            # _process_manual_tracking), so it was still counted in
-            # universal_packages -- decrement to match the row we're
-            # dropping from universal_tracking_details below.
-            if had_manual:
-                c.data["universal_packages"] = max(0, c.data.get("universal_packages", 0) - 1)
-            c.data["universal_tracking_details"] = [
-                item
-                for item in (c.data.get("universal_tracking_details") or [])
-                if item.get("number") != number
-            ]
-            c.data["packages_history"] = len(c._history)  # noqa: SLF001
-            c.data["packages_history_details"] = list(c._history)  # noqa: SLF001
-            c.async_set_updated_data(c.data)
-
     hass.services.async_register(
         DOMAIN,
         "remove_tracking",
-        _handle_remove_tracking,
+        functools.partial(_handle_remove_tracking, hass),
         schema=vol.Schema({vol.Required("tracking_number"): cv.string}),
     )
 
     return True
+
+
+async def _handle_add_tracking(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Enrich a manually-added tracking number via 17track right away."""
+    number = call.data["tracking_number"].strip()
+    if not number:
+        return
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if not entry.data.get(CONF_17TRACK_API_KEY):
+            _LOGGER.warning(
+                "mail_and_packages.add_tracking: no 17track API key "
+                "configured on entry %s, ignoring",
+                entry.entry_id,
+            )
+            continue
+        c = entry.runtime_data.coordinator
+        c._manual_tracking[number] = {  # noqa: SLF001
+            "carrier": guess_carrier(number),
+            "retailer": call.data.get("retailer") or None,
+            "memo": call.data.get("memo") or None,
+            "added": dt_util.now().date().isoformat(),
+        }
+        await c._async_save_tracking()  # noqa: SLF001
+
+        # Enrich immediately via 17track instead of waiting for the next
+        # scheduled scan -- this touches only 17track, not IMAP, so it's
+        # cheap. Strip any stale manual entries first so repeat calls
+        # (add another number before the next real scan) don't
+        # duplicate previously-added ones.
+        c.data["universal_tracking_details"] = [
+            item
+            for item in (c.data.get("universal_tracking_details") or [])
+            if item.get("source") != "manual"
+        ]
+        today_iso = dt_util.now().date().isoformat()
+        await c._process_manual_tracking(c.data, entry.data, today_iso)  # noqa: SLF001
+        c.async_set_updated_data(c.data)
+
+
+async def _handle_remove_tracking(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Remove a manually-tracked shipment or history entry by number."""
+    number = call.data["tracking_number"].strip()
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        c = entry.runtime_data.coordinator
+        had_manual = c._manual_tracking.pop(number, None) is not None  # noqa: SLF001
+        before = len(c._history)  # noqa: SLF001
+        # Amazon history records are keyed by "order", not "number" (see
+        # _record_amazon_delivered_history) -- match either so an
+        # Amazon archive entry can be removed the same way as a
+        # tracking-number one.
+        c._history = [  # noqa: SLF001
+            record
+            for record in c._history  # noqa: SLF001
+            if record.get("number") != number and record.get("order") != number
+        ]
+        had_history = len(c._history) != before  # noqa: SLF001
+        if not (had_manual or had_history):
+            continue
+
+        await c._async_save_tracking()  # noqa: SLF001
+        # had_manual means the number was still in the active manual
+        # list (a delivered manual number is popped from it already, see
+        # _process_manual_tracking), so it was still counted in
+        # universal_packages -- decrement to match the row we're
+        # dropping from universal_tracking_details below.
+        if had_manual:
+            c.data["universal_packages"] = max(0, c.data.get("universal_packages", 0) - 1)
+        c.data["universal_tracking_details"] = [
+            item
+            for item in (c.data.get("universal_tracking_details") or [])
+            if item.get("number") != number
+        ]
+        c.data["packages_history"] = len(c._history)  # noqa: SLF001
+        c.data["packages_history_details"] = list(c._history)  # noqa: SLF001
+        c.async_set_updated_data(c.data)
 
 
 async def async_remove_config_entry_device(  # pylint: disable-next=unused-argument

@@ -870,16 +870,22 @@ async def test_batch_search_classifies_via_one_broad_search_and_fetch(monkeypatc
     account.uid = AsyncMock(
         return_value=_fetch_response(
             [
-                b'1 FETCH (UID 101 INTERNALDATE "01-Jul-2026 08:00:00 +0000" '
-                b"BODY[HEADER.FIELDS (FROM SUBJECT)] {50}",
+                (
+                    b'1 FETCH (UID 101 INTERNALDATE "01-Jul-2026 08:00:00 +0000" '
+                    b"BODY[HEADER.FIELDS (FROM SUBJECT)] {50}"
+                ),
                 b"From: DPD <noreply@service.dpd.de>\r\nSubject: Paket ist da\r\n\r\n",
                 b")",
-                b'2 FETCH (UID 102 INTERNALDATE "30-Jun-2026 10:00:00 +0000" '
-                b"BODY[HEADER.FIELDS (FROM SUBJECT)] {45}",
+                (
+                    b'2 FETCH (UID 102 INTERNALDATE "30-Jun-2026 10:00:00 +0000" '
+                    b"BODY[HEADER.FIELDS (FROM SUBJECT)] {45}"
+                ),
                 b"From: UPS <mcinfo@ups.com>\r\nSubject: Package delivered\r\n\r\n",
                 b")",
-                b'3 FETCH (UID 103 INTERNALDATE "25-Jun-2026 10:00:00 +0000" '
-                b"BODY[HEADER.FIELDS (FROM SUBJECT)] {45}",
+                (
+                    b'3 FETCH (UID 103 INTERNALDATE "25-Jun-2026 10:00:00 +0000" '
+                    b"BODY[HEADER.FIELDS (FROM SUBJECT)] {45}"
+                ),
                 b"From: noreply@service.dpd.de\r\nSubject: Old DPD mail\r\n\r\n",
                 b")",
             ]
@@ -941,8 +947,10 @@ async def test_batch_search_reconnects_on_stalled_broad_search(monkeypatch):
     fresh_account.uid = AsyncMock(
         return_value=_fetch_response(
             [
-                b'1 FETCH (UID 101 INTERNALDATE "01-Jul-2026 08:00:00 +0000" '
-                b"BODY[HEADER.FIELDS (FROM SUBJECT)] {50}",
+                (
+                    b'1 FETCH (UID 101 INTERNALDATE "01-Jul-2026 08:00:00 +0000" '
+                    b"BODY[HEADER.FIELDS (FROM SUBJECT)] {50}"
+                ),
                 b"From: DPD <noreply@service.dpd.de>\r\nSubject: Paket ist da\r\n\r\n",
                 b")",
             ]
