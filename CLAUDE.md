@@ -20,7 +20,15 @@ Du bist das stärkste Modell in diesem Setup und damit Planer und Prüfer, nicht
    - Erfüllt = als abgeschlossen markieren.
    - Nicht erfüllt = konkretes, beachtbares Feedback zurück an den Executor (was genau fehlt, z.B. "Test X fehlt", "Y muss substring Z enthalten").
 
-Nur wenn eine Aufgabe wirklich winzig ist (max. eine kleine Änderung in einer Datei, keine Abhängigkeiten), machst du sie direkt selbst. Alles andere läuft über den Executor, damit das teure Modell (Fable) für Denken und Prüfen reserviert bleibt.
+Mach die Umsetzung niemals selbst — auch nicht bei winzigen Aufgaben. Delegiere immer, entweder an den Copilot-Executor (siehe oben) oder an einen Sub-Agenten über das Agent-Tool. Du bleibst Planer und Prüfer, damit das teure Modell für Denken und Prüfen reserviert bleibt.
+
+## Modellwahl für Sub-Agenten (Pflicht)
+
+Nutze beim Spawnen von Sub-Agenten nicht standardmäßig Opus 5.5. Wähl das Modell nach Aufgabenschwierigkeit:
+- Recherche, Datei-Suche, mechanische Änderungen, einfache/klar umrissene Fixes: `sonnet` oder `haiku`.
+- Architektur-Entscheidungen, komplexe Refactors, Review mit hohem Risiko: `opus`, nur wenn wirklich nötig.
+
+Du selbst (Planer/Prüfer) bleibst auf dem stärksten Modell — die Umsetzung soll günstiger laufen.
 
 ## Besondere Hinweise für Copilot
 
@@ -43,4 +51,5 @@ Regeln:
   - Für fokussierte Themen: `graphify explain "<concept>"`.
 - Wenn `graphify-out/wiki/index.md` existiert, nutze sie für breit Navigation statt raw source browsing.
 - `graphify-out/GRAPH_REPORT.md` erst für breite Architektur-Analyse oder wenn query/path/explain nicht genug Kontext liefern.
-- Nach Code-Änderungen: `graphify update .` um den Graph aktuell zu halten (AST-only, keine API Kosten).
+- Nach Code-Änderungen: `graphify update . --directed` um den Graph aktuell zu halten (AST-only, keine API Kosten).
+  `--directed` ist Pflicht — der Graph ist gerichtet gebaut, und ein Update ohne das Flag baut ihn ungerichtet zurück.
