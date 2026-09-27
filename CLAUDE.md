@@ -24,9 +24,17 @@ Mach die Umsetzung niemals selbst — auch nicht bei winzigen Aufgaben. Delegier
 
 ## Modellwahl für Sub-Agenten (Pflicht)
 
-Nutze beim Spawnen von Sub-Agenten nicht standardmäßig Opus 5.5. Wähl das Modell nach Aufgabenschwierigkeit:
-- Recherche, Datei-Suche, mechanische Änderungen, einfache/klar umrissene Fixes: `sonnet` oder `haiku`.
-- Architektur-Entscheidungen, komplexe Refactors, Review mit hohem Risiko: `opus`, nur wenn wirklich nötig.
+Nutze beim Spawnen von Sub-Agenten nicht standardmäßig Opus. `sonnet` ist der Default, nicht haiku und nicht opus.
+
+- `haiku`: rein mechanisch, eindeutig spezifiziert, kein Urteilsvermögen nötig — Umbenennungen, Format-Fixes, Code-Suche/Lookup ("finde X"), Boilerplate nach vorhandenem Muster. Auch für reine Recherche-Agenten (Explore-artig, nur lesen/finden).
+- `sonnet`: Standard-Arbeitspferd. Die meisten Implementierungen, Bugfixes mit klarer Repro, moderate Refactors, Multi-File-Changes mit klarem Scope, Code-Review.
+- `opus`: nur bei echtem Abwägungsbedarf — Architektur-Entscheidungen, mehrdeutige/unterspezifizierte Probleme, harte Root-Cause-Suche mit widersprüchlichen Signalen, sicherheitskritischer Review, Fälle wo ein Fehler teuer rückgängig zu machen ist.
+
+Faustregel: eine Lösung, ein klarer Test → `sonnet`/`haiku`. Mehrere gültige Ansätze, Tradeoffs abzuwägen → `opus`.
+
+**Eskalationsleiter statt Opus zuerst:** Bei Unsicherheit `sonnet` zuerst versuchen. Erst wenn die PRÜFEN-Phase das Ergebnis zurückweist, denselben Auftrag an `opus` eskalieren. So zahlt man den Opus-Preis nur für Aufgaben, die sich als wirklich schwer erweisen, nicht auf Verdacht.
+
+Der PRÜFEN-Schritt selbst läuft ebenfalls meist auf `sonnet` — `opus` dort nur wenn die Akzeptanzkriterien subjektiv/architektonisch sind, nicht bei simplen Tests-grün-Checks.
 
 Du selbst (Planer/Prüfer) bleibst auf dem stärksten Modell — die Umsetzung soll günstiger laufen.
 
