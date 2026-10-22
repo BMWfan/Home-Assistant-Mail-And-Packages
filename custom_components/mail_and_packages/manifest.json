@@ -20,7 +20,6 @@
     "beautifulsoup4",
     "dateparser",
     "aioimaplib",
-    "cryptography>=41.0",
     "anyio"
   ],
   "version": "0.6.2"
