@@ -468,3 +468,23 @@ async def test_image_path_sensor_grid(hass):
     )
     expected = f"{hass.config.path()}/images/test_grid.png"
     assert sensor.native_value == expected
+
+
+@pytest.mark.parametrize(
+    ("sensor_type", "code_key"),
+    [
+        ("amazon_otp", "amazon_otp_code"),
+        ("amazon_hub", "amazon_hub_code"),
+    ],
+)
+def test_amazon_code_kept_when_order_exists(sensor_type, code_key):
+    """Amazon pickup/delivery codes must survive alongside an order number."""
+    sensor = object.__new__(PackagesSensor)
+    sensor.type = sensor_type
+    attributes = {}
+    sensor._add_amazon_attributes(
+        attributes,
+        {AMAZON_ORDER: ["123-1234567-1234567"], code_key: "123456"},
+    )
+    assert attributes[ATTR_ORDER] == ["123-1234567-1234567"]
+    assert attributes["code"] == "123456"
