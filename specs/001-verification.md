@@ -1,6 +1,6 @@
 # SPEC-001 — Verification evidence and remaining gates
 
-**Evidence date:** 2026-11-06. **Status:** CI and HACS/hassfest passed on reviewed SHA `e6dde8b`; verification of the follow-up test change and human review remain pending. No production services were accessed.
+**Evidence date:** 2026-11-06. **Status:** CI and HACS/hassfest passed on `e6dde8b`; the latest assessed code SHA, `ce9b2fa`, has gated Validation/PR-lint runs and no CI run. Human review remains pending. No production services were accessed.
 
 ## SDD phase and review gates
 
@@ -10,9 +10,22 @@
 | Clarify | PR #12 review comments and CI investigation | Requirements reconciled; old CI root cause remains unknown because retrieved logs contained no tox output |
 | Plan | `specs/001-test-environment.md` design and plan sections | Draft; no architecture or acceptance criteria were self-approved |
 | Tasks | `specs/001-test-environment.md` task checklist | Local implementation tasks completed; final-SHA verification and review remain |
-| Analyze | Workflow, tox, test, fixture, and configuration inventory below | Complete for this scope |
+| Analyze | Workflow, tox, test, fixture, configuration, and documentation-impact inventory below | Complete for this scope |
 | Implement | PR #12 changes and imported PR #11 baseline | Complete locally; no production changes |
-| Verify | Commands and results below | CI and HACS/hassfest evidence recorded for `e6dde8b`; final follow-up SHA and review remain |
+| Verify | Commands, documentation-impact review, and results below | CI and HACS/hassfest evidence recorded for `e6dde8b`; current PR SHA checks remain gated and human review is pending |
+
+## Documentation impact review
+
+| Documentation | Impact and decision |
+|---|---|
+| `README.md` | No documentation change needed: no user-visible integration behavior or configuration changed. README already links to `CONTRIBUTING.md`; another test-command link would duplicate contributor guidance. |
+| `CONTRIBUTING.md` | Existing Python 3.14, tox, focused-test, lint, and spec-gate instructions cover this work and remain accurate; no additional command change is needed. |
+| `AGENTS.md` and `DEVCONTAINER.md` | No documentation change needed: the test-only reload assertion does not change the developer container or supported runtime. The existing Python guidance includes 3.14. |
+| Example configuration (`config/configuration.yaml`) | No change needed: no configuration or runtime behavior changed. The isolated test safety review remains recorded below. |
+| Changelog/release notes | No change needed: this is internal test/verification work, not an unreleased user-facing feature or release. No `CHANGELOG.md` exists in the repository. |
+| `specs/001-*.md` | Updated verification evidence and this impact review are recorded in the existing Draft SPEC-001 artifacts; requirements and acceptance criteria were not changed. |
+
+No additional README or user-facing documentation change is warranted. This review covers the multi-entry test assertion and the SPEC-001 testing/CI documentation; no product configuration, compatibility promise, migration, or user-facing feature changed in the follow-up commits.
 
 ## Isolated environment and safety
 
@@ -43,11 +56,11 @@
 | Automated dependency vulnerability scanning | NOT_IMPLEMENTED | `.github/dependabot.yml` schedules pip version updates but is not a vulnerability scan. No dependency audit workflow/tool is configured. Repository alert APIs returned 403; only selected tox packages were checked against the advisory database, which is not a project-wide scan. |
 | Home Assistant live startup | NOT_RUN | Not required; no HA instance was launched |
 | Companion-card browser/consumer tests | NOT_RUN | Companion card source and browser tooling are not present in this repository |
-| GitHub CI on current PR SHA | NOT_RUN | No CI run exists for `1c4200b`; CI #32 passed on prior SHA `e6dde8b` only |
-| Validation/HACS/hassfest on current PR SHA | ACTION_REQUIRED | Validation run [42174895004](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174895004) is `action_required` for `1c4200b` and has zero jobs |
-| PR lint on current PR SHA | ACTION_REQUIRED | Lint PR run [42174900405](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174900405) is `action_required` for `1c4200b` and has zero jobs |
-| Pre-commit on current PR SHA | NOT_VERIFIED | No run exists for `1c4200b`; the available run is for older SHA `3f427c0` |
-| GitHub CodeQL on current PR SHA | NOT_VERIFIED | No run exists for `1c4200b`; the available run is for older SHA `3f427c0` |
+| GitHub CI on latest assessed code SHA | NOT_RUN | No CI run exists for `ce9b2fa`; CI #32 passed on prior SHA `e6dde8b` only |
+| Validation/HACS/hassfest on latest assessed code SHA | ACTION_REQUIRED | Validation run [42174964669](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174964669) is `action_required` for `ce9b2fa` and has zero jobs |
+| PR lint on latest assessed code SHA | ACTION_REQUIRED | Lint PR run [42174968699](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174968699) is `action_required` for `ce9b2fa` and has zero jobs |
+| Pre-commit on latest assessed code SHA | NOT_VERIFIED | No run exists for `ce9b2fa`; the available run is for older SHA `3f427c0` |
+| GitHub CodeQL on latest assessed code SHA | NOT_VERIFIED | No run exists for `ce9b2fa`; the available run is for older SHA `3f427c0` |
 | Premium-request usage | NOT_AVAILABLE | No usage metadata was exposed; no estimate recorded |
 
 Full tox measured 100% coverage for the configured integration Python files (`custom_components/mail_and_packages/`), not for every behavior or the whole repository. It completed with 12 existing pytest/deprecation/runtime warnings and no failures. No live HA instance was started. An initial full tox attempt used the sandbox's Python 3.12 Actions context and could not resolve HA 2026.11; it passed when rerun with Python 3.14.10 and the sandbox-only `GITHUB_ACTIONS` variable unset.
@@ -73,7 +86,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- Request repository approval to run CI, Validation/HACS/hassfest, pre-commit, and GitHub CodeQL on current PR SHA `1c4200b`; current Validation and PR-lint runs are gated with zero jobs. Local tests, CodeQL, secret scan, and the changed-spec gate have been verified.
+- Request repository approval to run CI, Validation/HACS/hassfest, pre-commit, and GitHub CodeQL on the latest PR revision; Validation and PR-lint runs were gated with zero jobs on `ce9b2fa`. Local tests, CodeQL, secret scan, and the changed-spec gate have been verified.
 - Resolve whether dependency vulnerability scanning should be introduced and what sources/exception policy it should use; this acceptance criterion remains incomplete.
 - Inspect the resulting current-SHA CI logs; do not infer a cause for the earlier 404 job.
 - Obtain human review of the still-Draft specification and implementation. Merge remains manual.
