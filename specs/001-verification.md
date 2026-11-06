@@ -33,9 +33,9 @@
 | mypy | PASS | `mypy custom_components/mail_and_packages/`; no issues in 24 source files |
 | Spec artifact gate | PASS | 3 standard-library unit tests pass; changed spec artifacts pass against PR base `71d2111e23de1ec0ca641a310d74cfb2c4c25237` |
 | Full local tox | PASS | `env -u GITHUB_ACTIONS PATH="$(dirname "$(/tmp/spec001-venv/bin/uv python find 3.14)"):$PATH" /tmp/spec001-venv/bin/tox`; 525 passed; 16.07s cached total |
-| HACS and hassfest on current PR SHA | ACTION_REQUIRED | Validation run `42167716397` is gated; no current-SHA results are available |
-| CodeQL on current changes | PENDING | Re-run after the manifest contract test is committed |
-| Secret scanning on current changes | PENDING | Scan the final changed files before commit |
+| HACS and hassfest on current PR SHA | ACTION_REQUIRED | Validation run `42168073447` is gated; no current-SHA results are available |
+| CodeQL on current changes | PASS | After the manifest test commit, CodeQL reported zero Python alerts; Actions analysis was unchanged from its prior run |
+| Secret scanning on current changes | PASS | Scanner reported no secrets in final changed files |
 | Home Assistant live startup | NOT_RUN | Not required; no HA instance was launched |
 | Companion-card browser/consumer tests | NOT_RUN | Companion card source is not present in this repository |
 | CI run duration on updated PR SHA | NOT_AVAILABLE | No updated-SHA CI run is available yet |
@@ -56,6 +56,6 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- Verify HACS, hassfest, pre-commit, and GitHub CodeQL on the updated PR SHA after repository approval allows the checks to run.
+- Verify HACS, hassfest, pre-commit, and CI on the updated PR SHA after repository approval allows the checks to run.
 - Inspect the resulting current-SHA CI logs; do not infer a cause for the earlier 404 job.
 - Obtain human review of the still-Draft specification and implementation. Merge remains manual.

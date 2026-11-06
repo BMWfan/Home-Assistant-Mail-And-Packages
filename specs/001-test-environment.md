@@ -58,9 +58,10 @@ Follow the required gates in order: Specify → Clarify → Plan → Tasks → A
 - [x] T002 Clarify the legacy tox/pip constraints and establish that the previously reported CI job's root cause is unknown (retrieved logs contained no tox output).
 - [x] T003 Implement and test changed-spec artifact validation in the existing `specs/` layout.
 - [x] T004 Verify the manifest, isolated startup, reload, and multi-entry scenarios against HA 2026.11/Python 3.14.
-- [ ] T005 Verify lint, format, type, HA validation, and CI security checks on the updated PR SHA.
+- [x] T005 Verify local lint, format, type, CodeQL, and secret checks on the final implementation.
 - [x] T006 Record measured local duration and actual premium-request usage if available; report unavailable metrics without estimating.
-- [ ] T007 Obtain human review and retain manual merge.
+- [ ] T007 Verify GitHub CI, HACS, and hassfest on the updated PR SHA after repository approval.
+- [ ] T008 Obtain human review and retain manual merge.
 
 ## Scope boundaries
 
