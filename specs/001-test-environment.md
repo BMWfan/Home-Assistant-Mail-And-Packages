@@ -13,6 +13,7 @@ Establish reliable, repeatable checks for the existing Home Assistant integratio
 
 - Run tests against Python 3.14 and Home Assistant 2026.11.0, with isolated tox environments and deterministic fixtures.
 - Validate startup and independent reload of multiple config entries without production Home Assistant, real secrets, external IMAP, or external network access.
+- Check the integration manifest and existing frontend-facing entity attributes with deterministic contract tests; run companion-card browser tests only if its source and tooling are available.
 - Keep formatting checks read-only; pin compatible tox tooling, use dependency caching and a bounded CI timeout, and cancel superseded runs safely.
 - Add a deterministic standard-library spec artifact check for changed specs only. Keep requirements, design, plan, and tasks in the existing `specs/NNN-*.md` specification, with verification in `specs/NNN-verification.md`; do not gate untouched legacy specs.
 - Run no LLM/API calls in CI. Do not add an autonomous repair loop, privileged token, auto-approval, or auto-merge. Human review and manual merge remain required.
@@ -54,9 +55,9 @@ Follow the required gates in order: Specify → Clarify → Plan → Tasks → A
 ## Tasks
 
 - [x] T001 Read-only inventory of workflows, tox, tests, devcontainer, and available card contract checks.
-- [x] T002 Clarify the legacy tox/pip constraints and establish that the previously reported CI job's root cause is unknown (logs returned 404).
+- [x] T002 Clarify the legacy tox/pip constraints and establish that the previously reported CI job's root cause is unknown (retrieved logs contained no tox output).
 - [x] T003 Implement and test changed-spec artifact validation in the existing `specs/` layout.
-- [x] T004 Verify isolated startup, reload, and multi-entry scenarios against HA 2026.11/Python 3.14.
+- [x] T004 Verify the manifest, isolated startup, reload, and multi-entry scenarios against HA 2026.11/Python 3.14.
 - [ ] T005 Verify lint, format, type, HA validation, and CI security checks on the updated PR SHA.
 - [x] T006 Record measured local duration and actual premium-request usage if available; report unavailable metrics without estimating.
 - [ ] T007 Obtain human review and retain manual merge.

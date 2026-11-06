@@ -7,7 +7,7 @@
 | Phase | Artifact or evidence | Status / gate |
 |---|---|---|
 | Specify | `specs/001-test-environment.md` requirements and acceptance criteria | Draft; human review required |
-| Clarify | PR #12 review comments and CI investigation | Requirements reconciled; old CI root cause remains unknown because logs returned 404 |
+| Clarify | PR #12 review comments and CI investigation | Requirements reconciled; old CI root cause remains unknown because retrieved logs contained no tox output |
 | Plan | `specs/001-test-environment.md` design and plan sections | Draft; no architecture or acceptance criteria were self-approved |
 | Tasks | `specs/001-test-environment.md` task checklist | Local implementation tasks completed; remote validation and review remain |
 | Analyze | Workflow, tox, test, fixture, and configuration inventory below | Complete for this scope |
@@ -27,14 +27,15 @@
 | Check | Status | Evidence |
 |---|---|---|
 | Focused HA init lifecycle | PASS | `tox -e py314 -- tests/test_init.py --no-cov`; 37 passed; cold environment setup and run took 47.90s |
-| Full pytest suite | PASS | Full tox run on Python 3.14.10; 524 passed, coverage 100%; pytest runtime 13.70s |
-| Ruff lint and format | PASS | `ruff check --no-fix .` and `ruff format --check .`; read-only; 52 files formatted |
+| Full pytest suite | PASS | Full tox run on Python 3.14.10; 525 passed, coverage 100%; pytest runtime 13.50s |
+| Integration manifest contract | PASS | `tests/test_manifest.py`; manifest metadata and required fields pass |
+| Ruff lint and format | PASS | `ruff check --no-fix .` and `ruff format --check .`; read-only; 53 files formatted |
 | mypy | PASS | `mypy custom_components/mail_and_packages/`; no issues in 24 source files |
 | Spec artifact gate | PASS | 3 standard-library unit tests pass; changed spec artifacts pass against PR base `71d2111e23de1ec0ca641a310d74cfb2c4c25237` |
-| Full local tox | PASS | `env -u GITHUB_ACTIONS PATH="$(dirname "$(/tmp/spec001-venv/bin/uv python find 3.14)"):$PATH" /tmp/spec001-venv/bin/tox`; 16.34s cached total |
-| HACS and hassfest on current PR SHA | ACTION_REQUIRED | Validation run `42167385737` is gated; no current-SHA results are available |
-| CodeQL on current changes | PASS | CodeQL checker ran after commit `3717264`; zero alerts for Actions and Python |
-| Secret scanning on current changes | PASS | Scanner reported no secrets in changed files |
+| Full local tox | PASS | `env -u GITHUB_ACTIONS PATH="$(dirname "$(/tmp/spec001-venv/bin/uv python find 3.14)"):$PATH" /tmp/spec001-venv/bin/tox`; 525 passed; 16.07s cached total |
+| HACS and hassfest on current PR SHA | ACTION_REQUIRED | Validation run `42167716397` is gated; no current-SHA results are available |
+| CodeQL on current changes | PENDING | Re-run after the manifest contract test is committed |
+| Secret scanning on current changes | PENDING | Scan the final changed files before commit |
 | Home Assistant live startup | NOT_RUN | Not required; no HA instance was launched |
 | Companion-card browser/consumer tests | NOT_RUN | Companion card source is not present in this repository |
 | CI run duration on updated PR SHA | NOT_AVAILABLE | No updated-SHA CI run is available yet |
@@ -51,9 +52,9 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 - Home Assistant, Ruff, the HA pytest helper, and selected test tooling are pinned or constrained. The full transitive dependency closure is not locked; adding and maintaining a platform-specific full lock was not included in this minimal CI fix.
 - CI runs lint and type checking before pytest, caches uv dependencies, cancels superseded runs for the same ref, and bounds the test job at 20 minutes.
 - No extra path-filtered test suite was added: the repository has one relevant integration suite, and skipping it for broad source changes would weaken coverage. No LLM calls, agent-trigger loop, privileged token, auto-approval, or auto-merge were added. No two-repair-attempt cap is enforced because self-healing is not configured.
-- The measured 16.34s is a cached local tox duration, not a GitHub CI duration. The 37m38s measurement is the previous failed remote tox step, not the updated PR SHA. No premium-request usage was available.
+- The measured 16.07s is a cached local tox duration, not a GitHub CI duration. The 37m38s measurement is the previous failed remote tox step, not the updated PR SHA. No premium-request usage was available.
 
-## Remaining actions
+## Next actions
 
 - Verify HACS, hassfest, pre-commit, and GitHub CodeQL on the updated PR SHA after repository approval allows the checks to run.
 - Inspect the resulting current-SHA CI logs; do not infer a cause for the earlier 404 job.
