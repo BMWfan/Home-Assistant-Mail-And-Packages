@@ -54,7 +54,7 @@ virtual environment, then install and run the test tools:
 ```bash
 python3.14 -m venv .venv
 source .venv/bin/activate
-python -m pip install tox tox-gh-actions
+python -m pip install tox==4.32.0 tox-gh-actions==3.5.0
 tox
 ```
 
@@ -62,6 +62,8 @@ Tox runs pytest, Ruff lint and format checks, and mypy in isolated environments.
 The pytest environment disables external sockets, allowing only loopback access
 for tests. For focused runs, use `tox -e py314 -- tests/test_init.py --no-cov`
 or run Ruff directly with `ruff check --no-fix .` and `ruff format --check .`.
+For a pull-request base SHA, validate changed SPEC-001 artifacts locally with
+`python check_spec_artifacts.py --base-ref <PR-base-sha>`.
 HACS and hassfest validation run in the **Validation** GitHub Actions workflow;
 start it from the Actions tab with **Run workflow** when needed.
 

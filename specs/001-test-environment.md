@@ -1,13 +1,22 @@
 # SPEC-001 — Reproducible testing, security gates and AI-cost baseline
 
-**Status:** Draft — inventory completed from repository files; execution evidence pending.
+**Status:** Draft — implementation evidence is being recorded; human review is required before merge.
 **Parent:** https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/2
 **Tracking:** https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/3
-**Baseline branch:** `test/all-features`; work only on `feature/ha-2026-11-spec-driven`.
+**Baseline branch:** `test/all-features`.
 
 ## Goal
 
 Establish reliable, repeatable checks for the existing Home Assistant integration and its companion card, without altering production Home Assistant or changing public entity IDs, tracking data, or storage schemas.
+
+## Requirements
+
+- Run tests against Python 3.14 and Home Assistant 2026.11.0, with isolated tox environments and deterministic fixtures.
+- Validate startup and independent reload of multiple config entries without production Home Assistant, real secrets, external IMAP, or external network access.
+- Keep formatting checks read-only; pin compatible tox tooling, use dependency caching and a bounded CI timeout, and cancel superseded runs safely.
+- Add a deterministic standard-library spec artifact check for changed specs only. Keep requirements, design, plan, and tasks in the existing `specs/NNN-*.md` specification, with verification in `specs/NNN-verification.md`; do not gate untouched legacy specs.
+- Run no LLM/API calls in CI. Do not add an autonomous repair loop, privileged token, auto-approval, or auto-merge. Human review and manual merge remain required.
+- Document local commands, compatibility, migration, and rollback implications.
 
 ## Confirmed existing capabilities
 
@@ -32,16 +41,29 @@ Establish reliable, repeatable checks for the existing Home Assistant integratio
 
 ## Proposed order of work
 
-- [ ] T001 Read-only inventory of workflows, tox, tests, Docker and companion-card tests.
-- [ ] T002 Run existing checks unchanged and capture baseline.
-- [ ] T003 Add only missing deterministic checks with regression tests.
-- [ ] T004 Validate isolated Home Assistant startup, reload and multi-entry scenarios.
-- [ ] T005 Add targeted security checks and verify actionable findings.
-- [ ] T006 Document outcomes and incremental AI/CI cost; open a focused draft PR.
+## Design
+
+The existing tox and GitHub Actions validation are retained. The Python CI job remains a single supported Home Assistant 2026.11/Python 3.14 target, with exact tox tooling, a bounded runtime, dependency caching, and concurrency cancellation. Formatting remains a read-only check. Test sockets are restricted to loopback, and integration tests use existing synthetic fixtures and mocked IMAP clients.
+
+The spec checker uses Python's standard library and runs only for pull requests. It inspects changed files under `specs/` against the repository's existing two-file layout; requirements, design, plan, and tasks are headings in the spec document, while verification evidence is kept in its companion file. Existing unchanged specifications are grandfathered. No companion card implementation is present in this repository; existing producer-side attribute contract tests remain the available check.
+
+## Plan
+
+Follow the required gates in order: Specify → Clarify → Plan → Tasks → Analyze → Implement → Verify. The specification remains Draft until human review; no implementation status or acceptance criterion is self-approved. The CI/tooling changes are limited to the testing scope above. Self-healing remains opt-in and unimplemented because no bounded, approved repair mechanism is configured.
+
+## Tasks
+
+- [x] T001 Read-only inventory of workflows, tox, tests, devcontainer, and available card contract checks.
+- [x] T002 Clarify the legacy tox/pip constraints and establish that the previously reported CI job's root cause is unknown (logs returned 404).
+- [x] T003 Implement and test changed-spec artifact validation in the existing `specs/` layout.
+- [x] T004 Verify isolated startup, reload, and multi-entry scenarios against HA 2026.11/Python 3.14.
+- [ ] T005 Verify lint, format, type, HA validation, and CI security checks on the updated PR SHA.
+- [x] T006 Record measured local duration and actual premium-request usage if available; report unavailable metrics without estimating.
+- [ ] T007 Obtain human review and retain manual merge.
 
 ## Scope boundaries
 
-This phase must not touch production HA, change credentials, publish releases, modify tracking persistence, merge PRs or create eight new implementation branches. Existing Amazon fix PR stays separate. No automatic unbounded agent repair loop; stop after two attempts and report the blocker.
+This phase must not touch production HA, change credentials, publish releases, modify tracking persistence, merge PRs or create eight new implementation branches. Existing Amazon fix PR stays separate. No automatic repair loop is configured; therefore a two-attempt limit is not enforced by CI. Repairs remain opt-in and require human approval.
 
 ## Decision rule
 
