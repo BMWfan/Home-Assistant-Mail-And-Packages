@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.13"]
+        python-version: ["3.14"]
     name: Python ${{ matrix.python-version }}
     steps:
       - name: Harden Runner
@@ -29,7 +29,7 @@ jobs:
       - name: 🛠️ Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14.2"
 
       - name: 🚀 Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -43,7 +43,7 @@ jobs:
         run: tox
 
       - name: 📤 Upload coverage artifact
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.14'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-data
