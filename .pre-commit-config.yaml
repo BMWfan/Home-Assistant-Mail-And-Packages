@@ -3,6 +3,7 @@ repos:
     rev: v5.0.0
     hooks:
       - id: check-yaml
+        args: [--unsafe]  # Allow Home Assistant tags such as !secret
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: debug-statements
