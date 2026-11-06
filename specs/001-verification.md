@@ -43,11 +43,11 @@
 | Automated dependency vulnerability scanning | NOT_IMPLEMENTED | `.github/dependabot.yml` schedules pip version updates but is not a vulnerability scan. No dependency audit workflow/tool is configured. Repository alert APIs returned 403; only selected tox packages were checked against the advisory database, which is not a project-wide scan. |
 | Home Assistant live startup | NOT_RUN | Not required; no HA instance was launched |
 | Companion-card browser/consumer tests | NOT_RUN | Companion card source and browser tooling are not present in this repository |
-| GitHub CI on follow-up SHA | NOT_RUN | No CI run exists for `4e39b95`; CI #32 passed on prior SHA `e6dde8b` only |
-| Validation/HACS/hassfest on follow-up SHA | ACTION_REQUIRED | Validation run [42174653628](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174653628) is `action_required` for `4e39b95` and has zero jobs |
-| PR lint on follow-up SHA | ACTION_REQUIRED | Lint PR run [42174656579](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174656579) is `action_required` for `4e39b95` and has zero jobs |
-| Pre-commit on follow-up SHA | NOT_VERIFIED | No run exists for `4e39b95`; the available run is for older SHA `3f427c0` |
-| GitHub CodeQL on follow-up SHA | NOT_VERIFIED | No run exists for `4e39b95`; the available run is for older SHA `3f427c0` |
+| GitHub CI on current PR SHA | NOT_RUN | No CI run exists for `1c4200b`; CI #32 passed on prior SHA `e6dde8b` only |
+| Validation/HACS/hassfest on current PR SHA | ACTION_REQUIRED | Validation run [42174895004](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174895004) is `action_required` for `1c4200b` and has zero jobs |
+| PR lint on current PR SHA | ACTION_REQUIRED | Lint PR run [42174900405](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174900405) is `action_required` for `1c4200b` and has zero jobs |
+| Pre-commit on current PR SHA | NOT_VERIFIED | No run exists for `1c4200b`; the available run is for older SHA `3f427c0` |
+| GitHub CodeQL on current PR SHA | NOT_VERIFIED | No run exists for `1c4200b`; the available run is for older SHA `3f427c0` |
 | Premium-request usage | NOT_AVAILABLE | No usage metadata was exposed; no estimate recorded |
 
 Full tox measured 100% coverage for the configured integration Python files (`custom_components/mail_and_packages/`), not for every behavior or the whole repository. It completed with 12 existing pytest/deprecation/runtime warnings and no failures. No live HA instance was started. An initial full tox attempt used the sandbox's Python 3.12 Actions context and could not resolve HA 2026.11; it passed when rerun with Python 3.14.10 and the sandbox-only `GITHUB_ACTIONS` variable unset.
@@ -73,7 +73,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- Request repository approval to run CI, Validation/HACS/hassfest, pre-commit, and GitHub CodeQL on the follow-up SHA; the current Validation and PR-lint runs are gated with zero jobs. Local tests, CodeQL, secret scan, and the changed-spec gate have been verified.
+- Request repository approval to run CI, Validation/HACS/hassfest, pre-commit, and GitHub CodeQL on current PR SHA `1c4200b`; current Validation and PR-lint runs are gated with zero jobs. Local tests, CodeQL, secret scan, and the changed-spec gate have been verified.
 - Resolve whether dependency vulnerability scanning should be introduced and what sources/exception policy it should use; this acceptance criterion remains incomplete.
 - Inspect the resulting current-SHA CI logs; do not infer a cause for the earlier 404 job.
 - Obtain human review of the still-Draft specification and implementation. Merge remains manual.
