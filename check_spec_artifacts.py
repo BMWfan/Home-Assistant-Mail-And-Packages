@@ -22,7 +22,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def changed_paths(base_sha: str) -> list[str]:
-    """Return added, copied, modified, and renamed paths since the PR base."""
+    """Return changed paths since the PR base, including deleted paths."""
     if not re.fullmatch(r"[0-9a-fA-F]{40,64}", base_sha):
         raise ValueError("base SHA must be a 40- or 64-character hexadecimal commit")
     result = subprocess.run(
@@ -30,7 +30,7 @@ def changed_paths(base_sha: str) -> list[str]:
             "git",
             "diff",
             "--name-only",
-            "--diff-filter=ACMR",
+            "--diff-filter=ACMRD",
             f"{base_sha}...HEAD",
         ],
         check=True,
