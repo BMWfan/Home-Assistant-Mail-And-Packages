@@ -69,6 +69,32 @@ async def test_setup_entry(
 
 
 @pytest.mark.asyncio
+async def test_multiple_entries_setup_and_reload(
+    hass,
+    integration_factory,
+    mock_imap_no_email,
+    mock_osremove,
+    mock_osmakedir,
+    mock_listdir,
+    mock_update_time,
+    mock_copy_overlays,
+    mock_hash_file,
+    mock_getctime_today,
+):
+    """Test multiple entries can start and reload independently."""
+    first_entry = await integration_factory(FAKE_CONFIG_DATA)
+    second_config = {**FAKE_CONFIG_DATA, "host": "imap.second.test"}
+    await integration_factory(second_config)
+
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 96
+
+    assert await hass.config_entries.async_reload(first_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 96
+
+
+@pytest.mark.asyncio
 async def test_no_path_no_sec(
     hass,
     mock_imap_no_email,

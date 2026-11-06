@@ -46,6 +46,25 @@ People *love* thorough bug reports. I'm not even kidding.
 
 Use [black](https://github.com/ambv/black) to make sure the code follows the style.
 
+## Run tests and validation
+
+Use Python 3.14, matching CI. From the repository root, create and activate a
+virtual environment, then install and run the test tools:
+
+```bash
+python3.14 -m venv .venv
+source .venv/bin/activate
+python -m pip install tox tox-gh-actions
+tox
+```
+
+Tox runs pytest, Ruff lint and format checks, and mypy in isolated environments.
+The pytest environment disables external sockets, allowing only loopback access
+for tests. For focused runs, use `tox -e py314 -- tests/test_init.py --no-cov`
+or run Ruff directly with `ruff check --no-fix .` and `ruff format --check .`.
+HACS and hassfest validation run in the **Validation** GitHub Actions workflow;
+start it from the Actions tab with **Run workflow** when needed.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under its MIT License.
