@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -80,18 +81,48 @@ async def test_multiple_entries_setup_and_reload(
     mock_copy_overlays,
     mock_hash_file,
     mock_getctime_today,
+    entity_registry: er.EntityRegistry,
 ):
     """Test multiple entries can start and reload independently."""
     first_entry = await integration_factory(FAKE_CONFIG_DATA)
     second_config = {**FAKE_CONFIG_DATA, "host": "imap.second.test"}
-    await integration_factory(second_config)
+    second_entry = await integration_factory(second_config)
 
     assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 96
+    second_sensor_ids = {
+        entity.entity_id
+        for entity in entity_registry.entities.get_entries_for_config_entry_id(
+            second_entry.entry_id,
+        )
+        if entity.domain == SENSOR_DOMAIN
+    }
+    assert len(second_sensor_ids) >= 48
+
+    def sensor_states(entity_ids):
+        states = {}
+        for entity_id in entity_ids:
+            state = hass.states.get(entity_id)
+            if state is not None:
+                states[entity_id] = (state.state, dict(state.attributes))
+        return states
+
+    second_sensor_states = sensor_states(second_sensor_ids)
+    assert len(second_sensor_states) == 48
 
     assert await hass.config_entries.async_reload(first_entry.entry_id)
     await hass.async_block_till_done()
 
     assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 96
+    assert second_entry in hass.config_entries.async_entries(DOMAIN)
+    reloaded_second_sensor_ids = {
+        entity.entity_id
+        for entity in entity_registry.entities.get_entries_for_config_entry_id(
+            second_entry.entry_id,
+        )
+        if entity.domain == SENSOR_DOMAIN
+    }
+    assert reloaded_second_sensor_ids == second_sensor_ids
+    assert sensor_states(reloaded_second_sensor_ids) == second_sensor_states
 
 
 @pytest.mark.asyncio

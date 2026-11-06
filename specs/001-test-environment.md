@@ -60,8 +60,9 @@ Follow the required gates in order: Specify → Clarify → Plan → Tasks → A
 - [x] T004 Verify the manifest, isolated startup, reload, and multi-entry scenarios against HA 2026.11/Python 3.14.
 - [x] T005 Verify local lint, format, type, CodeQL, and secret checks on the final implementation.
 - [x] T006 Record measured local duration and actual premium-request usage if available; report unavailable metrics without estimating.
-- [ ] T007 Verify GitHub CI, HACS, and hassfest on the updated PR SHA after repository approval.
-- [ ] T008 Obtain human review and retain manual merge.
+- [ ] T007 (partial) CI #32, HACS, and hassfest are verified on `e6dde8b`; repeat required on the follow-up SHA. Pre-commit and GitHub CodeQL results for `e6dde8b` are unavailable; local CodeQL verification is pending the follow-up commit.
+- [ ] T008 Resolve the dependency-vulnerability-scanning gap through human review; no project-wide scan is currently implemented.
+- [ ] T009 Obtain human review and retain manual merge.
 
 ## Scope boundaries
 
