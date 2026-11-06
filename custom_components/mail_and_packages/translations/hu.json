@@ -36,10 +36,16 @@
           "generic_custom_img": "Használjon egyéni általános 'nincs szállítás' képet?",
           "generate_grid": "Kép rács létrehozása LLM látásmodellekhez",
           "allow_forwarded_emails": "Engedélyezze a továbbított e-maileket a szolgáltatás alapértelmezett értékén kívül (pl. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Hány napra visszamenőleg keressen csomag e-maileket (minimum 1, alapértelmezett 3)",
+          "amazon_enabled": "Amazon csomagérzékelők engedélyezése",
+          "seventeen_track_api_key": "17track.net API-kulcs (opcionális)",
+          "dhl_brief_enabled": "DHL levélelőnézet engedélyezése"
         },
         "description": "Végezze el a konfigurációt az alábbiak testreszabásával az e-mail struktúrája és a Home Assistant telepítése alapján. \n\n A [Levelek és csomagok integrációja] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) opciókkal kapcsolatban tekintse meg a [konfiguráció, sablonok , és az automatizálás szakasz] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) a GitHubon.",
-        "title": "Levél és csomagok (2. lépés a 2-ből)"
+        "title": "Levél és csomagok (2. lépés a 2-ből)",
+        "data_description": {
+          "seventeen_track_api_key": "Opcionális. 17track.net API-kulccsal a 17track megbízható állapotot biztosít az összes észlelt nyomkövetési számhoz (az Amazon kivételével) — az e-mail alapú futárállapot-észlelés ekkor kimarad."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Használjon egyéni általános 'nincs szállítás' képet?",
           "generate_grid": "Kép rács létrehozása LLM látásmodellekhez",
           "allow_forwarded_emails": "Engedélyezze a továbbított e-maileket a szolgáltatás alapértelmezett értékén kívül (pl. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Hány napra visszamenőleg keressen csomag e-maileket (minimum 1, alapértelmezett 3)",
+          "amazon_enabled": "Amazon csomagérzékelők engedélyezése",
+          "seventeen_track_api_key": "17track.net API-kulcs (opcionális)",
+          "dhl_brief_enabled": "DHL levélelőnézet engedélyezése"
         },
         "description": "Fejezze be a konfigurációt a következők testreszabásával az e-mail struktúrája és a Home Assistant telepítése alapján.\n\nA [Mail and Packages integráció](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) lehetőségeinek részleteiről a GitHub-on található [konfiguráció, sablonok és automatizálások szekcióban](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) található információkat.\n\nHa Amazon továbbított e-maileket használ, kérjük, válassza el minden címet vesszővel, vagy írja be a (none) opciót, hogy törölje ezt a beállítást.",
-        "title": "Levél és csomagok (2. lépés a 2-ből)"
+        "title": "Levél és csomagok (2. lépés a 2-ből)",
+        "data_description": {
+          "seventeen_track_api_key": "Opcionális. 17track.net API-kulccsal a 17track megbízható állapotot biztosít az összes észlelt nyomkövetési számhoz (az Amazon kivételével) — az e-mail alapú futárállapot-észlelés ekkor kimarad."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -114,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Képek tárolására szolgáló könyvtár"
+          "storage": "Képek tárolására szolgáló könyvtár",
+          "dhl_brief_reauth": "DHL levélelőnézet újbóli hitelesítése"
         },
         "description": "Kérjük, adja meg azt a könyvtárat, ahová a képeit szeretné tárolni.\nAz alapértelmezett automatikusan kitöltődik.",
-        "title": "Képtárolási hely"
+        "title": "Képtárolási hely",
+        "data_description": {
+          "dhl_brief_reauth": "Hagyja bejelöletlenül a jelenlegi DHL-bejelentkezés megtartásához. Csak akkor jelölje be, ha újra be szeretne jelentkezni a DHL-be (például a token lejárta vagy visszavonása után)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
@@ -197,6 +213,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL levélelőnézet: bejelentkezés lejárt",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "DHL levélelőnézet újbóli hitelesítése",
+            "description": "A DHL-bejelentkezésed lejárt, ezért nem tölthetők le új levélértesítések.\n\n1. Nyisd meg ezt a linket, és jelentkezz be a DHL-be: {auth_url}\n2. A bejelentkezés után egy üresen maradó oldalra leszel átirányítva — ez normális.\n3. Másold ki az oldal címét (dhllogin:// kezdetű), és illeszd be alább.",
+            "data": {
+              "dhl_brief_code": "DHL-bejelentkezési kód vagy átirányítási URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "A kód nem használható. Jelentkezz be újra."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API-kulcs elutasítva",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Frissítsd a 17track.net API-kulcsodat",
+            "description": "A 17track.net API-kulcsodat elutasították, ezért a küldemények állapota már nem kérdezhető le.\n\nSzerezd be a kulcsot a 17track.net oldalon (Fiókom > Biztonsági beállítások > API-kulcs), és illeszd be alább.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API-kulcs"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Adj meg egy érvényes 17track.net API-kulcsot."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Mail and Packages hitelesítés sikertelen",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Levelezőszerver újrahitelesítése",
+            "description": "Nem sikerült a hitelesítés az IMAP levelezőszerveren. Kattintson a küldésre az újrahitelesítési folyamat elindításához."
+          }
+        }
       }
     }
   }

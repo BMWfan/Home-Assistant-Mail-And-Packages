@@ -36,10 +36,16 @@
           "generic_custom_img": "Käytä mukautettua yleistä 'ei toimituksia' kuvaa?",
           "generate_grid": "Luo kuvaverkko LLM-näkömalleille",
           "allow_forwarded_emails": "Salli edelleenlähetetyt sähköpostit palvelun oletusarvon lisäksi (esim. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Päivien määrä taaksepäin pakettisähköpostien tarkistamiseksi (vähintään 1, oletus 3)",
+          "amazon_enabled": "Ota käyttöön Amazon-pakettianturit",
+          "seventeen_track_api_key": "17track.net API-avain (valinnainen)",
+          "dhl_brief_enabled": "Ota käyttöön DHL-kirjeiden esikatselu"
         },
         "description": "Viimeistele kokoonpano mukauttamalla seuraava sähköpostirakenteen ja Home Assistant -asennuksen perusteella. \n\n Lisätietoja [Posti ja paketit-integroinnista] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) -asetuksista on [kokoonpano, mallit , ja automaatiot-osio] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) GitHubissa.",
-        "title": "Posti ja paketit (vaihe 2/2)"
+        "title": "Posti ja paketit (vaihe 2/2)",
+        "data_description": {
+          "seventeen_track_api_key": "Valinnainen. 17track.net API-avaimella 17track tarjoaa arvovaltaisen tilan kaikille havaituille seurantanumeroille (paitsi Amazon) — sähköpostipohjainen kuljetusliikkeen tilan tunnistus ohitetaan tällöin."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Käytä mukautettua yleistä 'ei toimituksia' kuvaa?",
           "generate_grid": "Luo kuvaverkko LLM-näkömalleille",
           "allow_forwarded_emails": "Salli edelleenlähetetyt sähköpostit palvelun oletusarvon lisäksi (esim. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Päivien määrä taaksepäin pakettisähköpostien tarkistamiseksi (vähintään 1, oletus 3)",
+          "amazon_enabled": "Ota käyttöön Amazon-pakettianturit",
+          "seventeen_track_api_key": "17track.net API-avain (valinnainen)",
+          "dhl_brief_enabled": "Ota käyttöön DHL-kirjeiden esikatselu"
         },
         "description": "Suorita määritys loppuun mukauttamalla seuraavat sähköpostirakenteeseesi ja Home Assistant -asennukseesi perustuen.\n\nLisätietoja [Mail and Packages -integraation](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) vaihtoehdoista löydät GitHubista [määritys-, mallit- ja automaatiot-osiossa](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration).\n\nJos käytät Amazonin välittämiä sähköposteja, erottele jokainen osoite pilkulla tai syötä (none) tyhjentääksesi tämän asetuksen.",
-        "title": "Posti ja paketit (vaihe 2/2)"
+        "title": "Posti ja paketit (vaihe 2/2)",
+        "data_description": {
+          "seventeen_track_api_key": "Valinnainen. 17track.net API-avaimella 17track tarjoaa arvovaltaisen tilan kaikille havaituille seurantanumeroille (paitsi Amazon) — sähköpostipohjainen kuljetusliikkeen tilan tunnistus ohitetaan tällöin."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -114,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Hakemisto kuvien tallentamiseen"
+          "storage": "Hakemisto kuvien tallentamiseen",
+          "dhl_brief_reauth": "Todenna DHL-kirjeiden esikatselu uudelleen"
         },
         "description": "Anna hakemisto, johon haluat kuviesi tallentuvan.\nOletusarvo täytetään automaattisesti.",
-        "title": "Kuvien tallennuspaikka"
+        "title": "Kuvien tallennuspaikka",
+        "data_description": {
+          "dhl_brief_reauth": "Jätä valitsematta säilyttääksesi nykyisen DHL-kirjautumisen. Valitse vain, jos haluat kirjautua DHL:ään uudelleen (esimerkiksi kun token on vanhentunut tai peruutettu)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
@@ -197,6 +213,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL-kirjeiden esikatselu: kirjautuminen vanhentunut",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Todenna DHL-kirjeiden esikatselu uudelleen",
+            "description": "DHL-kirjautumisesi on vanhentunut, joten uusia kirjeilmoituksia ei voida hakea.\n\n1. Avaa tämä linkki ja kirjaudu DHL:ään: {auth_url}\n2. Kirjautumisen jälkeen sinut ohjataan sivulle, joka jää tyhjäksi — se on normaalia.\n3. Kopioi kyseisen sivun osoite (alkaa dhllogin://) ja liitä se alle.",
+            "data": {
+              "dhl_brief_code": "DHL-kirjautumiskoodi tai uudelleenohjaus-URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Koodia ei voitu käyttää. Yritä kirjautua uudelleen."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API-avain hylätty",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Päivitä 17track.net API-avaimesi",
+            "description": "17track.net API-avaimesi hylättiin, joten lähetysten tilaa ei voida enää hakea.\n\nHae avaimesi osoitteesta 17track.net (Oma tili > Suojausasetukset > API-avain) ja liitä se alle.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API-avain"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Anna kelvollinen 17track.net API-avain."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Mail and Packages -autentikointi epäonnistui",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Tunnistaudu uudelleen sähköpostipalvelimeen",
+            "description": "Autentikointi IMAP-sähköpostipalvelimeesi epäonnistui. Napsauta Lähetä aloittaaksesi uudelleentunnistautumisen."
+          }
+        }
       }
     }
   }

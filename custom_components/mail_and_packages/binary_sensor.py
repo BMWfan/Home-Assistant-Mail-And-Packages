@@ -5,7 +5,7 @@ import logging
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
-from homeassistant.const import CONF_HOST, CONF_RESOURCES
+from homeassistant.const import CONF_HOST
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -21,12 +21,10 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, entry: MailAndPackagesConfigEntry, async_add_devices):
     """Initialize binary_sensor platform."""
     coordinator = entry.runtime_data.coordinator
-    resources = entry.data.get(CONF_RESOURCES, [])
 
     binary_sensors = [
         PackagesBinarySensor(value, coordinator, entry)
         for value in BINARY_SENSORS.values()
-        if not value.selectable or value.key in resources
     ]
     async_add_devices(binary_sensors, False)
 
@@ -78,6 +76,8 @@ class PackagesBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         """Return True if the image is updated."""
+        if self.coordinator.data is None:
+            return False
         if self._type in self.coordinator.data:
             _LOGGER.debug(
                 "binary_sensor: %s value: %s",

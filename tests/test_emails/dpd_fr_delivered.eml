@@ -1,0 +1,22 @@
+Delivered-To: recipient@example.fr
+Received: by mail.example.fr with SMTP id abc124;
+        Mon, 10 Jun 2024 14:30:00 +0200 (CEST)
+Date: Mon, 10 Jun 2024 14:30:00 +0200
+From: "DPD France" <noreply@dpd.fr>
+To: recipient@example.fr
+Subject: Votre colis a été livré
+Message-ID: <20240610143000.abc124@dpd.fr>
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Bonjour,
+
+Votre colis 05085100012345 a bien été livré à votre adresse.
+
+Numéro de suivi: 05085100012345
+
+Merci d'avoir choisi DPD France.
+
+Cordialement,
+DPD France

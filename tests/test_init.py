@@ -35,13 +35,13 @@ async def test_unload_entry(
     mock_copy_overlays,
 ):
     """Test unloading entities."""
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 48
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 7
     entries = hass.config_entries.async_entries(DOMAIN)
     assert len(entries) == 1
 
     assert await hass.config_entries.async_unload(entries[0].entry_id)
     await hass.async_block_till_done()
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 48
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 7
     assert len(hass.states.async_entity_ids(DOMAIN)) == 0
 
     assert await hass.config_entries.async_remove(entries[0].entry_id)
@@ -64,7 +64,7 @@ async def test_setup_entry(
     mock_update,
 ):
     """Test setting up entities."""
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 48
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 7
     entries = hass.config_entries.async_entries(DOMAIN)
     assert len(entries) == 1
 
@@ -140,7 +140,7 @@ async def test_no_path_no_sec(
     mock_update,
 ):
     """Test setting up entities."""
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 43
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 7
     entries = hass.config_entries.async_entries(DOMAIN)
     assert len(entries) == 1
 
@@ -160,7 +160,7 @@ async def test_missing_imap_timeout(
     mock_update,
 ):
     """Test setting up entities."""
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 42
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 7
     entries = hass.config_entries.async_entries(DOMAIN)
     assert len(entries) == 1
 
@@ -180,7 +180,7 @@ async def test_amazon_fwds_string(
     mock_update,
 ):
     """Test setting up entities."""
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 42
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 7
     entries = hass.config_entries.async_entries(DOMAIN)
     assert len(entries) == 1
 
@@ -200,7 +200,7 @@ async def test_custom_img(
     mock_update,
 ):
     """Test setting up entities."""
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 46
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 7
     entries = hass.config_entries.async_entries(DOMAIN)
     assert len(entries) == 1
 
@@ -220,7 +220,7 @@ async def test_v4_migration(
     mock_update,
 ):
     """Test setting up entities."""
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 42
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 7
     entries = hass.config_entries.async_entries(DOMAIN)
     assert len(entries) == 1
 
@@ -315,13 +315,60 @@ async def test_migration_from_version_16_to_18():
     assert kwargs["version"] == 19
 
 
+async def test_setup_entry_without_legacy_resources():
+    """Setup must work for a config entry that has no `resources` key.
+
+    The fork replaced the resources-editing UI with per-carrier `*_enabled`
+    flags, so the config flow no longer writes `resources` -- only entries
+    migrated from older versions still carry it. `async_setup_entry` used to
+    index it unconditionally, which made every FRESH install fail with
+    KeyError: 'resources' while migrated entries kept working.
+
+    Every FAKE_CONFIG_* fixture in tests/const.py includes `resources`, so no
+    existing test covered the fresh-install shape -- hence this one.
+    """
+    mock_hass = MagicMock()
+    mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
+    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+
+    data = FAKE_CONFIG_DATA.copy()
+    data.pop("resources", None)
+    assert "resources" not in data
+
+    mock_config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=data,
+        entry_id="fresh_entry_id",
+    )
+
+    mock_coordinator = MagicMock()
+    mock_coordinator.last_update_success = True
+    mock_coordinator.async_refresh = AsyncMock()
+    mock_coordinator.async_config_entry_first_refresh = AsyncMock()
+
+    with (
+        patch("homeassistant.helpers.frame.report_usage"),
+        patch(
+            "custom_components.mail_and_packages.MailDataUpdateCoordinator",
+        ) as mock_coordinator_class,
+    ):
+        mock_coordinator_class.return_value = mock_coordinator
+        # Must not raise KeyError: 'resources'
+        assert await async_setup_entry(mock_hass, mock_config_entry) is True
+
+
 async def test_setup_entry_coordinator_failure():
     """Test setup_entry when coordinator fails to update."""
     mock_hass = MagicMock()
-    mock_config_entry = MagicMock()
-    mock_config_entry.data = FAKE_CONFIG_DATA.copy()
-    mock_config_entry.data["resources"] = ["usps_mail"]  # Override for this test
-    mock_config_entry.entry_id = "test_entry_id"
+    mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
+    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+    data = FAKE_CONFIG_DATA.copy()
+    data["resources"] = ["usps_mail"]  # Override for this test
+    mock_config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=data,
+        entry_id="test_entry_id",
+    )
 
     # Mock coordinator that fails to update
     mock_coordinator = MagicMock()
@@ -345,9 +392,13 @@ async def test_setup_entry_coordinator_failure():
 async def test_setup_entry_auth_failure():
     """Test setup_entry when coordinator fails with ConfigEntryAuthFailed."""
     mock_hass = MagicMock()
-    mock_config_entry = MagicMock()
-    mock_config_entry.data = FAKE_CONFIG_DATA.copy()
-    mock_config_entry.entry_id = "test_entry_id"
+    mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
+    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+    mock_config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=FAKE_CONFIG_DATA.copy(),
+        entry_id="test_entry_id",
+    )
 
     # Mock coordinator that fails with ConfigEntryAuthFailed
     mock_coordinator = MagicMock()
@@ -618,16 +669,20 @@ async def test_coordinator_binary_sensor_update_amazon_same_hashes():
             assert coordinator._data["amazon_update"] is False
 
 
-@pytest.mark.asyncio
-async def test_setup_entry_refresh_failure(hass):
+async def test_setup_entry_refresh_failure():
     """Test setup_entry when the coordinator fails to refresh data."""
-    mock_config_entry = MagicMock()
-    mock_config_entry.data = {
-        "host": "imap.test.com",
-        "scan_interval": 5,
-        "resources": [],
-    }
-    mock_config_entry.entry_id = "test_entry"
+    mock_hass = MagicMock()
+    mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
+    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+    mock_config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "host": "imap.test.com",
+            "scan_interval": 5,
+            "resources": [],
+        },
+        entry_id="test_entry",
+    )
     with (
         patch("homeassistant.helpers.frame.report_usage"),
         patch(
@@ -639,7 +694,7 @@ async def test_setup_entry_refresh_failure(hass):
         mock_coordinator.last_exception = "IMAP Timeout"
         mock_coordinator.async_refresh = AsyncMock()
         with pytest.raises(ConfigEntryNotReady):
-            await async_setup_entry(hass, mock_config_entry)
+            await async_setup_entry(mock_hass, mock_config_entry)
 
 
 @pytest.mark.asyncio
@@ -775,7 +830,7 @@ async def test_update_with_oauth_error(hass, mock_update):
             "homeassistant.helpers.config_entry_oauth2_flow.async_get_config_entry_implementation",
             side_effect=Exception("Failed to get implementation"),
         ),
-        pytest.raises(UpdateFailed),
+        pytest.raises(ConfigEntryAuthFailed),
     ):
         await coordinator._async_update_data()
 

@@ -10,19 +10,23 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_RESOURCES
+from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import MailAndPackagesConfigEntry
 from .const import (
+    AMAZON_DELIVERED,
+    AMAZON_DELIVERED_ORDERS,
     AMAZON_EXCEPTION,
     AMAZON_EXCEPTION_ORDER,
     AMAZON_HUB,
     AMAZON_HUB_CODE,
     AMAZON_ORDER,
+    AMAZON_ORDER_TRACKING,
     AMAZON_OTP,
     AMAZON_OTP_CODE,
+    AMAZON_OTP_DETAILS,
     ATTR_CODE,
     ATTR_GRID_IMAGE_NAME,
     ATTR_IMAGE,
@@ -31,6 +35,9 @@ from .const import (
     ATTR_ORDER,
     ATTR_TRACKING_NUM,
     ATTR_USPS_IMAGE,
+    CONF_AMAZON_DOMAIN,
+    CONF_AMAZON_ENABLED,
+    CONF_DHL_BRIEF_ENABLED,
     CONF_PATH,
     DOMAIN,
     IMAGE_SENSORS,
@@ -40,6 +47,23 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+DELIVERED_SUFFIXES = {"delivered"}
+
+# Sensors enabled out-of-the-box; everything else starts disabled and can be
+# switched on from the HA entity list without re-running the config wizard.
+_DEFAULT_ENABLED: frozenset[str] = frozenset(
+    {
+        "mail_updated",
+        "zpackages_transit",
+        "zpackages_delivered",
+        "universal_packages",
+        # DHL Briefankündigung – enabled when the feature is on
+        "dhl_brief_anzahl",
+        # Data source for the custom card's history section (auto-discovery)
+        "packages_history",
+    }
+)
+
 
 async def async_setup_entry(
     hass,
@@ -48,12 +72,15 @@ async def async_setup_entry(
 ):
     """Set up the sensor entities."""
     coordinator = entry.runtime_data.coordinator
-    resources = entry.data.get(CONF_RESOURCES, [])
+
+    amazon_enabled = entry.data.get(CONF_AMAZON_ENABLED, False)
+    dhl_brief_enabled = entry.data.get(CONF_DHL_BRIEF_ENABLED, False)
 
     sensors = [
-        PackagesSensor(entry, SENSOR_TYPES[variable], coordinator)
-        for variable in resources
-        if variable in SENSOR_TYPES
+        PackagesSensor(entry, description, coordinator)
+        for key, description in SENSOR_TYPES.items()
+        if (amazon_enabled or not key.startswith("amazon_"))
+        and (dhl_brief_enabled or not key.startswith("dhl_brief_"))
     ]
 
     sensors.extend(
@@ -85,9 +112,18 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         self.data = self.coordinator.data
         parts = self.type.split("_")
         if len(parts) > 1:
-            self._tracking_key = f"{'_'.join(parts[:-1])}_tracking"
+            prefix = "_".join(parts[:-1])
+            if parts[-1] in DELIVERED_SUFFIXES:
+                self._tracking_key = f"{prefix}_delivered_tracking"
+            else:
+                self._tracking_key = f"{prefix}_tracking"
         else:
             self._tracking_key = f"{self.type}_tracking"
+
+    @property
+    def entity_registry_enabled_default(self) -> bool:
+        """Enable only common summary sensors by default; others start disabled."""
+        return self.type in _DEFAULT_ENABLED
 
     @property
     def device_info(self) -> dict:
@@ -112,6 +148,8 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> Any:
         """Return the state of the sensor."""
+        if self.coordinator.data is None:
+            return None
         value = self.coordinator.data.get(self.type)
 
         if self.type == "mail_updated":
@@ -136,10 +174,12 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         return self.coordinator.data is not None
 
     @property
-    def extra_state_attributes(self) -> str | None:
+    def extra_state_attributes(self) -> str | None:  # noqa: C901
         """Return device specific state attributes."""
         attr = {}
         data = self.coordinator.data
+        if data is None:
+            return attr
 
         if any(
             sensor in self.type
@@ -148,31 +188,67 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
             if tracking := data.get(self._tracking_key):
                 attr[ATTR_TRACKING_NUM] = tracking
 
-        # Catch no data entries
-        if self.data is None:
-            return attr
-
         if "Amazon" in self._name:
             self._add_amazon_attributes(attr, data)
         elif self._name == "Mail USPS Mail":
             if image_name := data.get(ATTR_IMAGE_NAME):
                 attr[ATTR_IMAGE] = image_name
+        elif self.type == "universal_packages":
+            if details := data.get("universal_tracking_details"):
+                attr["tracking_details"] = details
+        elif self.type == "dhl_brief_anzahl":
+            self._add_dhl_brief_attributes(attr, data)
+        elif self.type == "packages_history":
+            attr["history"] = data.get("packages_history_details", [])
 
         return attr
 
-    def _add_amazon_attributes(self, attr: dict, data: dict) -> None:
-        """Add Amazon specific attributes to the sensor."""
+    def _add_dhl_brief_attributes(self, attr: dict, data: dict) -> None:
+        """Add DHL Briefankündigung letter list to attributes."""
+        if letters := data.get("dhl_brief_letters"):
+            letter_list = []
+            for entry in letters:
+                item = {"id": entry.get("id"), "date": str(entry.get("date", ""))}
+                # Letter previews are saved under <config>/www/... which HA
+                # serves at /local/... -- expose that URL for dashboard cards.
+                if image_path := entry.get("image_path"):
+                    normalized = str(image_path).replace("\\", "/")
+                    if "/www/" in normalized:
+                        item["image"] = "/local/" + normalized.split("/www/", 1)[1]
+                letter_list.append(item)
+            attr["letters"] = letter_list
+
+    def _add_amazon_attributes(self, attr: dict, data: dict) -> None:  # noqa: C901
+        """Add Amazon specific attributes to the sensor.
+
+        Type-specific branches must come first: the generic AMAZON_ORDER
+        fallback used to shadow the hub/OTP branches whenever any order
+        data existed, so those sensors never exposed their codes.
+        """
+        # The configured marketplace domain lets dashboards build direct
+        # order links (https://www.<domain>/gp/your-account/order-details).
+        attr["domain"] = self._config.data.get(CONF_AMAZON_DOMAIN, "amazon.com")
+
+        # order id -> TBA tracking number, when the mail contained one.
+        if tracking_map := data.get(AMAZON_ORDER_TRACKING):
+            attr["tracking"] = tracking_map
+
         if self.type == AMAZON_EXCEPTION:
             if order := data.get(AMAZON_EXCEPTION_ORDER, data.get(ATTR_ORDER)):
                 attr[ATTR_ORDER] = order
-        elif order := data.get(AMAZON_ORDER):
-            attr[ATTR_ORDER] = order
         elif self.type == AMAZON_HUB:
             if code := data.get(AMAZON_HUB_CODE, data.get(ATTR_CODE)):
                 attr[ATTR_CODE] = code
         elif self.type == AMAZON_OTP:
             if code := data.get(AMAZON_OTP_CODE, data.get(ATTR_CODE)):
                 attr[ATTR_CODE] = code
+            if details := data.get(AMAZON_OTP_DETAILS):
+                attr["details"] = details
+        elif self.type == AMAZON_DELIVERED:
+            if orders := data.get(AMAZON_DELIVERED_ORDERS):
+                attr[ATTR_ORDER] = orders
+        elif order := data.get(AMAZON_ORDER):
+            attr[ATTR_ORDER] = order
 
 
 class ImagePathSensors(CoordinatorEntity, SensorEntity):
@@ -219,6 +295,9 @@ class ImagePathSensors(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> str | None:
         """Return the state of the sensor."""
+        if self.coordinator.data is None:
+            return None
+
         image = ""
         the_path = None
 

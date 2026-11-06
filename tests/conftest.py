@@ -45,9 +45,16 @@ def resolve_entity_id(entity_registry, entry_id: str, domain: str, type_slug: st
     HA changed entity ID generation between 2026.1 and 2026.4 to prefix the
     device name. Resolving via unique_id (stable across versions) avoids
     hardcoding either format in tests.
+
+    Matches on the exact ``_{type_slug}_{entry_id}`` suffix (mirroring the
+    ``sensor_{host}_{type}_{entry_id}`` / ``binary_sensor_{host}_{type}_{entry_id}``
+    unique_id format) rather than a plain substring, so a short slug like
+    "usps_mail" doesn't also match a longer, unrelated slug such as
+    "usps_mail_image_system_path".
     """
+    suffix = f"_{type_slug}_{entry_id}"
     for entry in entity_registry.entities.get_entries_for_config_entry_id(entry_id):
-        if entry.domain == domain and type_slug in entry.unique_id:
+        if entry.domain == domain and entry.unique_id.endswith(suffix):
             return entry.entity_id
     return None
 
@@ -430,6 +437,27 @@ def mock_imap_usps_mail_delivered(mock_imap):
     # Use return_value (not side_effect) so both the extended-window and
     # today-only searches triggered by the dual-search logic both find the email.
     mock_imap.search = AsyncMock(return_value=MagicMock(result="OK", lines=[b"1"]))
+    # The coordinator's batch pre-fetch classifies broad-search results via a
+    # single UID FETCH for INTERNALDATE/FROM/SUBJECT (see
+    # utils.imap._fetch_and_classify). Without this, the fetched record has no
+    # INTERNALDATE/FROM/SUBJECT to match against, so the email is never
+    # classified as matching and the sensor stays "off". Internaldate must be
+    # today so it passes the today-only search window used for _delivered
+    # sensors.
+    today = datetime.datetime.now().strftime("%d-%b-%Y")
+    fetch_boundary = (
+        f'1 FETCH (UID 1 INTERNALDATE "{today} 08:00:00 +0000" '
+        "BODY[HEADER.FIELDS (FROM SUBJECT)] {68}"
+    ).encode()
+    fetch_header = (
+        b"From: USPS Informed Delivery "
+        b"<USPSInformeddelivery@email.informeddelivery.usps.com>\r\n"
+        b"Subject: Your Mail Was Delivered\r\n\r\n)"
+    )
+    mock_imap.uid.return_value = MagicMock(
+        result="OK",
+        lines=[fetch_boundary, fetch_header],
+    )
     email_file = Path("tests/test_emails/usps_mail_delivered.eml").read_text(
         encoding="utf-8",
     )
@@ -635,6 +663,25 @@ def mock_imap_amazon_delivered_it(mock_imap):
         encoding="utf-8",
     )
     # Amazon search expects to find 10 emails in tests
+    mock_imap.search.side_effect = _generate_search_side_effect(count=20, unique=True)
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_amazon_delivered_de(mock_imap):
+    """Mock IMAP search with Amazon delivered email, German format.
+
+    Guards the amazon.de path: `filter_amazon_strings` narrows the delivered
+    subjects to the German ones for this domain, so a regression there (or in
+    the MIME-decoding of the umlauted subject) silently drops every German
+    delivery. The IT/UK fixtures do not cover it.
+    """
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/amazon_delivered_de.eml").read_text(
+        encoding="utf-8",
+    )
     mock_imap.search.side_effect = _generate_search_side_effect(count=20, unique=True)
     mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
     return mock_imap
@@ -916,6 +963,30 @@ def mock_imap_hermes_out_for_delivery(mock_imap):
 
 
 @pytest.fixture
+def mock_imap_hermes_de_delivered(mock_imap):
+    """Mock IMAP search with Hermes Germany delivered email."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/hermes_de_delivered.eml").read_text(
+        encoding="utf-8",
+    )
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_hermes_de_delivering_today(mock_imap):
+    """Mock IMAP search with Hermes Germany delivering today email."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/hermes_de_delivering_today.eml").read_text(
+        encoding="utf-8",
+    )
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
 def mock_imap_evri_out_for_delivery(mock_imap):
     """Mock IMAP search with Evri out for delivery email."""
     mock_imap.select.return_value = ("OK", [b""])
@@ -1146,6 +1217,100 @@ def mock_imap_dpd_com_pl_delivering(mock_imap):
     email_file = Path("tests/test_emails/dpd_com_pl_delivering.eml").read_text(
         encoding="utf-8",
     )
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_dpd_fr_delivering(mock_imap):
+    """Mock IMAP search with DPD France delivering email."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/dpd_fr_delivering.eml").read_text(
+        encoding="utf-8",
+    )
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_dpd_fr_delivered(mock_imap):
+    """Mock IMAP search with DPD France delivered email."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/dpd_fr_delivered.eml").read_text(
+        encoding="utf-8",
+    )
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_dpd_uk_delivering(mock_imap):
+    """Mock IMAP search with DPD UK delivering email."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/dpd_uk_delivering.eml").read_text(
+        encoding="utf-8",
+    )
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_dpd_uk_delivered(mock_imap):
+    """Mock IMAP search with DPD UK delivered email."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/dpd_uk_delivered.eml").read_text(
+        encoding="utf-8",
+    )
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_gls_fr_delivering(mock_imap):
+    """Mock IMAP search with GLS France delivering email."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/gls_fr_delivering.eml").read_text(
+        encoding="utf-8",
+    )
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_gls_fr_delivered(mock_imap):
+    """Mock IMAP search with GLS France delivered email."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/gls_fr_delivered.eml").read_text(
+        encoding="utf-8",
+    )
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_universal_ups(mock_imap):
+    """Mock IMAP with a shop email containing a UPS tracking number."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    mock_imap.search.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/universal_ups.eml").read_text(encoding="utf-8")
+    mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
+    return mock_imap
+
+
+@pytest.fixture
+def mock_imap_universal_dpd(mock_imap):
+    """Mock IMAP with a shop email containing a DPD tracking number."""
+    mock_imap.select.return_value = ("OK", [b""])
+    mock_imap.uid.return_value = MagicMock(result="OK", lines=[b"1"])
+    mock_imap.search.return_value = MagicMock(result="OK", lines=[b"1"])
+    email_file = Path("tests/test_emails/universal_dpd.eml").read_text(encoding="utf-8")
     mock_imap.fetch.side_effect = _generate_fetch_side_effect(email_file)
     return mock_imap
 

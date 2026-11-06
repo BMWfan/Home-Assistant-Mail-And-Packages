@@ -80,8 +80,9 @@ async def test_amazon_otp(hass):
         mock_fetch.return_value = ("OK", [bytearray(msg_text.encode())])
 
         result = await shipper.process(mock_account, "today", AMAZON_OTP)
-        assert AMAZON_OTP_CODE in result[AMAZON_OTP]
-        assert result[AMAZON_OTP][AMAZON_OTP_CODE] == ["123456"]
+        assert AMAZON_OTP_CODE in result
+        assert result[AMAZON_OTP_CODE] == ["123456"]
+        assert result[AMAZON_OTP] == 1
 
         # Scenario 2: Successful Extraction (Multipart)
         mock_search.return_value = ("OK", [b"2"])
@@ -90,7 +91,7 @@ async def test_amazon_otp(hass):
         mock_fetch.return_value = ("OK", [bytearray(msg.as_bytes())])
 
         result = await shipper.process(mock_account, "today", AMAZON_OTP)
-        assert result[AMAZON_OTP][AMAZON_OTP_CODE] == ["654321"]
+        assert result[AMAZON_OTP_CODE] == ["654321"]
 
         # Scenario 3: No Match found
         mock_search.return_value = ("OK", [b"3"])
@@ -98,7 +99,7 @@ async def test_amazon_otp(hass):
         mock_fetch.return_value = ("OK", [bytearray(msg_no_match.encode())])
 
         result = await shipper.process(mock_account, "today", AMAZON_OTP)
-        assert result[AMAZON_OTP][AMAZON_OTP_CODE] == []
+        assert result[AMAZON_OTP_CODE] == []
 
 
 @pytest.mark.asyncio
@@ -518,6 +519,37 @@ async def test_amazon_search_delivered(hass, mock_imap_amazon_delivered, caplog)
 
 
 @pytest.mark.asyncio
+async def test_amazon_search_delivered_de(hass, mock_imap_amazon_delivered_de):
+    """Test Amazon search for delivered items (DE domain).
+
+    Regression guard: for amazon.de the delivered-subject list is filtered down
+    to the German entries only ("Geliefert:", "Zugestellt:"). If that filter or
+    the MIME decoding of the subject breaks, German deliveries stop being
+    counted while IT/UK keep passing.
+    """
+    shipper = AmazonShipper(
+        hass,
+        {
+            "amazon_domain": "amazon.de",
+            "image_path": "test/path/amazon/",
+            "amazon_image": "testfilename.jpg",
+        },
+    )
+    with (
+        patch("custom_components.mail_and_packages.shippers.amazon.cleanup_images"),
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.download_amazon_img",
+        ),
+    ):
+        result = await shipper.process(
+            mock_imap_amazon_delivered_de,
+            "today",
+            AMAZON_DELIVERED,
+        )
+        assert result[AMAZON_DELIVERED] == 1
+
+
+@pytest.mark.asyncio
 async def test_amazon_search_delivered_it(hass, mock_imap_amazon_delivered_it):
     """Test Amazon search for delivered items (IT domain)."""
     shipper = AmazonShipper(
@@ -546,10 +578,31 @@ async def test_amazon_search_delivered_it(hass, mock_imap_amazon_delivered_it):
 async def test_parse_amazon_arrival_date(hass):
     """Test parse_amazon_arrival_date utility."""
     email_date = datetime.date(2020, 9, 25)
+
+    # 1. Standard absolute date parsing
     body = "Your order has shipped. Arriving: Saturday, September 26."
-    # With Arriving: in pattern, it should find September 26
     result = await parse_amazon_arrival_date(hass, body, email_date)
     assert result == datetime.date(2020, 9, 26)
+
+    # 2. English "today" relative date
+    body_today = "Your order has shipped. Arriving today by 8 PM."
+    result_today = await parse_amazon_arrival_date(hass, body_today, email_date)
+    assert result_today == email_date
+
+    # 3. English "tomorrow" relative date
+    body_tomorrow = "Your order has shipped. Arriving tomorrow by 8 PM."
+    result_tomorrow = await parse_amazon_arrival_date(hass, body_tomorrow, email_date)
+    assert result_tomorrow == email_date + datetime.timedelta(days=1)
+
+    # 4. Dutch "vandaag" relative date
+    body_vandaag = "Je pakket wordt vandaag bezorgd."
+    result_vandaag = await parse_amazon_arrival_date(hass, body_vandaag, email_date)
+    assert result_vandaag == email_date
+
+    # 5. Dutch "morgen" relative date
+    body_morgen = "Je pakket wordt morgen bezorgd."
+    result_morgen = await parse_amazon_arrival_date(hass, body_morgen, email_date)
+    assert result_morgen == email_date + datetime.timedelta(days=1)
 
 
 @pytest.mark.asyncio
@@ -624,6 +677,42 @@ async def test_amazon_order_list(hass, mock_imap_amazon_shipped):
     ):
         result = await shipper.process(mock_imap_amazon_shipped, "today", AMAZON_ORDER)
         assert "111-1234567-1234567" in result[AMAZON_ORDER]
+
+
+@pytest.mark.asyncio
+async def test_amazon_order_list_filtering(hass, mock_imap_amazon_shipped):
+    """Test Amazon order list filtering when delivered."""
+    shipper = AmazonShipper(hass, {})
+    with (
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.email_fetch",
+            new_callable=AsyncMock,
+            side_effect=[
+                (
+                    "OK",
+                    [
+                        b"Header",
+                        b"Subject: Shipped:\n\nYour order 111-1234567-1234567 has shipped.",
+                    ],
+                ),
+                (
+                    "OK",
+                    [
+                        b"Header",
+                        b"Subject: Delivered: Your Amazon order has arrived!\n\nYour order 111-1234567-1234567 was delivered.",
+                    ],
+                ),
+            ],
+        ),
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.search_amazon_emails",
+            new_callable=AsyncMock,
+            return_value=[b"1", b"2"],
+        ),
+    ):
+        result = await shipper.process(mock_imap_amazon_shipped, "today", AMAZON_ORDER)
+        # The order was shipped and delivered, so it should be filtered out
+        assert "111-1234567-1234567" not in result[AMAZON_ORDER]
 
 
 @pytest.mark.asyncio
@@ -751,7 +840,6 @@ async def test_amazon_search_multiple_images_gif(hass):
         {"image_path": "/fake/path/", "amazon_image": "amazon.gif"},
     )
     mock_account = AsyncMock()
-    urls = ["http://test.com/img1.jpg", "http://test.com/img2.jpg"]
 
     with (
         patch(
@@ -760,10 +848,9 @@ async def test_amazon_search_multiple_images_gif(hass):
             return_value=("OK", [b"1 2"]),
         ),
         patch(
-            "custom_components.mail_and_packages.shippers.amazon.get_amazon_image_urls",
+            "custom_components.mail_and_packages.shippers.amazon.email_fetch",
             new_callable=AsyncMock,
-            return_value=urls,
-        ),
+        ) as mock_fetch,
         patch(
             "custom_components.mail_and_packages.shippers.amazon.download_amazon_img",
             new_callable=AsyncMock,
@@ -784,6 +871,15 @@ async def test_amazon_search_multiple_images_gif(hass):
             "custom_components.mail_and_packages.shippers.amazon.generate_delivery_gif",
         ) as mock_gif,
     ):
+
+        async def _mock_fetch(account, email_id, parts):
+            if email_id == "1":
+                content = b'Subject: Delivered: \nContent-Type: text/html\n\n<img src="https://us-prod-temp.s3.amazonaws.com/img1.jpg">'
+            else:
+                content = b'Subject: Delivered: \nContent-Type: text/html\n\n<img src="https://us-prod-temp.s3.amazonaws.com/img2.jpg">'
+            return ("OK", [b"RFC822", content])
+
+        mock_fetch.side_effect = _mock_fetch
         await shipper.process(mock_account, "today", AMAZON_DELIVERED)
         assert mock_gif.called
 
@@ -886,6 +982,7 @@ async def test_process_with_cache(hass):
         "packages_arriving_today": {},
         "delivered_packages": {},
         "order_pattern": re.compile(r"[0-9]{3}-[0-9]{7}-[0-9]{7}"),
+        "tba_pattern": re.compile(r"\bTBA[0-9]{9,15}\b", re.IGNORECASE),
     }
     await shipper._process_amazon_email(mock_account, "1", ctx, cache=cache)
     assert "111-1234567-1234567" in ctx["all_shipped_orders"]
@@ -897,7 +994,10 @@ async def test_process_with_cache(hass):
     )
     cache._cache_rfc822["2"] = (
         "OK",
-        [b"RFC822", b"Content-Type: text/html\n\nNo images here"],
+        [
+            b"RFC822",
+            b"Subject: Delivered: Your Amazon order has arrived!\nContent-Type: text/html\n\nNo images here",
+        ],
     )
     with (
         patch(
@@ -989,3 +1089,91 @@ async def test_amazon_forwarding_header_mode_sets_fwds_none(hass):
         await shipper.process(mock_account, "today", AMAZON_PACKAGES)
 
     assert captured_fwds["fwds"] is None
+
+
+@pytest.mark.asyncio
+async def test_amazon_search_delivered_excludes_ordered_and_shipped(hass):
+    """Test that Amazon delivered search excludes ordered and shipped emails even if returned by IMAP."""
+    shipper = AmazonShipper(
+        hass,
+        {"image_path": "/fake/path/", "amazon_image": "amazon.jpg"},
+    )
+    mock_account = AsyncMock()
+
+    # We mock search to return 3 email IDs:
+    # 1: Delivered
+    # 2: Ordered (should be ignored)
+    # 3: Shipped (should be ignored)
+    with (
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.email_search",
+            new_callable=AsyncMock,
+            return_value=("OK", [b"1 2 3"]),
+        ),
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.email_fetch",
+            new_callable=AsyncMock,
+        ) as mock_fetch,
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.download_amazon_img",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.anyio.Path.exists",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.cleanup_images",
+        ),
+        patch(
+            "custom_components.mail_and_packages.shippers.amazon.copyfile",
+        ) as mock_copy,
+    ):
+
+        async def _mock_fetch(account, email_id, parts):
+            if email_id == "1":
+                content = b"Subject: Delivered: Your Amazon order has arrived!\nContent-Type: text/html\n\nNo images"
+            elif email_id == "2":
+                content = b"Subject: Ordered: Your order of python book\nContent-Type: text/html\n\nNo images"
+            else:
+                content = b"Subject: Shipped: Your package is on the way\nContent-Type: text/html\n\nNo images"
+            return ("OK", [b"RFC822", content])
+
+        mock_fetch.side_effect = _mock_fetch
+
+        result = await shipper.process(mock_account, "today", AMAZON_DELIVERED)
+        # Should only count the delivered email (1), excluding the other 2.
+        assert result[AMAZON_DELIVERED] == 1
+        assert mock_copy.called
+
+
+@pytest.mark.asyncio
+async def test_is_amazon_delivered_skips_non_bytes_response_parts(hass):
+    """Test that _is_amazon_delivered skips non-bytes items in msg_data (line 373 coverage).
+
+    IMAP fetch responses sometimes include non-bytes elements (e.g. tuples used
+    as header separators). Those parts must be skipped; the method should still
+    correctly evaluate the actual bytes payload that follows.
+    """
+    shipper = AmazonShipper(
+        hass,
+        {"image_path": "/fake/path/", "amazon_image": "amazon.jpg"},
+    )
+
+    delivered_bytes = b"Subject: Delivered: Your Amazon order has arrived!\nContent-Type: text/html\n\nNo images"
+
+    # msg_data contains a non-bytes item first, then the real bytes payload.
+    # The non-bytes item triggers the `continue` on line 373; the bytes item
+    # that follows should still be processed successfully.
+    msg_data_with_non_bytes: list = [
+        ("RFC822", delivered_bytes),  # tuple — not bytes/bytearray → continue
+        delivered_bytes,  # actual bytes payload → processed
+    ]
+
+    is_delivered, urls = shipper._is_amazon_delivered(
+        msg_data_with_non_bytes, ["Delivered"]
+    )
+
+    assert is_delivered is True
+    assert isinstance(urls, list)

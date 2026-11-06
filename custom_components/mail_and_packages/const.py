@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Final
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntityDescription
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntityDescription,
+    SensorStateClass,
+)
 from homeassistant.helpers.entity import EntityCategory
 
 from .entity import MailandPackagesBinarySensorEntityDescription
@@ -15,7 +20,7 @@ DOMAIN_DATA = f"{DOMAIN}_data"
 VERSION = "0.0.0-dev"  # Now updated by release workflow
 ISSUE_URL = "http://github.com/moralmunky/Home-Assistant-Mail-And-Packages"
 PLATFORM = "sensor"
-PLATFORMS = ["binary_sensor", "camera", "sensor"]
+PLATFORMS = ["binary_sensor", "button", "calendar", "camera", "event", "sensor"]
 DATA = "data"
 COORDINATOR = "coordinator_mail"
 OVERLAY = ["overlay.png", "vignette.png", "white.png"]
@@ -46,6 +51,7 @@ ATTR_WALMART_IMAGE = "walmart_image"
 ATTR_FEDEX_IMAGE = "fedex_image"
 ATTR_GENERIC_IMAGE = "generic_image"
 ATTR_USPS_IMAGE = "usps_image"
+ATTR_POST_DE_IMAGE = "post_de_image"
 
 # Configuration Properties
 CONF_ALLOW_EXTERNAL = "allow_external"
@@ -62,6 +68,8 @@ CONF_FEDEX_CUSTOM_IMG = "fedex_custom_img"
 CONF_FEDEX_CUSTOM_IMG_FILE = "fedex_custom_img_file"
 CONF_GENERIC_CUSTOM_IMG = "generic_custom_img"
 CONF_GENERIC_CUSTOM_IMG_FILE = "generic_custom_img_file"
+CONF_POST_DE_CUSTOM_IMG = "post_de_custom_img"
+CONF_POST_DE_CUSTOM_IMG_FILE = "post_de_custom_img_file"
 CONF_STORAGE = "storage"
 CONF_FOLDER = "folder"
 CONF_PATH = "image_path"
@@ -80,6 +88,10 @@ CONF_ALLOW_FORWARDED_EMAILS = "allow_forwarded_emails"
 CONF_FORWARDED_EMAILS = "forwarded_emails"
 CONF_FORWARDING_HEADER = "forwarding_header"
 CONF_CUSTOM_DAYS = "custom_days"
+CONF_17TRACK_API_KEY = "seventeen_track_api_key"
+CONF_AMAZON_ENABLED = "amazon_enabled"
+CONF_DHL_BRIEF_ENABLED = "dhl_brief_enabled"
+CONF_DHL_BRIEF_TOKENS = "dhl_brief_tokens"
 
 # Defaults
 DEFAULT_CAMERA_NAME = "Mail USPS Camera"
@@ -93,6 +105,8 @@ DEFAULT_GIF_DURATION = 5
 DEFAULT_SCAN_INTERVAL = 30
 DEFAULT_CUSTOM_DAYS = 3
 MAX_TRACKING_AGE_DAYS = 14
+HISTORY_RETENTION_DAYS = 90
+HISTORY_ARCHIVE_AFTER_DAYS = 21  # UI split point -- card shows "recently delivered" below this, "archived" above it, matching DHL's own tracking-history window
 DEFAULT_GIF_FILE_NAME = "mail_today.gif"
 DEFAULT_AMAZON_FWDS = "(none)"
 DEFAULT_ALLOW_EXTERNAL = False
@@ -118,6 +132,8 @@ DEFAULT_GENERIC_CUSTOM_IMG = False
 DEFAULT_GENERIC_CUSTOM_IMG_FILE = (
     "custom_components/mail_and_packages/no_deliveries_generic.jpg"
 )
+DEFAULT_POST_DE_CUSTOM_IMG = False
+DEFAULT_POST_DE_CUSTOM_IMG_FILE = "custom_components/mail_and_packages/mail_none.gif"
 DEFAULT_AMAZON_DAYS = 3
 DEFAULT_AMAZON_DOMAIN = "amazon.com"
 DEFAULT_STORAGE = "custom_components/mail_and_packages/images/"
@@ -168,6 +184,9 @@ AMAZON_SHIPMENT_SUBJECT = [
     "Shipped:",
     "Enviado:",
     "Out for delivery:",
+    # German (amazon.de): "Versendet:" = shipped, "In Zustellung:" = out for delivery
+    "Versendet:",
+    "In Zustellung:",
 ]
 AMAZON_ORDERED_SUBJECT = ["Ordered:", "Pedido efetuado:"]
 AMAZON_EMAIL = [
@@ -244,14 +263,26 @@ AMAZON_TIME_PATTERN_REGEX = [
     "Arrivée (\\w+ \\d+)",
     "Arrivée (\\w+ \\d*)",
     "Chega ((\\w+(-\\w+)?))",
-    "Arriving (tomorrow)",
-    "Arriving (today)",
     "Wordt bezorgd op (\\w+ \\d+ \\w+)",
     "Wordt bezorgd op (\\w+ \\d+)",
-    "Wordt (vandaag) bezorgd",
+    "Wordt (\\w+) bezorgd",
 ]
 AMAZON_EXCEPTION_SUBJECT = "Delivery update:"
 AMAZON_EXCEPTION_BODY = "running late"
+# Multi-language delay/exception markers. Subjects are searched (OR); a match
+# only counts as an exception if the body also contains a delay phrase.
+# German (amazon.de): subject "Lieferungsaktualisierung:", body "verspätet"/
+# "Verzögerung". Body matching is case-insensitive.
+AMAZON_EXCEPTION_SUBJECTS = [
+    "Delivery update:",
+    "Lieferungsaktualisierung:",
+]
+AMAZON_EXCEPTION_BODIES = [
+    "running late",
+    "verspätet",
+    "verzögerung",
+    "verzögert",
+]
 AMAZON_EXCEPTION = "amazon_exception"
 AMAZON_EXCEPTION_ORDER = "amazon_exception_order"
 AMAZON_PATTERN = "[0-9]{3}-[0-9]{7}-[0-9]{7}"
@@ -275,7 +306,17 @@ AMAZON_LANGS = [
 AMAZON_OTP = "amazon_otp"
 AMAZON_OTP_CODE = "amazon_otp_code"
 AMAZON_OTP_REGEX = "(\n)(\\d{6})(\n)"
-AMAZON_OTP_SUBJECT = "A one-time password is required for your Amazon delivery"
+# IMAP SUBJECT search matches substrings (case-insensitive), so short,
+# distinctive fragments cover the EN and DE mail variants.
+AMAZON_OTP_SUBJECT = [
+    "A one-time password is required",
+    "Einmalpasswort",
+]
+AMAZON_OTP_DETAILS = "amazon_otp_details"
+AMAZON_DELIVERED_ORDERS = "amazon_delivered_orders"
+# Map of order id -> Amazon Logistics tracking number (TBA...) when the
+# shipping/delivered mail contains one.
+AMAZON_ORDER_TRACKING = "amazon_order_tracking"
 
 AMAZON_DELIEVERED_BY_OTHERS_SEARCH_TEXT = ["AMAZON"]
 
@@ -432,6 +473,7 @@ SENSOR_DATA = {
             "donotreply_odd@dhl.com",
             "NoReply.ODD@dhl.com",
             "noreply@dhl.de",
+            "no-reply@dhl.de",
             "pl.no.reply@dhl.com",
             "support@dhl.com",
             "noreply@dhlecommerce.nl",
@@ -443,6 +485,12 @@ SENSOR_DATA = {
             "wurde zugestellt",
             "DHL Shipment Notification",
             "liegt am gewünschten Ablageort",
+            "Ihre Sendung liegt im Briefkasten",
+            "Zustellung an Ablageort",
+            "Ablageort",
+            "Sendung zugestellt",
+            "Paket wurde zugestellt",
+            "Ihre AliExpress Sendung liegt im Briefkasten",
             "succesvol bezorgd",
             "is bezorgd",
         ],
@@ -452,6 +500,10 @@ SENSOR_DATA = {
             "ist angekommen",
             'Notification for shipment event group "Delivered',
             " - Delivered - ",
+            "liegt im Briefkasten",
+            "zugestellt",
+            "Zustellung",
+            "wurde zugestellt",
             "succesvol bezorgd",
             "is bezorgd",
             "pakket is afgeleverd",
@@ -462,6 +514,7 @@ SENSOR_DATA = {
             "donotreply_odd@dhl.com",
             "NoReply.ODD@dhl.com",
             "noreply@dhl.de",
+            "no-reply@dhl.de",
             "pl.no.reply@dhl.com",
             "support@dhl.com",
             "noreply@dhlecommerce.nl",
@@ -488,6 +541,7 @@ SENSOR_DATA = {
             "scheduled for delivery TODAY",
             "zostanie dziś do Państwa doręczona",
             "wird Ihnen heute",
+            "wird Ihnen voraussichtlich",
             "heute zwischen",
             " - Shipment is out with courier for delivery - ",
             "Shipment is scheduled for delivery",
@@ -507,8 +561,15 @@ SENSOR_DATA = {
     },
     # Hermes.co.uk
     "hermes_delivered": {
-        "email": ["donotreply@myhermes.co.uk"],
-        "subject": ["Hermes has successfully delivered your"],
+        "email": [
+            "donotreply@myhermes.co.uk",
+            "noreply@paketankuendigung.myhermes.de",
+        ],
+        "subject": [
+            "Hermes has successfully delivered your",
+            "wurde an deinen WunschAblageort zugestellt",
+            "wurde zugestellt",
+        ],
     },
     "hermes_delivering": {
         "email": [
@@ -519,9 +580,11 @@ SENSOR_DATA = {
             "parcel is now with your local Hermes courier",
             "Ihre Hermes Sendung",
             "Deine Hermes Sendung",
+            "Deine Sendung kommt heute",
         ],
         "body": [
             "Voraussichtliche Zustellung",
+            "ist unterwegs",
         ],
     },
     "hermes_packages": {},
@@ -651,6 +714,82 @@ SENSOR_DATA = {
             "\\d{11,20}",
         ],
     },
+    # DPD France
+    "dpd_fr_delivered": {
+        "email": [
+            "noreply@dpd.fr",
+            "notification@dpd.fr",
+            "no-reply@dpd.fr",
+        ],
+        "subject": [
+            "Votre colis a été livré",
+            "Votre colis est livré",
+            "livré avec succès",
+            "remis à",
+        ],
+    },
+    "dpd_fr_delivering": {
+        "email": [
+            "noreply@dpd.fr",
+            "notification@dpd.fr",
+            "no-reply@dpd.fr",
+        ],
+        "subject": [
+            "Votre colis est en cours de livraison",
+            "sera livré aujourd'hui",
+            "livraison prévue aujourd'hui",
+            "en route vers vous",
+        ],
+        "body": [
+            "numéro de colis",
+            "votre livreur",
+        ],
+    },
+    "dpd_fr_packages": {},
+    "dpd_fr_tracking": {
+        # https://www.dpd.fr/tracking
+        "pattern": [
+            "\\d{14}",
+        ],
+    },
+    # DPD UK
+    "dpd_uk_delivered": {
+        "email": [
+            "tracking@dpd.co.uk",
+            "notification@dpd.co.uk",
+            "noreply@dpd.co.uk",
+        ],
+        "subject": [
+            "Your DPD parcel has been delivered",
+            "has been delivered",
+            "delivered to your address",
+        ],
+    },
+    "dpd_uk_delivering": {
+        "email": [
+            "tracking@dpd.co.uk",
+            "notification@dpd.co.uk",
+            "noreply@dpd.co.uk",
+        ],
+        "subject": [
+            "Your DPD parcel is on its way",
+            "out for delivery",
+            "arriving today",
+            "delivery expected today",
+        ],
+        "body": [
+            "parcel number",
+            "your driver",
+            "estimated delivery",
+        ],
+    },
+    "dpd_uk_packages": {},
+    "dpd_uk_tracking": {
+        # https://www.dpd.co.uk/apps/tracking/
+        "pattern": [
+            "\\d{14}",
+        ],
+    },
     # GLS
     "gls_delivered": {
         "email": [
@@ -659,12 +798,16 @@ SENSOR_DATA = {
             "no-reply@gls-pakete.de",
             "noreply@gls-group.nl",
             "noreply@gls.nl",
+            "noreply@gls-france.fr",
+            "no-reply@gls-france.fr",
         ],
         "subject": [
             "informacja o dostawie",
             "wurde durch GLS",
             "bezorgd",
             "afgeleverd",
+            "votre colis a été livré",
+            "livré par GLS",
         ],
         "body": [
             "została dzisiaj dostarczona",
@@ -672,6 +815,8 @@ SENSOR_DATA = {
             "Am Wunschort abgestellt",
             "is bezorgd",
             "succesvol afgeleverd",
+            "a bien été livré",
+            "livraison effectuée",
         ],
     },
     "gls_delivering": {
@@ -681,6 +826,8 @@ SENSOR_DATA = {
             "no-reply@gls-pakete.de",
             "noreply@gls-group.nl",
             "noreply@gls.nl",
+            "noreply@gls-france.fr",
+            "no-reply@gls-france.fr",
         ],
         "subject": [
             "paczka w drodze",
@@ -688,6 +835,8 @@ SENSOR_DATA = {
             "kommt heute",
             "pakket onderweg",
             "bezorging vandaag",
+            "votre colis est en cours de livraison",
+            "GLS livre votre colis aujourd",
         ],
         "body": [
             "Zespół GLS",
@@ -695,6 +844,8 @@ SENSOR_DATA = {
             "fast da",
             "wordt vandaag bezorgd",
             "Uw pakket wordt vandaag",
+            "en cours de livraison",
+            "votre livreur GLS",
         ],
     },
     "gls_packages": {},
@@ -901,7 +1052,11 @@ SENSOR_DATA = {
     "post_nl_packages": {},
     "post_nl_tracking": {"pattern": ["3S[A-Z0-9]{10,18}"]},
     # Post DE
-    "post_de_delivering": {
+    "post_de_delivering": {},
+    "post_de_delivered": {},
+    "post_de_packages": {},
+    "post_de_tracking": {},
+    "post_de_mail": {
         "email": [
             "ankuendigung@brief.deutschepost.de",
         ],
@@ -910,9 +1065,6 @@ SENSOR_DATA = {
             "Ein Brief ist unterwegs zu Ihnen",
         ],
     },
-    "post_de_delivered": {},
-    "post_de_packages": {},
-    "post_de_tracking": {},
     # Post Austria
     "post_at_delivering": {
         "email": ["MeineSendung@post.at"],
@@ -936,6 +1088,47 @@ SENSOR_DATA = {
         "email": ["reweshop@mailing.rewe.de"],
         "subject": ["Deine Rechnung zu"],
         "body": ["Im Anhang dieser E-Mail kommt"],
+    },
+    # AliExpress
+    "aliexpress_delivered": {
+        "email": [
+            "promotion@aliexpress.com",
+            "transaction@notice.aliexpress.com",
+            "chocieservice@aliexpress.com",
+            "aebuyersservices@aliexpress.com",
+        ],
+        "subject": [
+            "Package delivered",
+            "Your package has been delivered",
+            "Sendung zugestellt",
+        ],
+        "body": [
+            "delivered",
+            "zugestellt",
+        ],
+    },
+    "aliexpress_delivering": {
+        "email": [
+            "promotion@aliexpress.com",
+            "transaction@notice.aliexpress.com",
+            "chocieservice@aliexpress.com",
+            "aebuyersservices@aliexpress.com",
+        ],
+        "subject": [
+            "Package is on the way",
+            "Your package is on the way",
+            "Ihre Sendung ist unterwegs",
+            "Sendung wird versandt",
+        ],
+        "body": [
+            "on the way",
+            "unterwegs",
+            "wird versandt",
+        ],
+    },
+    "aliexpress_packages": {},
+    "aliexpress_tracking": {
+        "pattern": ["(?:[A-Z]{2}[0-9]{9}[A-Z]{2}|[0-9]{13}|[0-9]{20})"],
     },
     # DPD Netherlands
     "dpd_nl_delivered": {
@@ -971,6 +1164,7 @@ SENSOR_DATA = {
         "email": [
             "noreply@bol.com",
             "service@bol.com",
+            "automail@bol.com",
         ],
         "subject": ["bezorgd", "afgeleverd", "delivered"],
     },
@@ -978,12 +1172,15 @@ SENSOR_DATA = {
         "email": [
             "noreply@bol.com",
             "service@bol.com",
+            "automail@bol.com",
         ],
         "subject": [
             "verzonden",
             "onderweg",
             "wordt bezorgd",
             "meegegeven met",
+            "bij PostNL",
+            "bij DHL",
         ],
         "body": [
             "nu bij PostNL",
@@ -1115,6 +1312,25 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="Mail Amazon OTP Code",
         icon="mdi:counter",
         key="amazon_otp",
+    ),
+    # AliExpress
+    "aliexpress_delivered": SensorEntityDescription(
+        name="Mail AliExpress Delivered",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant-closed",
+        key="aliexpress_delivered",
+    ),
+    "aliexpress_delivering": SensorEntityDescription(
+        name="Mail AliExpress Delivering",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:truck-delivery",
+        key="aliexpress_delivering",
+    ),
+    "aliexpress_packages": SensorEntityDescription(
+        name="Mail AliExpress Packages",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant-closed",
+        key="aliexpress_packages",
     ),
     # Canada Post
     "capost_delivered": SensorEntityDescription(
@@ -1292,6 +1508,44 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         native_unit_of_measurement="package(s)",
         icon="mdi:package-variant-closed",
         key="dpd_packages",
+    ),
+    # DPD France
+    "dpd_fr_delivering": SensorEntityDescription(
+        name="Mail DPD FR Delivering",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:truck-delivery",
+        key="dpd_fr_delivering",
+    ),
+    "dpd_fr_delivered": SensorEntityDescription(
+        name="Mail DPD FR Delivered",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant",
+        key="dpd_fr_delivered",
+    ),
+    "dpd_fr_packages": SensorEntityDescription(
+        name="Mail DPD FR Packages",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant-closed",
+        key="dpd_fr_packages",
+    ),
+    # DPD UK
+    "dpd_uk_delivering": SensorEntityDescription(
+        name="Mail DPD UK Delivering",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:truck-delivery",
+        key="dpd_uk_delivering",
+    ),
+    "dpd_uk_delivered": SensorEntityDescription(
+        name="Mail DPD UK Delivered",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant",
+        key="dpd_uk_delivered",
+    ),
+    "dpd_uk_packages": SensorEntityDescription(
+        name="Mail DPD UK Packages",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:package-variant-closed",
+        key="dpd_uk_packages",
     ),
     # GLS
     "gls_delivering": SensorEntityDescription(
@@ -1483,6 +1737,12 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         icon="mdi:package-variant-closed",
         key="post_de_packages",
     ),
+    "post_de_mail": SensorEntityDescription(
+        name="Mail Post DE Mail",
+        native_unit_of_measurement="piece(s)",
+        icon="mdi:mailbox-up",
+        key="post_de_mail",
+    ),
     # Post Austria
     "post_at_delivering": SensorEntityDescription(
         name="Post AT Delivering",
@@ -1559,6 +1819,20 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         icon="mdi:package-variant-closed",
         key="bolcom_packages",
     ),
+    # DHL Letter Preview
+    "dhl_brief_anzahl": SensorEntityDescription(
+        name="DHL Letter Preview",
+        native_unit_of_measurement="piece(s)",
+        icon="mdi:email-open",
+        key="dhl_brief_anzahl",
+    ),
+    # Persistent 90-day delivered packages history
+    "packages_history": SensorEntityDescription(
+        name="Mail Packages History",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:history",
+        key="packages_history",
+    ),
     ###
     # !!! Insert new sensors above these two !!!
     ###
@@ -1574,7 +1848,27 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         icon="mdi:truck-delivery",
         key="zpackages_transit",
     ),
+    # Universal tracking scanner
+    "universal_packages": SensorEntityDescription(
+        name="Mail Universal Packages",
+        native_unit_of_measurement="package(s)",
+        icon="mdi:text-search",
+        key="universal_packages",
+    ),
 }
+
+# Enable Home Assistant long-term statistics + history graphs on every numeric
+# package/piece counter. They carry no state_class by default, so HA neither
+# records long-term stats nor draws trend graphs for them. MEASUREMENT is the
+# right class: each value is the current count (in transit / delivered today),
+# not a monotonic total.
+_COUNT_UNITS: Final = ("package(s)", "piece(s)")
+for _key, _desc in list(SENSOR_TYPES.items()):
+    if _desc.native_unit_of_measurement in _COUNT_UNITS and _desc.state_class is None:
+        SENSOR_TYPES[_key] = dataclasses.replace(
+            _desc, state_class=SensorStateClass.MEASUREMENT
+        )
+
 
 BINARY_SENSORS: Final[dict[str, MailandPackagesBinarySensorEntityDescription]] = {
     "usps_update": MailandPackagesBinarySensorEntityDescription(
@@ -1587,6 +1881,13 @@ BINARY_SENSORS: Final[dict[str, MailandPackagesBinarySensorEntityDescription]] =
     "amazon_update": MailandPackagesBinarySensorEntityDescription(
         name="Amazon Image Updated",
         key="amazon_update",
+        device_class=BinarySensorDeviceClass.UPDATE,
+        selectable=False,
+        entity_registry_enabled_default=False,
+    ),
+    "post_de_update": MailandPackagesBinarySensorEntityDescription(
+        name="Post DE Image Updated",
+        key="post_de_update",
         device_class=BinarySensorDeviceClass.UPDATE,
         selectable=False,
         entity_registry_enabled_default=False,
@@ -1630,6 +1931,7 @@ CAMERA_DATA = {
     "walmart_camera": ["Mail Walmart Delivery Camera"],
     "fedex_camera": ["Mail FedEx Delivery Camera"],
     "generic_camera": ["Mail Generic Delivery Camera"],
+    "post_de_camera": ["Mail Post DE Camera"],
 }
 
 # Configuration for shipper-specific image extraction parameters
@@ -1678,6 +1980,8 @@ SHIPPERS = [
     "post_at",
     "rewe_lieferservice",
     "dpd_nl",
+    "dpd_fr",
+    "dpd_uk",
     "bolcom",
     "poczta_polska",
     "buildinglink",

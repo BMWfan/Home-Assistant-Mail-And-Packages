@@ -1,11 +1,13 @@
 """Tests for IMAP and email utilities."""
 
 import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aioimaplib import AUTH, NONAUTH, AioImapException
 
+import custom_components.mail_and_packages.utils.imap as imap_module
 from custom_components.mail_and_packages.utils.email import (
     find_text,
     find_text_matches,
@@ -14,15 +16,19 @@ from custom_components.mail_and_packages.utils.email import (
 )
 from custom_components.mail_and_packages.utils.imap import (
     InvalidAuth,
+    _batch_search_one_folder,
     _execute_single_search,
     _parse_esearch_line,
     build_search,
+    clean_search_string,
+    decode_folder_ref,
     decode_imap_utf7,
     email_fetch,
     email_fetch_batch,
     email_fetch_headers,
     email_fetch_text,
     email_search,
+    encode_folder_ref,
     encode_imap_utf7,
     login,
     logout,
@@ -344,6 +350,57 @@ async def test_selectfolder_failure(caplog):
     result = await selectfolder(mock_acc, "INBOX")
     assert result is False
     assert "Error selecting folder" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_email_search_covers_configured_subfolders():
+    """A mail filed into a subfolder must still be found when that folder is configured.
+
+    IMAP SEARCH never descends into subfolders: searching "INBOX" does not look
+    inside "INBOX/Online-Shops/Amazon". A mail rule that files carrier mail away
+    therefore makes it invisible to a single-folder scan -- which looks exactly
+    like broken carrier detection but is purely a folder-scope issue. The
+    integration supports a folder LIST for this; this pins that every configured
+    folder really is selected and searched (sequential fallback path, i.e. a
+    server without MULTISEARCH).
+    """
+    account = MagicMock()
+    account._folders = ["INBOX", "INBOX/Online-Shops/Amazon"]
+    account._current_folder = None
+    account.host = "outlook.office365.com"
+    account.timeout = None
+    # Force the sequential select+search fallback instead of ESEARCH.
+    account.has_capability = MagicMock(return_value=False)
+
+    selected: list[str] = []
+
+    async def _select(folder, *args, **kwargs):
+        selected.append(folder.strip('"'))
+        return MagicMock(result="OK", lines=[b"1"])
+
+    async def _search(query, **kwargs):
+        # Only the subfolder actually holds the message. The multi-folder path
+        # goes through uid_search per selected folder.
+        hit = bool(selected) and selected[-1].endswith("/Amazon")
+        return MagicMock(result="OK", lines=[b"1"] if hit else [b""])
+
+    account.select = AsyncMock(side_effect=_select)
+    account.search = AsyncMock(side_effect=_search)
+    account.uid_search = AsyncMock(side_effect=_search)
+
+    result, data = await email_search(
+        account=account,
+        address=["order-update@amazon.de"],
+        date="06-Aug-2026",
+        subject=["Geliefert:"],
+    )
+
+    assert result == "OK"
+    assert "INBOX" in selected, f"INBOX was never selected: {selected}"
+    assert "INBOX/Online-Shops/Amazon" in selected, (
+        f"subfolder was never selected: {selected}"
+    )
+    assert data[0], "message in the subfolder was not returned"
 
 
 def test_build_search_empty_address_raises():
@@ -710,8 +767,27 @@ async def test_logout_success():
 
 
 @pytest.mark.asyncio
-async def test_logout_timeout(caplog):
-    """Test logout timeout handling."""
+async def test_logout_cancelled_error_propagates(caplog):
+    """CancelledError must propagate, not be swallowed.
+
+    Regression test: logout() previously caught asyncio.CancelledError in
+    the same broad except tuple as TimeoutError/AioImapException/OSError,
+    silently suppressing it. If logout() runs during cleanup while the
+    caller's own outer asyncio.timeout() budget expires, that timeout
+    delivers a CancelledError at this exact await point -- suppressing it
+    defeats the outer time budget entirely.
+    """
+    mock_acc = AsyncMock()
+    mock_acc.logout.side_effect = asyncio.CancelledError()
+    caplog.set_level("DEBUG")
+
+    with pytest.raises(asyncio.CancelledError):
+        await logout(mock_acc)
+
+
+@pytest.mark.asyncio
+async def test_logout_timeout_error_suppressed(caplog):
+    """Test logout TimeoutError handling is still suppressed."""
     mock_acc = AsyncMock()
     mock_acc.logout.side_effect = TimeoutError("Logout timed out")
     caplog.set_level("DEBUG")
@@ -721,10 +797,10 @@ async def test_logout_timeout(caplog):
 
 
 @pytest.mark.asyncio
-async def test_logout_cancelled(caplog):
-    """Test logout cancellation handling."""
+async def test_logout_aioimap_exception_suppressed(caplog):
+    """Test logout AioImapException handling is still suppressed."""
     mock_acc = AsyncMock()
-    mock_acc.logout.side_effect = asyncio.CancelledError()
+    mock_acc.logout.side_effect = AioImapException("IMAP protocol error")
     caplog.set_level("DEBUG")
 
     await logout(mock_acc)
@@ -732,14 +808,190 @@ async def test_logout_cancelled(caplog):
 
 
 @pytest.mark.asyncio
-async def test_logout_oserror(caplog):
-    """Test logout OSError handling."""
+async def test_logout_oserror_suppressed(caplog):
+    """Test logout OSError handling is still suppressed."""
     mock_acc = AsyncMock()
     mock_acc.logout.side_effect = OSError("Connection lost")
     caplog.set_level("DEBUG")
 
     await logout(mock_acc)
     assert "Error logging out of IMAP Server" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_logout_hang_bounded_by_own_timeout(caplog, monkeypatch):
+    """A hung LOGOUT round-trip must not block past its own short timeout.
+
+    Regression test: logout() previously awaited account.logout() with no
+    timeout of its own, inheriting the connection's command timeout (which
+    mirrors the whole-scan budget). Cleanup after an already-timed-out scan
+    could then re-consume the full budget a second time before the caller's
+    finally block returned. LOGOUT_TIMEOUT bounds cleanup independently.
+    """
+    monkeypatch.setattr(imap_module, "LOGOUT_TIMEOUT", 0.05)
+
+    mock_acc = AsyncMock()
+
+    async def hang_forever(*args, **kwargs):
+        await asyncio.sleep(10)
+
+    mock_acc.logout.side_effect = hang_forever
+    caplog.set_level("DEBUG")
+
+    start = asyncio.get_event_loop().time()
+    await logout(mock_acc)
+    elapsed = asyncio.get_event_loop().time() - start
+
+    assert elapsed < 1
+    assert "Error logging out of IMAP Server" in caplog.text
+
+
+def _fetch_response(lines):
+    return MagicMock(result="OK", lines=lines)
+
+
+@pytest.mark.asyncio
+async def test_batch_search_classifies_via_one_broad_search_and_fetch(monkeypatch):
+    """One broad SEARCH + one batched FETCH must replace one SEARCH per query.
+
+    Regression test for the fix that replaced per-query SEARCHes (which hit a
+    fixed per-connection command limit on Exchange Online at ~40 commands,
+    see HANDOFF.md section 2) with a single SINCE search per folder plus
+    client-side classification against each query's own criteria -- including
+    its own since_date, which may be later than the broad search's date.
+    """
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_PACING", 0)
+
+    account = MagicMock()
+    account._current_folder = "INBOX"
+    account.uid_search = AsyncMock(
+        return_value=_fetch_response([b"SEARCH 101 102 103"])
+    )
+    account.uid = AsyncMock(
+        return_value=_fetch_response(
+            [
+                (
+                    b'1 FETCH (UID 101 INTERNALDATE "01-Jul-2026 08:00:00 +0000" '
+                    b"BODY[HEADER.FIELDS (FROM SUBJECT)] {50}"
+                ),
+                b"From: DPD <noreply@service.dpd.de>\r\nSubject: Paket ist da\r\n\r\n",
+                b")",
+                (
+                    b'2 FETCH (UID 102 INTERNALDATE "30-Jun-2026 10:00:00 +0000" '
+                    b"BODY[HEADER.FIELDS (FROM SUBJECT)] {45}"
+                ),
+                b"From: UPS <mcinfo@ups.com>\r\nSubject: Package delivered\r\n\r\n",
+                b")",
+                (
+                    b'3 FETCH (UID 103 INTERNALDATE "25-Jun-2026 10:00:00 +0000" '
+                    b"BODY[HEADER.FIELDS (FROM SUBJECT)] {45}"
+                ),
+                b"From: noreply@service.dpd.de\r\nSubject: Old DPD mail\r\n\r\n",
+                b")",
+            ]
+        )
+    )
+
+    dpd_spec = imap_module.QuerySpec(
+        query='FROM "noreply@service.dpd.de" SINCE 28-Jun-2026',
+        addresses=("noreply@service.dpd.de",),
+        subjects=(),
+        since_date="28-Jun-2026",
+    )
+    ups_spec = imap_module.QuerySpec(
+        query='FROM "mcinfo@ups.com" SINCE 28-Jun-2026',
+        addresses=("mcinfo@ups.com",),
+        subjects=(),
+        since_date="28-Jun-2026",
+    )
+
+    search_cache = {}
+    result_account = await _batch_search_one_folder(
+        account, "INBOX", [dpd_spec, ups_spec], search_cache
+    )
+
+    assert result_account is account
+    assert account.uid_search.call_count == 1, "expected exactly one broad SEARCH"
+    assert account.uid.call_count == 1, "expected exactly one batched FETCH"
+    assert search_cache[("INBOX", dpd_spec.query)] == [b"INBOX/101"]
+    assert search_cache[("INBOX", ups_spec.query)] == [b"INBOX/102"]
+
+
+@pytest.mark.asyncio
+async def test_batch_search_reconnects_on_stalled_broad_search(monkeypatch):
+    """A stalled broad SEARCH must trigger a reconnect-and-retry, not a hang.
+
+    Live diagnostics against Exchange Online showed a connection silently
+    stops responding to further commands after enough have been issued,
+    regardless of pacing (ruled out separately). _batch_search_one_folder
+    must detect this via IMAP_COMMAND_TIMEOUT, open a fresh connection,
+    re-select the folder, and retry -- returning the new account so the
+    caller doesn't keep using the dead one.
+    """
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_TIMEOUT", 0.2)
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_PACING", 0)
+
+    stale_account = MagicMock()
+    stale_account._login_kwargs = {"host": "imap.example.com"}
+    stale_account._hass = None
+    stale_account._current_folder = "INBOX"
+
+    fresh_account = MagicMock()
+    fresh_account._current_folder = None
+
+    async def hang_forever(*args, **kwargs):
+        await asyncio.sleep(60)
+
+    stale_account.uid_search = AsyncMock(side_effect=hang_forever)
+    fresh_account.uid_search = AsyncMock(return_value=_fetch_response([b"SEARCH 101"]))
+    fresh_account.uid = AsyncMock(
+        return_value=_fetch_response(
+            [
+                (
+                    b'1 FETCH (UID 101 INTERNALDATE "01-Jul-2026 08:00:00 +0000" '
+                    b"BODY[HEADER.FIELDS (FROM SUBJECT)] {50}"
+                ),
+                b"From: DPD <noreply@service.dpd.de>\r\nSubject: Paket ist da\r\n\r\n",
+                b")",
+            ]
+        )
+    )
+
+    logout_calls = []
+
+    async def fake_logout(account):
+        logout_calls.append(account)
+
+    async def fake_selectfolder(account, folder):
+        account._current_folder = folder
+        return True
+
+    async def fake_login(hass, **kwargs):
+        return fresh_account
+
+    monkeypatch.setattr(imap_module, "logout", fake_logout)
+    monkeypatch.setattr(imap_module, "selectfolder", fake_selectfolder)
+    monkeypatch.setattr(imap_module, "login", fake_login)
+
+    dpd_spec = imap_module.QuerySpec(
+        query='FROM "noreply@service.dpd.de" SINCE 28-Jun-2026',
+        addresses=("noreply@service.dpd.de",),
+        subjects=(),
+        since_date="28-Jun-2026",
+    )
+
+    search_cache = {}
+    start = asyncio.get_event_loop().time()
+    result_account = await _batch_search_one_folder(
+        stale_account, "INBOX", [dpd_spec], search_cache
+    )
+    elapsed = asyncio.get_event_loop().time() - start
+
+    assert elapsed < 2, f"took too long: {elapsed:.2f}s"
+    assert result_account is fresh_account
+    assert logout_calls == [stale_account]
+    assert search_cache[("INBOX", dpd_spec.query)] == [b"INBOX/101"]
+    assert fresh_account._current_folder == "INBOX"
 
 
 def test_build_search_list_subject():
@@ -754,8 +1006,8 @@ def test_build_search_list_subject():
 def test_build_search_empty_safe_subjects():
     """Test build_search when subjects become empty after ASCII stripping."""
     # Covers line 112: subject_part = ""
-    # "é" is non-ASCII and will be stripped to an empty string
-    utf8, search = build_search(["test@example.com"], "25-Mar-2026", subject=["é"])
+    # "😊" is non-ASCII with no ASCII decomposition, and will be stripped to an empty string
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", subject=["😊"])
     assert "SUBJECT" not in search
 
 
@@ -786,6 +1038,117 @@ def test_build_search_single_addr_with_subject():
         ["test@example.com"], "25-Mar-2026", subject="Test", is_yahoo=True
     )
     assert search_yahoo == '(FROM "test@example.com" SUBJECT "Test" SINCE 25-Mar-2026)'
+
+
+def test_build_search_with_body():
+    """Test build_search with body parameter."""
+    # Single body string
+    utf8, search = build_search(
+        ["test@example.com"], "25-Mar-2026", body="Tracking 1Z1234567890"
+    )
+    assert 'BODY "Tracking 1Z1234567890"' in search
+
+    # Multiple body strings
+    utf8, search = build_search(
+        ["test@example.com"],
+        "25-Mar-2026",
+        body=["Tracking 1Z1234567890", "Order #12345"],
+    )
+    assert 'BODY "Tracking 1Z1234567890"' in search
+    assert 'BODY "Order #12345"' in search
+
+    # Yahoo IMAP with body
+    utf8, search_yahoo = build_search(
+        ["test@example.com"], "25-Mar-2026", body="Tracking 1Z1234567890", is_yahoo=True
+    )
+    assert 'BODY "Tracking 1Z1234567890"' in search_yahoo
+
+    # Yahoo IMAP with multiple bodies
+    utf8, search_yahoo_multi = build_search(
+        ["test@example.com"],
+        "25-Mar-2026",
+        body=["Tracking 1Z1234567890", "Order #12345"],
+        is_yahoo=True,
+    )
+    assert '(OR BODY "Tracking 1Z1234567890" BODY "Order #12345")' in search_yahoo_multi
+
+    # Body with subject
+    utf8, search = build_search(
+        ["test@example.com"],
+        "25-Mar-2026",
+        subject="Test",
+        body="Tracking 1Z1234567890",
+    )
+    assert 'SUBJECT "Test"' in search
+    assert 'BODY "Tracking 1Z1234567890"' in search
+
+    # Body with subject and Yahoo
+    utf8, search_yahoo = build_search(
+        ["test@example.com"],
+        "25-Mar-2026",
+        subject="Test",
+        body="Tracking 1Z1234567890",
+        is_yahoo=True,
+    )
+    assert 'SUBJECT "Test"' in search_yahoo
+    assert 'BODY "Tracking 1Z1234567890"' in search_yahoo
+
+
+def test_build_search_with_body_and_empty_body():
+    """Test build_search with empty body string."""
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", body="")
+    assert "BODY" not in search
+
+    # Empty list of bodies
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", body=[])
+    assert "BODY" not in search
+
+    # None body
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", body=None)
+    assert "BODY" not in search
+
+
+def test_build_search_with_body_and_non_ascii():
+    """Test build_search with non-ASCII body strings."""
+    # Non-ASCII characters should be stripped or normalized
+    utf8, search = build_search(
+        ["test@example.com"], "25-Mar-2026", body="Tracking émojis 🎉"
+    )
+    assert 'BODY "Tracking emojis "' in search
+
+
+def test_build_search_unicode_normalization():
+    """Test that accented characters decompose to their base ASCII equivalents."""
+    utf8, search = build_search(["test@example.com"], "25-Mar-2026", subject="Livré")
+    assert 'SUBJECT "Livre"' in search
+
+    utf8, search2 = build_search(["test@example.com"], "25-Mar-2026", body="Café")
+    assert 'BODY "Cafe"' in search2
+
+
+def test_build_search_quotes_removed():
+    """Test that double quotes are removed from search terms to prevent query corruption."""
+    utf8, search = build_search(
+        ["test@example.com"], "25-Mar-2026", subject='UPS "Notification"'
+    )
+    assert 'SUBJECT "UPS Notification"' in search
+
+    utf8, search2 = build_search(
+        ["test@example.com"], "25-Mar-2026", body='order "123"'
+    )
+    assert 'BODY "order 123"' in search2
+
+    # Mixed ASCII and non-ASCII
+    utf8, search = build_search(
+        ["test@example.com"], "25-Mar-2026", body="Tracking 1Z1234567890 émojis"
+    )
+    assert 'BODY "Tracking 1Z1234567890 emojis"' in search
+
+
+def test_clean_search_string_empty():
+    """Test clean_search_string with empty or falsy inputs."""
+    assert clean_search_string("") == ""
+    assert clean_search_string(None) == ""  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
@@ -1010,6 +1373,164 @@ async def test_email_fetch_folder_prefix():
     # Verify selectfolder was called for Junk and uid fetch executed
     mock_account.select.assert_called_once_with("Junk")
     mock_account.uid.assert_called_once_with("FETCH", "2001", "(RFC822)")
+
+
+def test_folder_ref_roundtrip():
+    """encode_folder_ref/decode_folder_ref round-trip any folder name.
+
+    The encoded form must contain no whitespace and no '/', because
+    composite folder/uid IDs are space-joined then .split() at several
+    call sites and rsplit('/', 1) to recover the folder.
+    """
+    for folder in [
+        "INBOX",
+        "# - Projects",
+        "0 - Pending Orders",
+        "# - For Family",
+        "50% discount codes",
+        "a/b nested",
+        "tab\tname",
+        "Boîte aux lettres",
+    ]:
+        encoded = encode_folder_ref(folder)
+        assert " " not in encoded
+        assert "/" not in encoded
+        assert "\t" not in encoded
+        assert decode_folder_ref(encoded) == folder
+
+
+@pytest.mark.asyncio
+async def test_email_search_sequential_fallback_spaced_folder():
+    """Folder names with spaces survive the space-join/.split() round-trip.
+
+    Regression test: multi-folder composite IDs are returned space-joined
+    (mimicking a raw IMAP SEARCH response) and later .split() by consumers —
+    an unencoded 'folder with spaces/uid' shatters into garbage IDs.
+    """
+    mock_account = AsyncMock()
+    mock_account._folders = ["INBOX", "# - Projects"]
+    mock_account.has_capability.return_value = False
+
+    mock_res1 = MagicMock(result="OK", lines=[b"1001 1002"])
+    mock_res2 = MagicMock(result="OK", lines=[b"55"])
+    mock_account.uid_search.side_effect = [mock_res1, mock_res2]
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+
+    result = await email_search(
+        mock_account, ["test@example.com"], "25-Mar-2026", subject="Test"
+    )
+
+    assert result[0] == "OK"
+    # The joined blob must re-split into exactly one ID per matched email.
+    ids = result[1][0].split()
+    assert ids == [b"INBOX/1001", b"INBOX/1002", b"%23%20-%20Projects/55"]
+    # And each ID's folder component must decode back to the real name.
+    folder, uid = ids[2].decode().rsplit("/", 1)
+    assert decode_folder_ref(folder) == "# - Projects"
+    assert uid == "55"
+
+
+@pytest.mark.asyncio
+async def test_email_search_multisearch_spaced_folder():
+    """ESEARCH responses with spaced mailbox names produce encoded IDs."""
+    mock_account = AsyncMock()
+    mock_account._folders = ["INBOX", "0 - Pending Orders"]
+    mock_account.has_capability = MagicMock(return_value=True)
+
+    mock_res = MagicMock()
+    mock_res.result = "OK"
+    mock_res.lines = [
+        b'* ESEARCH (TAG "1" MAILBOX "0 - Pending Orders" UIDVALIDITY 123) UID ALL 2001',
+    ]
+    mock_protocol = AsyncMock()
+    mock_protocol.execute.return_value = mock_res
+    mock_protocol.new_tag.return_value = "1"
+    mock_protocol.loop = asyncio.get_running_loop()
+    mock_account.protocol = mock_protocol
+
+    result = await email_search(
+        mock_account, ["test@example.com"], "25-Mar-2026", subject="Test"
+    )
+
+    assert result[0] == "OK"
+    assert result[1][0].split() == [b"0%20-%20Pending%20Orders/2001"]
+
+
+@pytest.mark.asyncio
+async def test_email_fetch_spaced_folder_selects_decoded_name():
+    """email_fetch on an encoded composite ID selects the REAL folder name."""
+    mock_account = AsyncMock()
+    mock_account._current_folder = "INBOX"
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+    mock_res = MagicMock(result="OK", lines=[b"RFC822", b"body"])
+    mock_account.uid.return_value = mock_res
+
+    result = await email_fetch(mock_account, b"%23%20-%20Projects/55")
+
+    assert result[0] == "OK"
+    # selectfolder must receive the decoded name (then IMAP-quote it since
+    # it contains spaces).
+    mock_account.select.assert_called_once_with('"# - Projects"')
+    mock_account.uid.assert_called_once_with("FETCH", "55", "(RFC822)")
+
+
+@pytest.mark.asyncio
+async def test_email_fetch_batch_spaced_folder_groups_decoded():
+    """email_fetch_batch groups encoded IDs by their decoded folder."""
+    mock_account = AsyncMock()
+    mock_account.host = "imap.gmail.com"
+    mock_account._current_folder = None
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+    mock_res = MagicMock(result="OK", lines=[b"RFC822", b"body"])
+    mock_account.uid.return_value = mock_res
+
+    result = await email_fetch_batch(
+        mock_account, [b"%23%20-%20Projects/55", b"%23%20-%20Projects/56"]
+    )
+
+    assert result[0] == "OK"
+    mock_account.select.assert_called_once_with('"# - Projects"')
+    mock_account.uid.assert_called_once_with("FETCH", "55,56", "(RFC822)")
+
+
+@pytest.mark.asyncio
+async def test_email_fetch_headers_spaced_folder_selects_decoded_name():
+    """email_fetch_headers on an encoded composite ID selects the REAL folder."""
+    mock_account = AsyncMock()
+    mock_account._current_folder = "INBOX"
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+    mock_res = MagicMock(result="OK", lines=[b"Subject: hi", b")"])
+    mock_account.uid.return_value = mock_res
+
+    result = await email_fetch_headers(mock_account, b"%23%20-%20Projects/55")
+
+    assert result[0] == "OK"
+    mock_account.select.assert_called_once_with('"# - Projects"')
+    mock_account.uid.assert_called_once_with(
+        "FETCH", "55", "(BODY[HEADER.FIELDS (SUBJECT)])"
+    )
+
+
+@pytest.mark.asyncio
+async def test_email_fetch_text_spaced_folder_selects_decoded_name():
+    """email_fetch_text on an encoded composite ID selects the REAL folder."""
+    mock_account = AsyncMock()
+    mock_account.host = "imap.gmail.com"
+    mock_account._current_folder = "INBOX"
+    mock_account.list.return_value = MagicMock()
+    mock_account.select.return_value = MagicMock()
+    mock_res = MagicMock(result="OK", lines=[b"body text", b")"])
+    mock_account.uid.return_value = mock_res
+
+    result = await email_fetch_text(mock_account, b"%23%20-%20Projects/55")
+
+    assert result[0] == "OK"
+    mock_account.select.assert_called_once_with('"# - Projects"')
+    mock_account.uid.assert_called_once_with("FETCH", "55", "(BODY[1])")
 
 
 @pytest.mark.asyncio
@@ -1528,6 +2049,66 @@ async def test_email_search_multifolders_batch_timeout_error():
 
 
 @pytest.mark.asyncio
+async def test_selectfolder_hang_raises_timeout(monkeypatch):
+    """Test selectfolder aborts a genuinely hanging select() within IMAP_COMMAND_TIMEOUT."""
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_TIMEOUT", 0.05)
+    mock_imap = AsyncMock()
+    mock_imap._current_folder = None
+
+    async def _hang(*args, **kwargs):
+        await asyncio.sleep(10)
+
+    mock_imap.select.side_effect = _hang
+
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        await selectfolder(mock_imap, "Junk")
+    elapsed = time.monotonic() - start
+    assert elapsed < 1
+
+
+@pytest.mark.asyncio
+async def test_execute_single_search_sequential_hang_raises_timeout(monkeypatch):
+    """Test _execute_single_search's sequential uid_search aborts a genuine hang."""
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_TIMEOUT", 0.05)
+    mock_imap = AsyncMock()
+    mock_imap._folders = ["INBOX", "Junk"]
+    mock_imap._current_folder = None
+    mock_imap.has_capability.return_value = False
+    mock_imap.select.return_value = MagicMock()
+
+    async def _hang(*args, **kwargs):
+        await asyncio.sleep(10)
+
+    mock_imap.uid_search.side_effect = _hang
+
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        await _execute_single_search(mock_imap, "SEARCH_QUERY")
+    elapsed = time.monotonic() - start
+    assert elapsed < 1
+
+
+@pytest.mark.asyncio
+async def test_email_search_single_folder_hang_raises_timeout(monkeypatch):
+    """Test email_search single-folder fastpath aborts a genuinely hanging search()."""
+    monkeypatch.setattr(imap_module, "IMAP_COMMAND_TIMEOUT", 0.05)
+    mock_imap = AsyncMock()
+    mock_imap._folders = ["INBOX"]
+
+    async def _hang(*args, **kwargs):
+        await asyncio.sleep(10)
+
+    mock_imap.search.side_effect = _hang
+
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        await email_search(mock_imap, ["test@example.com"], "25-Mar-2026")
+    elapsed = time.monotonic() - start
+    assert elapsed < 1
+
+
+@pytest.mark.asyncio
 async def test_email_fetch_prefixed_timeout_error():
     """Test email_fetch folder-prefixed path propagates TimeoutError."""
     mock_imap = AsyncMock()
@@ -1605,3 +2186,36 @@ async def test_email_fetch_batch_prefixed_timeout_error():
     mock_imap.uid.side_effect = TimeoutError()
     with pytest.raises(TimeoutError):
         await email_fetch_batch(mock_imap, [b"Junk/1001", b"Junk/1002"])
+
+
+@pytest.mark.asyncio
+async def test_email_search_body_threshold():
+    """Test that email_search only does server-side body search if <= 2 body patterns are specified."""
+    mock_imap = AsyncMock()
+    mock_imap._folders = ["INBOX"]
+    mock_imap.search.return_value = MagicMock(result="OK", lines=[b"1"])
+
+    # 1 body pattern -> should include BODY in search query
+    await email_search(mock_imap, ["test@example.com"], "25-Mar-2026", body="Pattern1")
+    search_query = mock_imap.search.call_args.args[0]
+    assert 'BODY "Pattern1"' in search_query
+
+    # 2 body patterns -> should include BODY in search query
+    mock_imap.search.reset_mock()
+    await email_search(
+        mock_imap, ["test@example.com"], "25-Mar-2026", body=["Pattern1", "Pattern2"]
+    )
+    search_query = mock_imap.search.call_args.args[0]
+    assert 'BODY "Pattern1"' in search_query
+    assert 'BODY "Pattern2"' in search_query
+
+    # 3 body patterns -> should NOT include BODY in search query
+    mock_imap.search.reset_mock()
+    await email_search(
+        mock_imap,
+        ["test@example.com"],
+        "25-Mar-2026",
+        body=["Pattern1", "Pattern2", "Pattern3"],
+    )
+    search_query = mock_imap.search.call_args.args[0]
+    assert "BODY" not in search_query

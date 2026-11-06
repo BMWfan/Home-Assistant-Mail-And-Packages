@@ -1,0 +1,18 @@
+Delivered-To: recipient@example.com
+Date: Mon, 10 Jun 2024 10:00:00 +0200
+From: "Some Shop" <noreply@someshop.com>
+To: recipient@example.com
+Subject: Your order has shipped
+Message-ID: <20240610100000.uni001@someshop.com>
+Content-Type: text/plain; charset="UTF-8"
+MIME-Version: 1.0
+
+Hi,
+
+Your order has shipped! You can track your package using the following tracking number:
+
+1Z12345E0291980793
+
+Track your shipment at ups.com.
+
+Thanks for your order!

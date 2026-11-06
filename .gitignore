@@ -84,6 +84,7 @@ __pycache__/
 # Home Assistant configuration
 config/*
 !config/configuration.yaml
+!config/secrets.yaml.example
 .storage/*
 test/*
 
@@ -91,3 +92,14 @@ test/*
 # Keep .PLACEHOLDER so the images/ directory itself is tracked.
 custom_components/mail_and_packages/images/*
 !custom_components/mail_and_packages/images/.PLACEHOLDER
+.claude/launch.json
+
+# Local tooling/session artifacts -- never project content, and .mcp.json
+# in particular carries a live webhook secret in its URL.
+.claude/
+.omo/
+graphify-out/
+.mcp.json
+
+# Docker Compose local overrides (CARD_DIST_PATH etc.) -- keep out of git
+.env

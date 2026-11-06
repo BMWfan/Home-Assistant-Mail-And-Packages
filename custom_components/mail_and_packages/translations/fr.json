@@ -36,10 +36,16 @@
           "generic_custom_img": "Utiliser une image personnalisée générique 'pas de livraison' ?",
           "generate_grid": "Créer une grille d'images pour les modèles de vision LLM",
           "allow_forwarded_emails": "Autoriser les e-mails transférés en plus de la valeur par défaut d'un service (par ex. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Nombre de jours en arrière pour vérifier les e-mails de colis (minimum 1, par défaut 3)",
+          "amazon_enabled": "Activer les capteurs de colis Amazon",
+          "seventeen_track_api_key": "Clé API 17track.net (facultatif)",
+          "dhl_brief_enabled": "Activer l'aperçu des lettres DHL"
         },
         "description": "Terminez la configuration en personnalisant les éléments suivants en fonction de votre structure de messagerie et de l'installation de Home Assistant. \n\n Pour plus de détails sur les [Intégration de messagerie et de packages] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration), passez en revue les [configuration, modèles et section automatisations] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) sur GitHub.",
-        "title": "Courrier et colis (étape 2 sur 2)"
+        "title": "Courrier et colis (étape 2 sur 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Facultatif. Avec une clé API 17track.net, 17track fournit le statut faisant autorité pour tous les numéros de suivi détectés (sauf Amazon) — la détection de statut basée sur les e-mails du transporteur est alors contournée."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Utiliser une image personnalisée générique 'pas de livraison' ?",
           "generate_grid": "Créer une grille d'images pour les modèles de vision LLM",
           "allow_forwarded_emails": "Autoriser les e-mails transférés en plus de la valeur par défaut d'un service (par ex. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Nombre de jours en arrière pour vérifier les e-mails de colis (minimum 1, par défaut 3)",
+          "amazon_enabled": "Activer les capteurs de colis Amazon",
+          "seventeen_track_api_key": "Clé API 17track.net (facultatif)",
+          "dhl_brief_enabled": "Activer l'aperçu des lettres DHL"
         },
         "description": "Terminez la configuration en personnalisant ce qui suit en fonction de la structure de votre courrier électronique et de l'installation de Home Assistant.\n\nPour plus de détails sur les options d'[intégration de courrier et de colis](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration), consultez la [section configuration, modèles et automatisations](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) sur GitHub.\n\nSi vous utilisez des courriels transférés par Amazon, veuillez séparer chaque adresse par une virgule ou entrer (aucun) pour effacer ce paramètre.",
-        "title": "Courrier et colis (étape 2 sur 2)"
+        "title": "Courrier et colis (étape 2 sur 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Facultatif. Avec une clé API 17track.net, 17track fournit le statut faisant autorité pour tous les numéros de suivi détectés (sauf Amazon) — la détection de statut basée sur les e-mails du transporteur est alors contournée."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -114,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Répertoire pour stocker les images"
+          "storage": "Répertoire pour stocker les images",
+          "dhl_brief_reauth": "Se reconnecter à l'aperçu des lettres DHL"
         },
         "description": "Veuillez entrer le répertoire dans lequel vous souhaitez que vos images soient stockées.\nLa valeur par défaut est automatiquement remplie.",
-        "title": "Emplacement de stockage des images"
+        "title": "Emplacement de stockage des images",
+        "data_description": {
+          "dhl_brief_reauth": "Laissez décoché pour conserver votre connexion DHL actuelle. Cochez uniquement si vous souhaitez vous reconnecter à DHL (par exemple après l'expiration ou la révocation du jeton)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
@@ -197,6 +213,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Aperçu des lettres DHL : connexion expirée",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Se reconnecter à l'aperçu des lettres DHL",
+            "description": "Votre connexion DHL a expiré, aucune nouvelle notification de lettre ne peut donc être récupérée.\n\n1. Ouvrez ce lien et connectez-vous à DHL : {auth_url}\n2. Après la connexion, vous êtes redirigé vers une page qui reste vide — c'est normal.\n3. Copiez l'adresse de cette page (elle commence par dhllogin://) et collez-la ci-dessous.",
+            "data": {
+              "dhl_brief_code": "Code de connexion DHL ou URL de redirection"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Ce code n'a pas pu être utilisé. Veuillez vous reconnecter."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net : clé API refusée",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Mettre à jour votre clé API 17track.net",
+            "description": "Votre clé API 17track.net a été refusée, le statut des envois ne peut donc plus être consulté.\n\nRécupérez votre clé sur 17track.net (Mon compte > Paramètres de sécurité > Clé API) et collez-la ci-dessous.",
+            "data": {
+              "seventeen_track_api_key": "Clé API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Veuillez saisir une clé API 17track.net valide."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Échec de l'authentification de Mail and Packages",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Ré-authentifier le serveur de messagerie",
+            "description": "L'authentification sur votre serveur de messagerie IMAP a échoué. Cliquez sur soumettre pour démarrer le flux de ré-authentification."
+          }
+        }
       }
     }
   }

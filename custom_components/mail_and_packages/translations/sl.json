@@ -36,10 +36,16 @@
           "generic_custom_img": "Uporabite prilagojeno splošno sliko 'brez dostave'?",
           "generate_grid": "Ustvari mrežo slik za vizualne modele LLM",
           "allow_forwarded_emails": "Dovoli posredovane e-poštne sporočila poleg privzete vrednosti storitve (npr. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Število dni nazaj za preverjanje e-pošte o paketih (najmanj 1, privzeto 3)",
+          "amazon_enabled": "Omogoči senzorje paketov Amazon",
+          "seventeen_track_api_key": "API-ključ 17track.net (izbirno)",
+          "dhl_brief_enabled": "Omogoči predogled pisem DHL"
         },
         "description": "Končajte konfiguracijo s prilagoditvijo naslednjih na podlagi strukture e-pošte in namestitve Home Assistant. \n\n Za podrobnosti o možnostih [Integracija pošte in paketov] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) preglejte [konfiguracijo, predloge in oddelku za avtomatizacije] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) na GitHubu.",
-        "title": "Pošta in paketi (2. korak od 2)"
+        "title": "Pošta in paketi (2. korak od 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Izbirno. S ključem API 17track.net 17track zagotavlja merodajno stanje za vse zaznane sledilne številke (razen Amazon) — zaznavanje stanja na podlagi e-pošte prevoznika se nato preskoči."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Uporabite prilagojeno splošno sliko 'brez dostave'?",
           "generate_grid": "Ustvari mrežo slik za vizualne modele LLM",
           "allow_forwarded_emails": "Dovoli posredovane e-poštne sporočila poleg privzete vrednosti storitve (npr. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Število dni nazaj za preverjanje e-pošte o paketih (najmanj 1, privzeto 3)",
+          "amazon_enabled": "Omogoči senzorje paketov Amazon",
+          "seventeen_track_api_key": "API-ključ 17track.net (izbirno)",
+          "dhl_brief_enabled": "Omogoči predogled pisem DHL"
         },
         "description": "Konfiguracijo dokončajte z prilagajanjem naslednjega glede na strukturo vašega e-poštnega sporočila in namestitev Home Assistant.\n\nZa podrobnosti o možnostih [integracije Mail and Packages](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) si oglejte [razdelek o konfiguraciji, predlogah in avtomatizacijah](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) na GitHubu.\n\nČe uporabljate preusmerjena e-poštna sporočila Amazon, ločite vsak naslov z vejico ali vnesite (noben) za izbris te nastavitve.",
-        "title": "Pošta in paketi (2. korak od 2)"
+        "title": "Pošta in paketi (2. korak od 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Izbirno. S ključem API 17track.net 17track zagotavlja merodajno stanje za vse zaznane sledilne številke (razen Amazon) — zaznavanje stanja na podlagi e-pošte prevoznika se nato preskoči."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -114,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Mapa za shranjevanje slik"
+          "storage": "Mapa za shranjevanje slik",
+          "dhl_brief_reauth": "Znova preveri pristnost predogleda pisem DHL"
         },
         "description": "Prosimo, vnesite imenik, v katerem želite shraniti svoje slike.\nPrivzeto je samodejno izpolnjeno.",
-        "title": "Lokacija shranjevanja slik"
+        "title": "Lokacija shranjevanja slik",
+        "data_description": {
+          "dhl_brief_reauth": "Pustite neoznačeno, da obdržite trenutno prijavo DHL. Označite le, če se želite znova prijaviti v DHL (npr. po poteku ali preklicu žetona)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
@@ -197,6 +213,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Predogled pisem DHL: prijava je potekla",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Znova preveri pristnost predogleda pisem DHL",
+            "description": "Vaša prijava v DHL je potekla, zato ni mogoče pridobiti novih obvestil o pismih.\n\n1. Odprite to povezavo in se prijavite v DHL: {auth_url}\n2. Po prijavi boste preusmerjeni na stran, ki ostane prazna — to je normalno.\n3. Kopirajte naslov te strani (začne se z dhllogin://) in ga prilepite spodaj.",
+            "data": {
+              "dhl_brief_code": "Prijavna koda DHL ali URL preusmeritve"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Te kode ni bilo mogoče uporabiti. Poskusite se znova prijaviti."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: ključ API zavrnjen",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Posodobite svoj ključ API 17track.net",
+            "description": "Vaš ključ API 17track.net je bil zavrnjen, zato stanja pošiljk ni več mogoče preveriti.\n\nPridobite ključ na 17track.net (Moj račun > Varnostne nastavitve > Ključ API) in ga prilepite spodaj.",
+            "data": {
+              "seventeen_track_api_key": "Ključ API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Vnesite veljaven ključ API 17track.net."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Preverjanje pristnosti za Mail and Packages ni uspelo",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Ponovno preveri poštni strežnik",
+            "description": "Preverjanje pristnosti z vašim poštnim strežnikom IMAP ni uspelo. Kliknite Pošlji, če želite začeti potek ponovnega preverjanja pristnosti."
+          }
+        }
       }
     }
   }

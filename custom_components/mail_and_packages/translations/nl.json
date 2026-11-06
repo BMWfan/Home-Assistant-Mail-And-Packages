@@ -36,10 +36,16 @@
           "generic_custom_img": "Gebruik aangepaste generieke 'geen levering' afbeelding?",
           "generate_grid": "Maak een afbeeldingsraster voor LLM-visiemodellen",
           "allow_forwarded_emails": "Doorgestuurde e-mails toestaan naast de standaardwaarde van een service (bijv. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Aantal dagen terug om te controleren op pakket-e-mails (minimaal 1, standaard 3)",
+          "amazon_enabled": "Amazon-pakketsensoren inschakelen",
+          "seventeen_track_api_key": "17track.net API-sleutel (optioneel)",
+          "dhl_brief_enabled": "DHL-briefvoorbeeld inschakelen"
         },
         "description": "Voltooi de configuratie door het volgende aan te passen op basis van uw e-mailstructuur en Home Assistant-installatie. \n\n Voor meer informatie over de [E-mail en pakketten integratie] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) opties bekijk de [configuratie, sjablonen , en automatisering sectie] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) op GitHub.",
-        "title": "Mail en pakketten (stap 2 van 2)"
+        "title": "Mail en pakketten (stap 2 van 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Optioneel. Met een 17track.net API-sleutel levert 17track de gezaghebbende status voor alle gedetecteerde trackingnummers (behalve Amazon) — de e-mailgebaseerde statusdetectie van vervoerders wordt dan overgeslagen."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Gebruik aangepaste generieke 'geen levering' afbeelding?",
           "generate_grid": "Maak een afbeeldingsraster voor LLM-visiemodellen",
           "allow_forwarded_emails": "Doorgestuurde e-mails toestaan naast de standaardwaarde van een service (bijv. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Aantal dagen terug om te controleren op pakket-e-mails (minimaal 1, standaard 3)",
+          "amazon_enabled": "Amazon-pakketsensoren inschakelen",
+          "seventeen_track_api_key": "17track.net API-sleutel (optioneel)",
+          "dhl_brief_enabled": "DHL-briefvoorbeeld inschakelen"
         },
         "description": "Rond de configuratie af door het volgende aan te passen op basis van uw e-mailstructuur en Home Assistant-installatie.\n\nVoor details over de [Mail en Packages integratie](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) opties, bekijk de [configuratie, sjablonen en automatiseringen sectie](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) op GitHub.\n\nAls u doorgestuurde e-mails van Amazon gebruikt, scheid dan elk adres met een komma of voer (geen) in om deze instelling te wissen.",
-        "title": "Mail en pakketten (stap 2 van 2)"
+        "title": "Mail en pakketten (stap 2 van 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Optioneel. Met een 17track.net API-sleutel levert 17track de gezaghebbende status voor alle gedetecteerde trackingnummers (behalve Amazon) — de e-mailgebaseerde statusdetectie van vervoerders wordt dan overgeslagen."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -114,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Map om afbeeldingen op te slaan"
+          "storage": "Map om afbeeldingen op te slaan",
+          "dhl_brief_reauth": "Opnieuw aanmelden bij DHL-briefvoorbeeld"
         },
         "description": "Voer de map in waar u uw afbeeldingen wilt opslaan.\nDe standaard is automatisch ingevuld.",
-        "title": "Locatie voor afbeeldingsopslag"
+        "title": "Locatie voor afbeeldingsopslag",
+        "data_description": {
+          "dhl_brief_reauth": "Laat uitgevinkt om je huidige DHL-aanmelding te behouden. Vink alleen aan als je opnieuw wilt inloggen bij DHL (bijvoorbeeld nadat het token is verlopen of ingetrokken)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
@@ -197,6 +213,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL-briefvoorbeeld: aanmelding verlopen",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Opnieuw aanmelden bij DHL-briefvoorbeeld",
+            "description": "Je DHL-aanmelding is verlopen, dus er kunnen geen nieuwe briefaankondigingen worden opgehaald.\n\n1. Open deze link en meld je aan bij DHL: {auth_url}\n2. Na het aanmelden word je doorgestuurd naar een pagina die leeg blijft — dat is normaal.\n3. Kopieer het adres van die pagina (begint met dhllogin://) en plak het hieronder.",
+            "data": {
+              "dhl_brief_code": "DHL-aanmeldcode of doorstuur-URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Die code kon niet worden gebruikt. Meld je opnieuw aan."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API-sleutel geweigerd",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Werk je 17track.net API-sleutel bij",
+            "description": "Je 17track.net API-sleutel is geweigerd, dus de zendingsstatus kan niet meer worden opgevraagd.\n\nHaal je sleutel op bij 17track.net (Mijn account > Beveiligingsinstellingen > API-sleutel) en plak hem hieronder.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API-sleutel"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Voer een geldige 17track.net API-sleutel in."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Mail and Packages authenticatie mislukt",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "E-mailserver opnieuw verifiëren",
+            "description": "Authenticatie bij uw IMAP-mailserver is mislukt. Klik op verzenden om de herauthenticatiestroom te starten."
+          }
+        }
       }
     }
   }

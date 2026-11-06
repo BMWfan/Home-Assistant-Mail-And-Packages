@@ -36,10 +36,16 @@
           "generic_custom_img": "사용자 정의 일반 '배송 없음' 이미지를 사용하시겠습니까?",
           "generate_grid": "LLM 비전 모델을 위한 이미지 그리드 생성",
           "allow_forwarded_emails": "서비스 기본값 외에 전달된 이메일 허용 (예: no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "택배 이메일을 확인할 지난 일수 (최소 1, 기본값 3)",
+          "amazon_enabled": "Amazon 택배 센서 활성화",
+          "seventeen_track_api_key": "17track.net API 키 (선택 사항)",
+          "dhl_brief_enabled": "DHL 편지 미리보기 활성화"
         },
         "description": "이메일 구조 및 Home Assistant 설치에 따라 다음을 사용자 정의하여 구성을 완료하십시오. \n\n [메일 및 패키지 통합] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) 옵션에 대한 자세한 내용은 [구성, 템플릿 및 자동화 섹션] (https://github.com/moralmunky/Home-Assistant-Mail-and-Packages/wiki/Configuration-and-Email-Settings#configuration)",
-        "title": "메일 및 패키지 (2/2 단계)"
+        "title": "메일 및 패키지 (2/2 단계)",
+        "data_description": {
+          "seventeen_track_api_key": "선택 사항. 17track.net API 키를 사용하면 17track이 감지된 모든 추적 번호(Amazon 제외)에 대한 공식 상태를 제공하며, 이메일 기반 배송업체 상태 감지는 건너뜁니다."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "사용자 정의 일반 '배송 없음' 이미지를 사용하시겠습니까?",
           "generate_grid": "LLM 비전 모델을 위한 이미지 그리드 생성",
           "allow_forwarded_emails": "서비스 기본값 외에 전달된 이메일 허용 (예: no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "택배 이메일을 확인할 지난 일수 (최소 1, 기본값 3)",
+          "amazon_enabled": "Amazon 택배 센서 활성화",
+          "seventeen_track_api_key": "17track.net API 키 (선택 사항)",
+          "dhl_brief_enabled": "DHL 편지 미리보기 활성화"
         },
         "description": "이메일 구조와 Home Assistant 설치에 따라 다음을 사용자 정의하여 구성을 완료하십시오.\n\n[Mail and Packages 통합](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) 옵션에 대한 자세한 내용은 GitHub의 [구성, 템플릿, 자동화 섹션](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration)을 참조하십시오.\n\nAmazon에서 전달된 이메일을 사용하는 경우 각 주소를 쉼표로 구분하거나 이 설정을 지우려면 (none)을 입력하십시오.",
-        "title": "메일 및 패키지 (2/2 단계)"
+        "title": "메일 및 패키지 (2/2 단계)",
+        "data_description": {
+          "seventeen_track_api_key": "선택 사항. 17track.net API 키를 사용하면 17track이 감지된 모든 추적 번호(Amazon 제외)에 대한 공식 상태를 제공하며, 이메일 기반 배송업체 상태 감지는 건너뜁니다."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -114,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "이미지를 저장할 디렉토리"
+          "storage": "이미지를 저장할 디렉토리",
+          "dhl_brief_reauth": "DHL 편지 미리보기 재인증"
         },
         "description": "이미지를 저장할 디렉토리를 입력해 주세요.\n기본값은 자동으로 채워집니다.",
-        "title": "이미지 저장 위치"
+        "title": "이미지 저장 위치",
+        "data_description": {
+          "dhl_brief_reauth": "현재 DHL 로그인을 유지하려면 선택하지 마세요. DHL에 다시 로그인하려는 경우에만 선택하세요(예: 토큰이 만료되거나 취소된 후)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
@@ -197,6 +213,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL 편지 미리보기: 로그인 만료됨",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "DHL 편지 미리보기 재인증",
+            "description": "DHL 로그인이 만료되어 새 편지 알림을 가져올 수 없습니다.\n\n1. 이 링크를 열고 DHL에 로그인하세요: {auth_url}\n2. 로그인 후 빈 페이지로 이동합니다 — 정상입니다.\n3. 그 페이지의 주소(dhllogin://로 시작)를 복사하여 아래에 붙여넣으세요.",
+            "data": {
+              "dhl_brief_code": "DHL 로그인 코드 또는 리디렉션 URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "해당 코드를 사용할 수 없습니다. 다시 로그인해 주세요."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API 키 거부됨",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "17track.net API 키 업데이트",
+            "description": "17track.net API 키가 거부되어 배송 상태를 더 이상 조회할 수 없습니다.\n\n17track.net(내 계정 > 보안 설정 > API 키)에서 키를 받아 아래에 붙여넣으세요.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API 키"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "유효한 17track.net API 키를 입력하세요."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Mail and Packages 인증 실패",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "메일 서버 재인증",
+            "description": "IMAP 메일 서버 인증에 실패했습니다. 제출을 클릭하여 재인증 흐름을 시작하십시오."
+          }
+        }
       }
     }
   }

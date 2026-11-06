@@ -18,23 +18,27 @@ from aioimaplib import IMAP4_SSL
 from custom_components.mail_and_packages import const
 from custom_components.mail_and_packages.const import (
     AMAZON_DELIVERED,
+    AMAZON_DELIVERED_ORDERS,
     AMAZON_DELIVERED_SUBJECT,
     AMAZON_EXCEPTION,
-    AMAZON_EXCEPTION_BODY,
+    AMAZON_EXCEPTION_BODIES,
     AMAZON_EXCEPTION_ORDER,
-    AMAZON_EXCEPTION_SUBJECT,
+    AMAZON_EXCEPTION_SUBJECTS,
     AMAZON_HUB,
     AMAZON_HUB_BODY,
     AMAZON_HUB_CODE,
     AMAZON_HUB_SUBJECT,
     AMAZON_HUB_SUBJECT_SEARCH,
     AMAZON_ORDER,
+    AMAZON_ORDER_TRACKING,
     AMAZON_ORDERED_SUBJECT,
     AMAZON_OTP,
     AMAZON_OTP_CODE,
+    AMAZON_OTP_DETAILS,
     AMAZON_OTP_REGEX,
     AMAZON_OTP_SUBJECT,
     AMAZON_PACKAGES,
+    AMAZON_SHIPMENT_SUBJECT,
     ATTR_COUNT,
     CONF_AMAZON_DAYS,
     CONF_AMAZON_DOMAIN,
@@ -48,7 +52,7 @@ from custom_components.mail_and_packages.utils.amazon import (
     amazon_email_addresses,
     download_amazon_img,
     extract_order_numbers,
-    get_amazon_image_urls,
+    filter_amazon_strings,
     get_decoded_subject,
     get_email_body,
     parse_amazon_arrival_date,
@@ -103,19 +107,37 @@ class AmazonShipper(Shipper):
         days = self.config.get(CONF_AMAZON_DAYS, DEFAULT_AMAZON_DAYS)
         domain = self.config.get(CONF_AMAZON_DOMAIN)
 
-        if sensor_type in [AMAZON_PACKAGES, AMAZON_ORDER]:
-            param = "count" if sensor_type == AMAZON_PACKAGES else "order"
-            result = await self._parse_amazon_emails(
-                account, param, fwds, days, domain, cache, forwarding_header
+        if sensor_type == AMAZON_PACKAGES:
+            count = await self._parse_amazon_emails(
+                account, "count", fwds, days, domain, cache, forwarding_header
             )
-            return {sensor_type: result}
+            orders = await self._parse_amazon_emails(
+                account, "order", fwds, days, domain, cache, forwarding_header
+            )
+            return {
+                AMAZON_PACKAGES: count,
+                AMAZON_ORDER: orders,
+                AMAZON_DELIVERED_ORDERS: getattr(self, "_last_delivered_orders", []),
+                AMAZON_ORDER_TRACKING: getattr(self, "_last_order_tracking", {}),
+            }
+
+        if sensor_type == AMAZON_ORDER:
+            result = await self._parse_amazon_emails(
+                account, "order", fwds, days, domain, cache, forwarding_header
+            )
+            return {AMAZON_ORDER: result}
 
         if sensor_type == AMAZON_HUB:
-            return await self._amazon_hub(account, fwds, cache, forwarding_header)
+            return await self._amazon_hub(
+                account, fwds, domain, cache, forwarding_header
+            )
 
         if sensor_type == AMAZON_OTP:
-            result = await self._amazon_otp(account, fwds, cache, forwarding_header)
-            return {sensor_type: result}
+            # _amazon_otp already returns a dict keyed by AMAZON_OTP -- do not
+            # wrap it again or the sensor state becomes a dict.
+            return await self._amazon_otp(
+                account, fwds, domain, cache, forwarding_header
+            )
 
         if sensor_type == AMAZON_EXCEPTION:
             return await self._amazon_exception(
@@ -189,6 +211,9 @@ class AmazonShipper(Shipper):
             "deliveries_today": [],
             "all_shipped_orders": set(),
             "order_pattern": order_pattern,
+            # order id -> Amazon Logistics tracking number (TBA...)
+            "order_tracking": {},
+            "tba_pattern": re.compile(r"\bTBA[0-9]{9,15}\b", re.IGNORECASE),
         }
 
         for email_id in unique_emails:
@@ -196,9 +221,24 @@ class AmazonShipper(Shipper):
 
         final_count = self._calculate_final_count(context)
 
+        # Keep today's delivered order ids so process() can publish them as a
+        # sensor attribute (the delivered COUNT comes from _amazon_search).
+        self._last_delivered_orders = list(context["amazon_delivered"])
+        self._last_order_tracking = dict(context["order_tracking"])
+
         if param == "count":
             return final_count
-        return list(context["all_shipped_orders"])
+
+        return [
+            order_id
+            for order_id in context["all_shipped_orders"]
+            if context["packages_arriving_today"].get(order_id, 0)
+            > context["delivered_packages"].get(order_id, 0)
+            or (
+                context["packages_arriving_today"].get(order_id, 0) == 0
+                and context["delivered_packages"].get(order_id, 0) == 0
+            )
+        ]
 
     async def _process_amazon_email(
         self,
@@ -254,6 +294,17 @@ class AmazonShipper(Shipper):
             ctx["delivered_packages"][o] = ctx["delivered_packages"].get(o, 0) + 1
             if o not in ctx["amazon_delivered"]:
                 ctx["amazon_delivered"].append(o)
+        if len(orders) == 1:
+            self._capture_order_tracking(orders[0], subject, body, ctx)
+
+    @staticmethod
+    def _capture_order_tracking(
+        order_id: str, subject: str, body: str | None, ctx: dict
+    ) -> None:
+        """Remember the TBA tracking number referenced by an order's mail."""
+        haystack = subject + "\n" + (body or "")
+        if match := ctx["tba_pattern"].search(haystack):
+            ctx["order_tracking"][order_id] = match.group(0).upper()
 
     async def _handle_shipping_email(
         self,
@@ -266,6 +317,7 @@ class AmazonShipper(Shipper):
         order_id = self._extract_first_order_id(subject, body, ctx["order_pattern"])
         if order_id:
             ctx["all_shipped_orders"].add(order_id)
+            self._capture_order_tracking(order_id, subject, body, ctx)
 
         if body:
             parsed_arrival = await parse_amazon_arrival_date(self.hass, body, date)
@@ -330,26 +382,84 @@ class AmazonShipper(Shipper):
 
         address_list = amazon_email_addresses(fwds, amazon_domain)
         _LOGGER.debug("Amazon email search addresses: %s", address_list)
+        if amazon_domain:
+            subjects = filter_amazon_strings(subjects, amazon_domain)
+
         (server_response, data) = await email_search(
-            account,
-            address_list,
-            today,
-            subjects,
-            forwarding_header,
+            account=account,
+            address=address_list,
+            date=today,
+            subject=subjects,
+            header=forwarding_header,
         )
         if server_response == "OK" and data[0]:
             for email_id in data[0].split():
-                count += 1
-                urls = await get_amazon_image_urls(email_id, account, cache)
-                for url in urls:
-                    if url not in all_image_urls:
-                        all_image_urls.append(url)
+                fetch_id = (
+                    email_id.decode() if isinstance(email_id, bytes) else email_id
+                )
+                if cache:
+                    msg_data = (await cache.fetch(fetch_id, "(RFC822)"))[1]
+                else:
+                    msg_data = (await email_fetch(account, fetch_id, "(RFC822)"))[1]
+
+                is_delivered, urls = self._is_amazon_delivered(msg_data, subjects)
+                if is_delivered:
+                    count += 1
+                    for url in urls:
+                        if url not in all_image_urls:
+                            all_image_urls.append(url)
 
         await self._process_amazon_images(
             all_image_urls, image_path, amazon_image_name, count
         )
 
         return count
+
+    def _is_amazon_delivered(
+        self, msg_data: list, subjects: list[str]
+    ) -> tuple[bool, list[str]]:
+        """Verify if email is a delivered notification and return image URLs."""
+        for response_part in msg_data:
+            if not isinstance(response_part, (bytes, bytearray)):
+                continue
+            msg = email.message_from_bytes(response_part)
+            subject = get_decoded_subject(msg)
+            if not subject:
+                continue
+
+            # Check if subject contains any delivered keyword (case-insensitive)
+            has_delivered = any(s.lower() in subject.lower() for s in subjects)
+            # Check if subject contains ordered or shipped keywords (case-insensitive)
+            has_ordered = any(
+                s.lower() in subject.lower() for s in AMAZON_ORDERED_SUBJECT
+            )
+            has_shipped = any(
+                s.lower() in subject.lower() for s in AMAZON_SHIPMENT_SUBJECT
+            )
+
+            if has_delivered and not has_ordered and not has_shipped:
+                urls = self._extract_amazon_image_urls(msg)
+                return True, urls
+        return False, []
+
+    def _extract_amazon_image_urls(self, msg: email.message.Message) -> list[str]:
+        """Extract image URLs from Amazon email body."""
+        urls = []
+        pattern = re.compile(rf"{const.AMAZON_IMG_PATTERN}")
+        for part in msg.walk():
+            if part.get_content_type() != "text/html":
+                continue
+            part_payload = part.get_payload(decode=True)
+            if part_payload:
+                part_content = part_payload.decode("utf-8", "ignore")
+                found = pattern.findall(part_content)
+                for url in found:
+                    if url[1] not in const.AMAZON_IMG_LIST:
+                        continue
+                    full_url = url[0] + url[1] + url[2]
+                    if full_url not in urls:
+                        urls.append(full_url)
+        return urls
 
     async def _process_amazon_images(
         self,
@@ -433,6 +543,7 @@ class AmazonShipper(Shipper):
         self,
         account: IMAP4_SSL,
         fwds: list[str] | None = None,
+        domain: str | None = None,
         cache: EmailCache | None = None,
         forwarding_header: str = "",
     ) -> dict[str, Any]:
@@ -442,14 +553,15 @@ class AmazonShipper(Shipper):
         code = []
         processed_ids = []
         today = get_today().strftime("%d-%b-%Y")
-        address_list = amazon_email_addresses(fwds, "amazon.com")
+        address_list = amazon_email_addresses(fwds, domain)
         for search_subject in AMAZON_HUB_SUBJECT:
             (server_response, data) = await email_search(
                 account,
                 address_list,
                 today,
                 search_subject,
-                forwarding_header,
+                body=AMAZON_HUB_BODY,
+                header=forwarding_header,
             )
             if server_response == "OK" and data[0] is not None:
                 for num in data[0].split():
@@ -480,19 +592,23 @@ class AmazonShipper(Shipper):
         self,
         account: IMAP4_SSL,
         fwds: list[str] | None = None,
+        domain: str | None = None,
         cache: EmailCache | None = None,
         forwarding_header: str = "",
     ) -> dict[str, Any]:
         """Find Amazon OTP code."""
         code = []
+        details = []
+        order_pattern = re.compile(r"[0-9]{3}-[0-9]{7}-[0-9]{7}")
         today = get_today().strftime("%d-%b-%Y")
-        address_list = amazon_email_addresses(fwds, "amazon.com")
+        address_list = amazon_email_addresses(fwds, domain)
         (server_response, data) = await email_search(
             account,
             address_list,
             today,
             AMAZON_OTP_SUBJECT,
-            forwarding_header,
+            body=AMAZON_OTP_REGEX,
+            header=forwarding_header,
         )
         if server_response == "OK" and data[0] is not None:
             for num in data[0].split():
@@ -508,7 +624,22 @@ class AmazonShipper(Shipper):
                             found := re.compile(AMAZON_OTP_REGEX).search(body)
                         ) is not None:
                             code.append(found.group(2))
-        return {AMAZON_OTP: len(code), AMAZON_OTP_CODE: code}
+                            # The OTP mail references its order number; keep the
+                            # pair so UIs can attach the code to the shipment.
+                            order_match = order_pattern.search(body)
+                            details.append(
+                                {
+                                    "code": found.group(2),
+                                    "order": (
+                                        order_match.group(0) if order_match else None
+                                    ),
+                                }
+                            )
+        return {
+            AMAZON_OTP: len(code),
+            AMAZON_OTP_CODE: code,
+            AMAZON_OTP_DETAILS: details,
+        }
 
     async def _amazon_exception(
         self,
@@ -524,11 +655,11 @@ class AmazonShipper(Shipper):
         today = get_today().strftime("%d-%b-%Y")
         address_list = amazon_email_addresses(fwds, domain)
         (server_response, data) = await email_search(
-            account,
-            address_list,
-            today,
-            AMAZON_EXCEPTION_SUBJECT,
-            forwarding_header,
+            account=account,
+            address=address_list,
+            date=today,
+            subject=AMAZON_EXCEPTION_SUBJECTS,
+            header=forwarding_header,
         )
         if server_response == "OK" and data[0] is not None:
             order_pattern = re.compile(r"[0-9]{3}-[0-9]{7}-[0-9]{7}")
@@ -542,7 +673,8 @@ class AmazonShipper(Shipper):
                         msg = email.message_from_bytes(response_part)
                         body = get_email_body(msg)
                         subject = get_decoded_subject(msg)
-                        if AMAZON_EXCEPTION_BODY in body:
+                        body_lower = body.lower()
+                        if any(m in body_lower for m in AMAZON_EXCEPTION_BODIES):
                             count += 1
                             if found := order_pattern.findall(body):
                                 orders.extend(found)
