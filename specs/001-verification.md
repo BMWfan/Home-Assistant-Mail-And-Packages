@@ -1,6 +1,6 @@
 # SPEC-001 — Verification evidence and remaining gates
 
-**Evidence date:** 2026-11-06. **Status:** Local pip-audit gate and full tox pass on code SHA `500a926`; current PR SHA `a052d59` has Validation and PR-lint runs marked `action_required` with zero jobs. Human review remains pending. No production services were accessed.
+**Evidence date:** 2026-11-06. **Status:** CI, Validation, and PR-lint passed on the verified implementation SHA `b48bdee4220575a5fb6335c0c2bcb1a1c0eeb4b3`; pre-commit and GitHub CodeQL are not verified on this SHA. This follow-up only updates verification/task records. Human review remains pending. No production services were accessed.
 
 ## SDD phase and review gates
 
@@ -9,10 +9,10 @@
 | Specify | `specs/001-test-environment.md` requirements and acceptance criteria | Draft; human review required |
 | Clarify | PR #12 review comments and CI investigation | Requirements reconciled; old CI root cause remains unknown because retrieved logs contained no tox output |
 | Plan | `specs/001-test-environment.md` design and plan sections | Draft; no architecture or acceptance criteria were self-approved |
-| Tasks | `specs/001-test-environment.md` task checklist | Local audit gate and tox completed; current-SHA GitHub verification and review remain |
+| Tasks | `specs/001-test-environment.md` task checklist | CI and Validation evidence recorded for `b48bdee`; pre-commit/CodeQL and human review remain |
 | Analyze | Workflow, tox, test, fixture, configuration, and documentation-impact inventory below | Complete for this scope |
 | Implement | PR #12 changes and imported PR #11 baseline | Complete locally; no production changes |
-| Verify | Commands, documentation-impact review, and results below | Local audit gate and tox recorded for `500a926`; current PR SHA `a052d59` checks remain gated and human review is pending |
+| Verify | Commands, documentation-impact review, and results below | Actions evidence for the tested source SHA is recorded below; pre-commit/CodeQL are not verified and human review is pending |
 
 ## Documentation impact review
 
@@ -26,6 +26,8 @@
 | `specs/001-*.md` | Updated verification evidence and this impact review are recorded in the existing Draft SPEC-001 artifacts; requirements and acceptance criteria were not changed. |
 
 No additional README or user-facing documentation change is warranted. This review covers the multi-entry test assertion and the SPEC-001 testing/CI documentation; no product configuration, compatibility promise, migration, or user-facing feature changed in the follow-up commits.
+
+This verification-only update records current-SHA outcomes; it does not change code, configuration, supported versions, developer commands, security constraints, migration guidance, or user-facing behavior. No additional documentation impact was identified.
 
 ## Isolated environment and safety
 
@@ -50,18 +52,17 @@ No additional README or user-facing documentation change is warranted. This revi
 | Resolved test-environment dependency audit | PASS | `pip-audit --local --strict --timeout 15 --progress-spinner off`; pip-audit 2.10.1, Python 3.14.9, 160 installed distributions including Home Assistant 2026.11.0 and Pillow 13.0.0; default PyPI vulnerability service; no known vulnerabilities; exit 0. |
 | GitHub CI #32 Python 3.14 | PASS | Run [42173410045](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42173410045), job [127746250142](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42173410045/job/127746250142), SHA `e6dde8b`; successful, 2m15s job duration; tox step succeeded |
 | HACS and hassfest | PASS | Validation run [42168187892](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42168187892), job [127743521986](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42168187892/job/127743521986), SHA `e6dde8b`; both named steps succeeded |
-| Pre-commit on reviewed SHA | NOT_VERIFIED | No run for `e6dde8b` was found; an earlier successful pre-commit run was for SHA `3f427c0` and is not evidence for the reviewed SHA |
-| GitHub CodeQL on reviewed SHA | NOT_RUN | No CodeQL workflow run for `e6dde8b` was found; the local CodeQL tool result is separately recorded below |
+| GitHub CI #33 Python 3.14 | PASS | Run [42192106154](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42192106154), job [127806375165](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42192106154/job/127806375165), SHA `b48bdee4220575a5fb6335c0c2bcb1a1c0eeb4b3`; Actions API event `workflow_dispatch`; job passed in 1m40s. Logs confirm tox lint (`ruff check --no-fix .`), read-only formatting (`ruff format --check .`), mypy, `pip-audit --local --strict --timeout 15 --progress-spinner off` (`No known vulnerabilities found`), and pytest (525 passed, 12 warnings in 15.21s). The run URL is API-verified; the user-provided screenshot's pull-request event label differs from the Actions API event. |
+| CI coverage job | PASS | Job [127807066922](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42192106154/job/127807066922) on SHA `b48bdee`; completed successfully. This does not independently establish a whole-repository coverage percentage. |
+| Validation, HACS, and hassfest | PASS | Validation run [42177444672](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177444672), job [127798340474](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177444672/job/127798340474), SHA `b48bdee`; Validate, HACS validation, and Hassfest validation steps succeeded. |
+| PR lint | PASS | Run [42177447538](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177447538), job [127798346669](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177447538/job/127798346669), SHA `b48bdee`; completed successfully. |
+| Pre-commit on verified PR SHA | NOT_VERIFIED | The only surfaced pre-commit run is [42162228366](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42162228366) on older SHA `3f427c0`. No run for `b48bdee` was found. This is absent, not an `action_required` result. |
+| GitHub CodeQL on verified PR SHA | NOT_RUN | No run for `b48bdee` was found. `.github/workflows/codeql-analysis.yml` limits pull-request target branches to `master`, `0.2.0`, and `0.3.0`, excluding PR #12's `test/all-features` base. The last surfaced run [42162228330](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42162228330) is on older SHA `3f427c0`. No approval-gated CodeQL result is present for the tested SHA. |
 | Local CodeQL on changed Python | PASS (earlier code SHA) | CodeQL checker found zero alerts after test commit `4e39b95`; the latest audit changes are requirements/tox/docs, for which the checker reported no CodeQL-analyzable code and performed no analysis |
 | Local secret scan | PASS | Secret scanner found no secrets in the three changed files; the final verification-document edit was also scanned before commit |
-| Automated dependency vulnerability scanning | PASS (local baseline) | `tox` now runs the strict pip-audit command above before pytest; `pip-audit==2.10.1` is pinned. Same-SHA GitHub CI remains pending. |
+| Automated dependency vulnerability scanning | PASS | `tox` runs the strict pip-audit command above before pytest; `pip-audit==2.10.1` is pinned. Local baseline and CI #33 on SHA `b48bdee` both report no known vulnerabilities. |
 | Home Assistant live startup | NOT_RUN | Not required; no HA instance was launched |
 | Companion-card browser/consumer tests | NOT_RUN | Companion card source and browser tooling are not present in this repository |
-| GitHub CI on current PR SHA | NOT_RUN | No CI run exists for `a052d59`; CI #32 passed on prior SHA `e6dde8b` only |
-| Validation/HACS/hassfest on current PR SHA | ACTION_REQUIRED | Validation run [42177380440](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177380440) is `action_required` for `a052d59` and has zero jobs |
-| PR lint on current PR SHA | ACTION_REQUIRED | Lint PR run [42177383476](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177383476) is `action_required` for `a052d59` and has zero jobs |
-| Pre-commit on current PR SHA | NOT_VERIFIED | No run exists for `a052d59`; the available run is for older SHA `3f427c0` |
-| GitHub CodeQL on current PR SHA | NOT_VERIFIED | No run exists for `a052d59`; the available run is for older SHA `3f427c0` |
 | Premium-request usage | NOT_AVAILABLE | No usage metadata was exposed; no estimate recorded |
 
 Full tox measured 100% coverage for the configured integration Python files (`custom_components/mail_and_packages/`), not for every behavior or the whole repository. It completed with 12 existing pytest/deprecation/runtime warnings and no failures. No live HA instance was started. An initial full tox attempt used the sandbox's Python 3.12 Actions context and could not resolve HA 2026.11; it passed when rerun with Python 3.14.10 and the sandbox-only `GITHUB_ACTIONS` variable unset.
@@ -82,7 +83,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 - Dependabot remains configured for pip version updates, not vulnerability auditing. The pip-audit tox gate scans all installed distributions in the Python 3.14 test environment with strict dependency collection and a 15-second per-request timeout. It fails the Python test environment when known advisories or dependency-collection errors are found; the CI job has a 20-minute overall timeout. No blanket ignore list or automatic remediation is configured.
 - CI runs lint and type checking before pytest, caches uv dependencies, cancels superseded runs for the same ref, and bounds the test job at 20 minutes.
 - No extra path-filtered test suite was added: the repository has one relevant integration suite, and skipping it for broad source changes would weaken coverage. No LLM calls, agent-trigger loop, privileged token, auto-approval, or auto-merge were added. No two-repair-attempt cap is enforced because self-healing is not configured.
-- CI #32's Python 3.14 job took 2m15s on `e6dde8b`; the tox step itself took 1m56s. The current local full tox run including the audit took 25.82s. The earlier failed tox step ran 37m38s on a different SHA, with no tox output in retrieved logs; its cause remains unknown. No premium-request usage was available.
+- CI #33's Python 3.14 job took 1m40s on `b48bdee`; its tox log confirms 525 passing tests, a clean pip-audit result, and successful lint, format, and mypy stages. Earlier CI #32 took 2m15s on `e6dde8b`; the previously failed tox step ran 37m38s on a different SHA, with no tox output in retrieved logs, so its cause remains unknown. No premium-request usage was available.
 
 ## Compatibility, rollback, and remaining scope
 
@@ -93,7 +94,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- Request repository approval to run CI, Validation/HACS/hassfest, pre-commit, and GitHub CodeQL on the latest PR revision; Validation run `42177380440` is gated with zero jobs on `a052d59`. Local tox/audit, secret scan, and the changed-spec gate passed.
-- Verify the pip-audit gate in the current-SHA CI run after repository approval; retain its no-suppressions policy and revisit the helper's intentional no-deps compatibility gap separately if desired.
-- Inspect the resulting current-SHA CI logs; do not infer a cause for the earlier 404 job.
+- Consider running pre-commit on the latest revision; the workflow supports pull requests/manual dispatch, but no current-SHA run or approval gate was found. CodeQL is not configured for PRs targeting `test/all-features`; any trigger-scope change requires maintainer review.
+- CI #33 already verifies the pip-audit gate and tox on `b48bdee`; retain its no-suppressions policy and revisit the helper's intentional no-deps compatibility gap separately if desired.
+- The retrieved CI #33 logs explicitly show the audit and pytest results. Do not infer a cause for the earlier 404 job.
 - Obtain human review of the still-Draft specification and implementation. Merge remains manual.

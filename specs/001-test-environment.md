@@ -60,8 +60,8 @@ Follow the required gates in order: Specify → Clarify → Plan → Tasks → A
 - [x] T004 Verify the manifest, isolated startup, reload, and multi-entry scenarios against HA 2026.11/Python 3.14.
 - [x] T005 Verify local lint, format, type, CodeQL, and secret checks on the final implementation.
 - [x] T006 Record measured local duration and actual premium-request usage if available; report unavailable metrics without estimating.
-- [ ] T007 (partial) CI #32, HACS, and hassfest are verified on `e6dde8b`; repeat required on the follow-up SHA. Pre-commit and GitHub CodeQL results for `e6dde8b` are unavailable; local CodeQL verification is pending the follow-up commit.
-- [ ] T008 (partial) Add pinned `pip-audit==2.10.1` to the Python 3.14 tox environment and scan installed dependencies before pytest; local audit and tox pass, but same-SHA CI verification and review remain.
+- [ ] T007 (partial) CI #33 (tox), Validation/HACS/hassfest, and PR lint passed on `b48bdee`. Pre-commit has no run on that SHA. GitHub CodeQL has no run on that SHA; its configured PR target branches exclude `test/all-features`. Keep both gaps explicit; no current-SHA check was reported as `action_required`.
+- [x] T008 Add pinned `pip-audit==2.10.1` to the Python 3.14 tox environment and scan installed dependencies before pytest. Local tox/audit and current-SHA CI #33 pass; the scanned inventory and no-deps limitation are documented in the verification artifact. Human review remains T009.
 - [ ] T009 Obtain human review and retain manual merge.
 
 ## Scope boundaries
