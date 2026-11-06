@@ -151,7 +151,10 @@ This repository is a **Home Assistant Custom Integration** that connects to an I
 - To install test dependencies:
   ```bash
   uv pip install -r requirements_test.txt
+  uv pip install --no-deps pytest-homeassistant-custom-component==0.13.375
   ```
+  The pytest helper is installed separately without dependencies to preserve the
+  pinned Home Assistant 2026.11.0 test environment.
 
 ## 3. Code Style, Linting & Type Checking
 

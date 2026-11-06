@@ -1,6 +1,6 @@
 # SPEC-001 — Verification evidence and remaining gates
 
-**Evidence date:** 2026-11-06. **Status:** CI, Validation, and PR-lint passed on the verified implementation SHA `b48bdee4220575a5fb6335c0c2bcb1a1c0eeb4b3`; pre-commit and GitHub CodeQL are not verified on this SHA. This follow-up only updates verification/task records. Human review remains pending. No production services were accessed.
+**Evidence date:** 2026-11-06. **Merge/code SHA tested:** `26cb568b0f09d529bb10ff9c5a368af65fe818a9`. Focused and full local tox pass on the tested tree based on this SHA. CI #33 and Validation/HACS/hassfest evidence below is from older SHA `b48bdee`; checks triggered on `26cb568` are `action_required` with zero jobs. An authorized repository user must resolve the gate; the exact approval reason was not exposed by the Actions API. This verification document is updated after the tested code SHA; the follow-up changes are documentation-only. Human review remains pending. No production services were accessed.
 
 ## SDD phase and review gates
 
@@ -9,10 +9,10 @@
 | Specify | `specs/001-test-environment.md` requirements and acceptance criteria | Draft; human review required |
 | Clarify | PR #12 review comments and CI investigation | Requirements reconciled; old CI root cause remains unknown because retrieved logs contained no tox output |
 | Plan | `specs/001-test-environment.md` design and plan sections | Draft; no architecture or acceptance criteria were self-approved |
-| Tasks | `specs/001-test-environment.md` task checklist | CI and Validation evidence recorded for `b48bdee`; pre-commit/CodeQL and human review remain |
+| Tasks | `specs/001-test-environment.md` task checklist | CI #33 evidence is for `b48bdee`; checks triggered for merge SHA `26cb568` are action-required with zero jobs; T007 remains partial and human review remains |
 | Analyze | Workflow, tox, test, fixture, configuration, and documentation-impact inventory below | Complete for this scope |
 | Implement | PR #12 changes and imported PR #11 baseline | Complete locally; no production changes |
-| Verify | Commands, documentation-impact review, and results below | Actions evidence for the tested source SHA is recorded below; pre-commit/CodeQL are not verified and human review is pending |
+| Verify | Commands, documentation-impact review, and results below | Focused and full local tox pass on `26cb568`; current-SHA Actions are gated; human review is pending |
 
 ## Documentation impact review
 
@@ -20,52 +20,57 @@
 |---|---|
 | `README.md` | No documentation change needed: no user-visible integration behavior or configuration changed. README already links to `CONTRIBUTING.md`; another test-command link would duplicate contributor guidance. |
 | `CONTRIBUTING.md` | Updated to explain that tox performs a strict pip-audit of installed test-environment distributions before pytest; local commands remain unchanged. |
-| `AGENTS.md` and `DEVCONTAINER.md` | No documentation change needed: the test-only reload assertion does not change the developer container or supported runtime. The existing Python guidance includes 3.14. |
-| Example configuration (`config/configuration.yaml`) | No change needed: no configuration or runtime behavior changed. The isolated test safety review remains recorded below. |
+| `AGENTS.md` | Updated the manual test setup to install the HA pytest helper with `--no-deps`, matching tox and preserving the HA 2026.11.0 pin. |
+| `DEVCONTAINER.md` | No change needed: the merge and test assertion do not change the container or supported runtime. |
+| Example configuration (`config/configuration.yaml`) | The base branch includes a `remote_homeassistant` development mirror using `!secret` references. The pytest fixture uses an isolated test `hass` and synthetic `MockConfigEntry` data; tests do not load this file. No real secrets were read and no HA instance was launched. |
 | Changelog/release notes | No change needed: this is internal test/verification work, not an unreleased user-facing feature or release. No `CHANGELOG.md` exists in the repository. |
 | `specs/001-*.md` | Updated verification evidence and this impact review are recorded in the existing Draft SPEC-001 artifacts; requirements and acceptance criteria were not changed. |
 
-No additional README or user-facing documentation change is warranted. This review covers the multi-entry test assertion and the SPEC-001 testing/CI documentation; no product configuration, compatibility promise, migration, or user-facing feature changed in the follow-up commits.
+No additional README or user-facing documentation change is warranted. The merge synchronizes the feature branch with its declared base; the PR diff remains scoped to SPEC-001 and test/CI work. The test assertion and manual helper-install command are documented in the relevant contributor guidance; no acceptance criteria changed.
 
-This verification-only update records current-SHA outcomes; it does not change code, configuration, supported versions, developer commands, security constraints, migration guidance, or user-facing behavior. No additional documentation impact was identified.
+This verification update records the base-branch merge, corrected test contract, and current evidence. The test change does not alter runtime behavior or public configuration.
 
 ## Isolated environment and safety
 
-- Python 3.14.10 and Home Assistant 2026.11.0 were used for local tox verification.
+- Python 3.14.9 and Home Assistant 2026.11.0 were used for the post-merge local tox verification.
 - Tests run with `--disable-socket --allow-hosts=127.0.0.1,::1,localhost`; IMAP is mocked by test fixtures.
-- `config/configuration.yaml` was inspected and contains no `remote_homeassistant`, secrets, or `!secret` references. No Home Assistant instance or production service was started.
-- Tests cover two config entries and independently reloading one entry. The follow-up assertion checks the second entry's registered sensor identities and state/attributes before and after the first entry reload.
+- The merged `config/configuration.yaml` contains a `remote_homeassistant` section with secret references for the developer mirror. Isolated tests do not load that file: the pytest `hass` fixture and `MockConfigEntry` factory use synthetic entry data; pytest sockets are restricted to loopback. No Home Assistant instance or production service was started, and no secret values were accessed.
+- Tests cover two config entries and independently reloading one entry. The assertion checks the second entry's registered sensor identities and deep-copied active state/attributes before and after the first entry reload; inactive registry entries are not mistaken for active states.
 - Existing producer-side entity attribute tests are available in `tests/test_sensor.py`. No companion-card source or browser test tooling is present in this repository, so consumer/browser tests were not run; this is a documented scope limitation, not a passed check.
 
 ## Test status matrix
 
 | Check | Status | Evidence |
 |---|---|---|
-| Focused HA init lifecycle | PASS | `tox -e py314 -- tests/test_init.py --no-cov`; 37 passed on earlier implementation |
-| Focused multi-entry isolation | PASS | `tox -e py314 -- tests/test_init.py::test_multiple_entries_setup_and_reload --no-cov -q --tb=short --log-level=WARNING`; 1 passed |
-| Full pytest suite | PASS | Full tox run on Python 3.14.10; 525 passed, configured integration Python coverage 100%; pytest runtime 10.83s |
-| Integration manifest contract | PASS | `tests/test_manifest.py`; manifest metadata and required fields pass |
-| Ruff lint and format | PASS | `ruff check --no-fix .` and `ruff format --check .`; read-only; 53 files formatted |
-| mypy | PASS | `mypy custom_components/mail_and_packages/`; no issues in 24 source files |
-| Spec artifact gate | PASS | 3 standard-library unit tests pass; changed spec artifacts pass against PR base `71d2111e23de1ec0ca641a310d74cfb2c4c25237` |
-| Full local tox with required audit gate | PASS | `env -u GITHUB_ACTIONS PATH="/opt/hostedtoolcache/Python/3.14.9/x64/bin:/tmp/spec001-tox-tools/bin:$PATH" /tmp/spec001-tox-tools/bin/tox`; Python 3.14.9; audit passed in 0.72s, 525 tests passed, integration Python coverage 100%, 12 existing warnings; 25.82s total, code SHA `500a926`. |
-| Resolved test-environment dependency audit | PASS | `pip-audit --local --strict --timeout 15 --progress-spinner off`; pip-audit 2.10.1, Python 3.14.9, 160 installed distributions including Home Assistant 2026.11.0 and Pillow 13.0.0; default PyPI vulnerability service; no known vulnerabilities; exit 0. |
+| Focused HA init lifecycle | PASS | `env -u GITHUB_ACTIONS PATH="/opt/hostedtoolcache/Python/3.14.9/x64/bin:/tmp/spec001-tox-tools/bin:$PATH" /tmp/spec001-tox-tools/bin/tox -e py314 -- tests/test_init.py --no-cov -q --tb=short`; 38 passed, 5 warnings on code SHA `26cb568`. |
+| Focused multi-entry isolation | PASS | Included in the focused init run above; registry identities and deep-copied active state/attributes for the second entry were unchanged after reloading the first. |
+| Full pytest suite and tox checks | PASS | Full tox on code SHA `26cb568`, Python 3.14.9; 662 passed, 22 warnings in 23.57s; configured integration Python coverage 90.41% (minimum 90%); total tox duration 33.94s. |
+| Integration manifest contract | PASS | Included in full tox on `26cb568`; manifest contract tests passed. |
+| Ruff lint and format | PASS | Included in full tox: `ruff check --no-fix .` and `ruff format --check .`; all checks passed, 72 files already formatted. |
+| mypy | PASS | Included in full tox: `mypy custom_components/mail_and_packages/`; no issues in 34 source files. |
+| Spec artifact gate | PASS | Standard-library gate passed against PR base `71d2111e23de1ec0ca641a310d74cfb2c4c25237`; full tox also passed the focused checker tests. |
+| Full local tox with required audit gate | PASS | `env -u GITHUB_ACTIONS PATH="/opt/hostedtoolcache/Python/3.14.9/x64/bin:/tmp/spec001-tox-tools/bin:$PATH" /tmp/spec001-tox-tools/bin/tox`; tox 4.32.0, Python 3.14.9; audit passed, 662 tests passed, coverage 90.41%, 22 warnings; 33.94s total on code SHA `26cb568`. |
+| Resolved test-environment dependency audit | PASS | Tox ran `pip-audit --local --strict --timeout 15 --progress-spinner off` with pip-audit 2.10.1 against installed distributions including Home Assistant 2026.11.0; default PyPI vulnerability service reported no known vulnerabilities. |
 | GitHub CI #32 Python 3.14 | PASS | Run [42173410045](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42173410045), job [127746250142](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42173410045/job/127746250142), SHA `e6dde8b`; successful, 2m15s job duration; tox step succeeded |
 | HACS and hassfest | PASS | Validation run [42168187892](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42168187892), job [127743521986](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42168187892/job/127743521986), SHA `e6dde8b`; both named steps succeeded |
 | GitHub CI #33 Python 3.14 | PASS | Run [42192106154](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42192106154), job [127806375165](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42192106154/job/127806375165), SHA `b48bdee4220575a5fb6335c0c2bcb1a1c0eeb4b3`; Actions API event `workflow_dispatch`; job passed in 1m40s. Logs confirm tox lint (`ruff check --no-fix .`), read-only formatting (`ruff format --check .`), mypy, `pip-audit --local --strict --timeout 15 --progress-spinner off` (`No known vulnerabilities found`), and pytest (525 passed, 12 warnings in 15.21s). The run URL is API-verified; the user-provided screenshot's pull-request event label differs from the Actions API event. |
+| GitHub CI #34 on merge SHA | ACTION_REQUIRED | Run [42196825676](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42196825676), SHA `26cb568`; run completed as `action_required`, with zero jobs created. An authorized repository user must resolve the gate; this is not a test failure or pass. |
+| Validation/HACS/hassfest on merge SHA | ACTION_REQUIRED | PR run [42196825767](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42196825767) and push run [42196827020](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42196827020), SHA `26cb568`; both are `action_required`, with zero jobs. HACS/hassfest are therefore not verified on this SHA. |
+| Pre-commit on merge SHA | ACTION_REQUIRED | Run [42196825909](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42196825909), SHA `26cb568`; zero jobs created. No local pre-commit result is claimed. |
+| PR lint on merge SHA | ACTION_REQUIRED | Run [42196821654](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42196821654), SHA `26cb568`; zero jobs created. |
 | CI coverage job | PASS | Job [127807066922](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42192106154/job/127807066922) on SHA `b48bdee`; completed successfully. This does not independently establish a whole-repository coverage percentage. |
 | Validation, HACS, and hassfest | PASS | Validation run [42177444672](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177444672), job [127798340474](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177444672/job/127798340474), SHA `b48bdee`; Validate, HACS validation, and Hassfest validation steps succeeded. |
 | PR lint | PASS | Run [42177447538](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177447538), job [127798346669](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177447538/job/127798346669), SHA `b48bdee`; completed successfully. |
 | Pre-commit on verified PR SHA | NOT_VERIFIED | The only surfaced pre-commit run is [42162228366](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42162228366) on older SHA `3f427c0`. No run for `b48bdee` was found. This is absent, not an `action_required` result. |
 | GitHub CodeQL on verified PR SHA | NOT_RUN | No run for `b48bdee` was found. `.github/workflows/codeql-analysis.yml` limits pull-request target branches to `master`, `0.2.0`, and `0.3.0`, excluding PR #12's `test/all-features` base. The last surfaced run [42162228330](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42162228330) is on older SHA `3f427c0`. No approval-gated CodeQL result is present for the tested SHA. |
-| Local CodeQL on changed Python | PASS (earlier code SHA) | CodeQL checker found zero alerts after test commit `4e39b95`; the latest audit changes are requirements/tox/docs, for which the checker reported no CodeQL-analyzable code and performed no analysis |
-| Local secret scan | PASS | Secret scanner found no secrets in the three changed files; the final verification-document edit was also scanned before commit |
-| Automated dependency vulnerability scanning | PASS | `tox` runs the strict pip-audit command above before pytest; `pip-audit==2.10.1` is pinned. Local baseline and CI #33 on SHA `b48bdee` both report no known vulnerabilities. |
+| Local CodeQL on merged code | PASS | CodeQL checker found zero alerts on the merge; a final scan is pending after the focused-test edit is committed. |
+| Local secret scan | PASS | Secret scan reported no secrets in the scanned merge files; the follow-up test and documentation edits are to be scanned before commit. |
+| Automated dependency vulnerability scanning | PASS | `tox` runs strict pip-audit before pytest; `pip-audit==2.10.1` is pinned. Local tox audit passed on `26cb568`; CI #33 also passed on `b48bdee`. |
 | Home Assistant live startup | NOT_RUN | Not required; no HA instance was launched |
 | Companion-card browser/consumer tests | NOT_RUN | Companion card source and browser tooling are not present in this repository |
 | Premium-request usage | NOT_AVAILABLE | No usage metadata was exposed; no estimate recorded |
 
-Full tox measured 100% coverage for the configured integration Python files (`custom_components/mail_and_packages/`), not for every behavior or the whole repository. It completed with 12 existing pytest/deprecation/runtime warnings and no failures. No live HA instance was started. An initial full tox attempt used the sandbox's Python 3.12 Actions context and could not resolve HA 2026.11; it passed when rerun with Python 3.14.10 and the sandbox-only `GITHUB_ACTIONS` variable unset.
+The post-merge full tox run measured 90.41% coverage for the configured integration Python files (`custom_components/mail_and_packages/`), exceeding the configured 90% threshold; this is not whole-repository coverage or proof of every behavior. It completed with 22 warnings and no failures. Earlier code at SHA `500a926` had a separate 100% result; that number does not describe the merged base. No live HA instance was started.
 
 The security audit used the locally installed distributions after resolving `requirements_test.txt` with Python 3.14.9 and adding the same `pytest-homeassistant-custom-component==0.13.375` package with `--no-deps`, as configured by tox. The resulting environment had 160 installed distributions (including pinned HA 2026.11.0, audit tool 2.10.1, and its own dependencies); pip-audit's local installed-package scan against its default PyPI vulnerability service reported no known vulnerabilities. The repository does not lock the complete transitive dependency graph, so versions other than explicitly pinned requirements can vary across fresh resolutions; this result applies to this resolved inventory, not all future installs.
 
@@ -94,7 +99,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- Consider running pre-commit on the latest revision; the workflow supports pull requests/manual dispatch, but no current-SHA run or approval gate was found. CodeQL is not configured for PRs targeting `test/all-features`; any trigger-scope change requires maintainer review.
+- Ask an authorized repository user to resolve the `action_required` runs for CI, Validation/HACS/hassfest, Pre-commit, and PR lint on `26cb568`; the API reports zero jobs and does not expose a more specific approval reason. CodeQL is not configured for PRs targeting `test/all-features`; changing its trigger scope requires maintainer review.
 - CI #33 already verifies the pip-audit gate and tox on `b48bdee`; retain its no-suppressions policy and revisit the helper's intentional no-deps compatibility gap separately if desired.
 - The retrieved CI #33 logs explicitly show the audit and pytest results. Do not infer a cause for the earlier 404 job.
-- Obtain human review of the still-Draft specification and implementation. Merge remains manual.
+- Obtain human review of the Draft specification and implementation. GitHub currently reports PR #12 as open but not Draft; no PR state change was made. Merge remains manual.

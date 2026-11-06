@@ -1,5 +1,6 @@
 """Tests for init."""
 
+from copy import deepcopy
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -88,31 +89,39 @@ async def test_multiple_entries_setup_and_reload(
     second_config = {**FAKE_CONFIG_DATA, "host": "imap.second.test"}
     second_entry = await integration_factory(second_config)
 
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 96
-    second_sensor_ids = {
-        entity.entity_id
-        for entity in entity_registry.entities.get_entries_for_config_entry_id(
-            second_entry.entry_id,
-        )
-        if entity.domain == SENSOR_DOMAIN
-    }
-    assert len(second_sensor_ids) >= 48
+    def sensor_ids_for_entry(entry_id):
+        return {
+            entity.entity_id
+            for entity in entity_registry.entities.get_entries_for_config_entry_id(
+                entry_id,
+            )
+            if entity.domain == SENSOR_DOMAIN
+        }
+
+    first_sensor_ids = sensor_ids_for_entry(first_entry.entry_id)
+    second_sensor_ids = sensor_ids_for_entry(second_entry.entry_id)
+    assert first_sensor_ids
+    assert len(second_sensor_ids) == len(first_sensor_ids)
 
     def sensor_states(entity_ids):
         states = {}
         for entity_id in entity_ids:
             state = hass.states.get(entity_id)
             if state is not None:
-                states[entity_id] = (state.state, dict(state.attributes))
+                states[entity_id] = (state.state, deepcopy(dict(state.attributes)))
         return states
 
+    first_sensor_states = sensor_states(first_sensor_ids)
     second_sensor_states = sensor_states(second_sensor_ids)
-    assert len(second_sensor_states) == 48
+    active_sensor_ids = set(first_sensor_states) | set(second_sensor_states)
+    assert active_sensor_ids == set(hass.states.async_entity_ids(SENSOR_DOMAIN))
+    assert first_sensor_states
+    assert second_sensor_states
 
     assert await hass.config_entries.async_reload(first_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 96
+    assert set(hass.states.async_entity_ids(SENSOR_DOMAIN)) == active_sensor_ids
     assert second_entry in hass.config_entries.async_entries(DOMAIN)
     reloaded_second_sensor_ids = {
         entity.entity_id
