@@ -59,6 +59,8 @@ tox
 ```
 
 Tox runs pytest, Ruff lint and format checks, and mypy in isolated environments.
+Before pytest, the Python 3.14 environment runs a strict `pip-audit` scan of all
+installed distributions, including Home Assistant and the test dependencies.
 The pytest environment disables external sockets, allowing only loopback access
 for tests. For focused runs, use `tox -e py314 -- tests/test_init.py --no-cov`
 or run Ruff directly with `ruff check --no-fix .` and `ruff format --check .`.
