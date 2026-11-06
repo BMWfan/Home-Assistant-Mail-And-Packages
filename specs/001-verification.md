@@ -38,12 +38,16 @@
 | HACS and hassfest | PASS | Validation run [42168187892](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42168187892), job [127743521986](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42168187892/job/127743521986), SHA `e6dde8b`; both named steps succeeded |
 | Pre-commit on reviewed SHA | NOT_VERIFIED | No run for `e6dde8b` was found; an earlier successful pre-commit run was for SHA `3f427c0` and is not evidence for the reviewed SHA |
 | GitHub CodeQL on reviewed SHA | NOT_RUN | No CodeQL workflow run for `e6dde8b` was found; the local CodeQL tool result is separately recorded below |
-| Local CodeQL on changed Python | PENDING | Re-run after the follow-up test change is committed |
-| Local secret scan | PENDING | Scan the final changed files before commit |
+| Local CodeQL on changed Python | PASS | CodeQL checker found zero alerts after commit `4e39b95` |
+| Local secret scan | PASS | Secret scanner found no secrets in the three changed files; the final verification-document edit was also scanned before commit |
 | Automated dependency vulnerability scanning | NOT_IMPLEMENTED | `.github/dependabot.yml` schedules pip version updates but is not a vulnerability scan. No dependency audit workflow/tool is configured. Repository alert APIs returned 403; only selected tox packages were checked against the advisory database, which is not a project-wide scan. |
 | Home Assistant live startup | NOT_RUN | Not required; no HA instance was launched |
 | Companion-card browser/consumer tests | NOT_RUN | Companion card source and browser tooling are not present in this repository |
-| Updated-SHA CI after lifecycle assertion change | PENDING | The local test change is not part of CI #32 at `e6dde8b`; new SHA run is required |
+| GitHub CI on follow-up SHA | NOT_RUN | No CI run exists for `4e39b95`; CI #32 passed on prior SHA `e6dde8b` only |
+| Validation/HACS/hassfest on follow-up SHA | ACTION_REQUIRED | Validation run [42174653628](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174653628) is `action_required` for `4e39b95` and has zero jobs |
+| PR lint on follow-up SHA | ACTION_REQUIRED | Lint PR run [42174656579](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42174656579) is `action_required` for `4e39b95` and has zero jobs |
+| Pre-commit on follow-up SHA | NOT_VERIFIED | No run exists for `4e39b95`; the available run is for older SHA `3f427c0` |
+| GitHub CodeQL on follow-up SHA | NOT_VERIFIED | No run exists for `4e39b95`; the available run is for older SHA `3f427c0` |
 | Premium-request usage | NOT_AVAILABLE | No usage metadata was exposed; no estimate recorded |
 
 Full tox measured 100% coverage for the configured integration Python files (`custom_components/mail_and_packages/`), not for every behavior or the whole repository. It completed with 12 existing pytest/deprecation/runtime warnings and no failures. No live HA instance was started. An initial full tox attempt used the sandbox's Python 3.12 Actions context and could not resolve HA 2026.11; it passed when rerun with Python 3.14.10 and the sandbox-only `GITHUB_ACTIONS` variable unset.
@@ -69,7 +73,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- Verify CI, pre-commit, local CodeQL/secret scanning, and the changed-spec gate on the follow-up SHA; HACS/hassfest on `e6dde8b` are already verified.
+- Request repository approval to run CI, Validation/HACS/hassfest, pre-commit, and GitHub CodeQL on the follow-up SHA; the current Validation and PR-lint runs are gated with zero jobs. Local tests, CodeQL, secret scan, and the changed-spec gate have been verified.
 - Resolve whether dependency vulnerability scanning should be introduced and what sources/exception policy it should use; this acceptance criterion remains incomplete.
 - Inspect the resulting current-SHA CI logs; do not infer a cause for the earlier 404 job.
 - Obtain human review of the still-Draft specification and implementation. Merge remains manual.
