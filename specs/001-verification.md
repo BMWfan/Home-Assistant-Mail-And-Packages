@@ -1,6 +1,6 @@
 # SPEC-001 — Verification evidence and remaining gates
 
-**Evidence date:** 2026-11-06. **Status:** Local pip-audit gate and full tox pass on code SHA `500a926`; current-SHA GitHub validation is `action_required` with zero jobs. Human review remains pending. No production services were accessed.
+**Evidence date:** 2026-11-06. **Status:** Local pip-audit gate and full tox pass on code SHA `500a926`; current PR SHA `b3169c5` has Validation and PR-lint runs marked `action_required` with zero jobs. Human review remains pending. No production services were accessed.
 
 ## SDD phase and review gates
 
@@ -12,7 +12,7 @@
 | Tasks | `specs/001-test-environment.md` task checklist | Local audit gate and tox completed; current-SHA GitHub verification and review remain |
 | Analyze | Workflow, tox, test, fixture, configuration, and documentation-impact inventory below | Complete for this scope |
 | Implement | PR #12 changes and imported PR #11 baseline | Complete locally; no production changes |
-| Verify | Commands, documentation-impact review, and results below | Local audit gate and tox recorded for `500a926`; current PR SHA checks remain gated and human review is pending |
+| Verify | Commands, documentation-impact review, and results below | Local audit gate and tox recorded for `500a926`; current PR SHA `b3169c5` checks remain gated and human review is pending |
 
 ## Documentation impact review
 
@@ -57,11 +57,11 @@ No additional README or user-facing documentation change is warranted. This revi
 | Automated dependency vulnerability scanning | PASS (local baseline) | `tox` now runs the strict pip-audit command above before pytest; `pip-audit==2.10.1` is pinned. Same-SHA GitHub CI remains pending. |
 | Home Assistant live startup | NOT_RUN | Not required; no HA instance was launched |
 | Companion-card browser/consumer tests | NOT_RUN | Companion card source and browser tooling are not present in this repository |
-| GitHub CI on latest code SHA | NOT_RUN | No CI run exists for `500a926`; CI #32 passed on prior SHA `e6dde8b` only |
-| Validation/HACS/hassfest on latest code SHA | ACTION_REQUIRED | Validation run [42177190824](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177190824) is `action_required` for `500a926` and has zero jobs |
-| PR lint on latest code SHA | ACTION_REQUIRED | Lint PR run [42177194498](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177194498) is `action_required` for `500a926` |
-| Pre-commit on latest code SHA | NOT_VERIFIED | No run exists for `500a926`; the available run is for older SHA `3f427c0` |
-| GitHub CodeQL on latest code SHA | NOT_VERIFIED | No run exists for `500a926`; the available run is for older SHA `3f427c0` |
+| GitHub CI on current PR SHA | NOT_RUN | No CI run exists for `b3169c5`; CI #32 passed on prior SHA `e6dde8b` only |
+| Validation/HACS/hassfest on current PR SHA | ACTION_REQUIRED | Validation run [42177303256](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177303256) is `action_required` for `b3169c5` and has zero jobs |
+| PR lint on current PR SHA | ACTION_REQUIRED | Lint PR run [42177306276](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177306276) is `action_required` for `b3169c5` and has zero jobs |
+| Pre-commit on current PR SHA | NOT_VERIFIED | No run exists for `b3169c5`; the available run is for older SHA `3f427c0` |
+| GitHub CodeQL on current PR SHA | NOT_VERIFIED | No run exists for `b3169c5`; the available run is for older SHA `3f427c0` |
 | Premium-request usage | NOT_AVAILABLE | No usage metadata was exposed; no estimate recorded |
 
 Full tox measured 100% coverage for the configured integration Python files (`custom_components/mail_and_packages/`), not for every behavior or the whole repository. It completed with 12 existing pytest/deprecation/runtime warnings and no failures. No live HA instance was started. An initial full tox attempt used the sandbox's Python 3.12 Actions context and could not resolve HA 2026.11; it passed when rerun with Python 3.14.10 and the sandbox-only `GITHUB_ACTIONS` variable unset.
@@ -93,7 +93,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- Request repository approval to run CI, Validation/HACS/hassfest, pre-commit, and GitHub CodeQL on the latest PR revision; Validation run `42177190824` is gated with zero jobs on `500a926`. Local tox/audit, secret scan, and the changed-spec gate passed.
+- Request repository approval to run CI, Validation/HACS/hassfest, pre-commit, and GitHub CodeQL on the latest PR revision; Validation run `42177303256` is gated with zero jobs on `b3169c5`. Local tox/audit, secret scan, and the changed-spec gate passed.
 - Verify the pip-audit gate in the current-SHA CI run after repository approval; retain its no-suppressions policy and revisit the helper's intentional no-deps compatibility gap separately if desired.
 - Inspect the resulting current-SHA CI logs; do not infer a cause for the earlier 404 job.
 - Obtain human review of the still-Draft specification and implementation. Merge remains manual.
