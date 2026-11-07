@@ -1,6 +1,6 @@
 # SPEC-001 — Verification evidence and remaining gates
 
-**Evidence date:** 2026-11-07. CI run #41 and Pre-commit run #21 were inspected on pre-fix SHA `398895823a194f4e2ba4238637b1116abd2939ea`: tox passed; codespell failed on 37 diagnostics for valid German words. The targeted dictionary adjustment passes the full local pre-commit suite and retains English spellchecking (an intentionally misspelled English token is still rejected). The earlier Ruff failure on `c9a8c63` was also fixed and verified locally. Human review remains pending. No production services were accessed.
+**Evidence date:** 2026-11-07. CI run #41 and Pre-commit run #21 were inspected on pre-fix SHA `398895823a194f4e2ba4238637b1116abd2939ea`: tox passed; codespell failed on 37 diagnostics for valid German words. The targeted dictionary adjustment passes the full local pre-commit suite and retains English spellchecking (an intentionally misspelled English token is still rejected). On code/config fix SHA `68eb8c4171ae4c9b299fd3a8b34c9708270cacb2`, GitHub CI, Validation, Pre-commit, Autolabeler, and PR lint are `action_required` with zero jobs; no remote verification ran. The earlier Ruff failure on `c9a8c63` was also fixed and verified locally. Human review remains pending. No production services were accessed.
 
 ## SDD phase and review gates
 
@@ -9,10 +9,10 @@
 | Specify | `specs/001-test-environment.md` requirements and acceptance criteria | Draft; human review required |
 | Clarify | PR #12 review comments and CI investigation | Requirements reconciled; old CI root cause remains unknown because retrieved logs contained no tox output |
 | Plan | `specs/001-test-environment.md` design and plan sections | Draft; no architecture or acceptance criteria were self-approved |
-| Tasks | `specs/001-test-environment.md` task checklist | CI #33 evidence is for `b48bdee`; checks on latest inspected SHA `3e65b9d` are action-required with zero jobs; T007 remains partial and human review remains |
+| Tasks | `specs/001-test-environment.md` task checklist | CI #33 evidence is for `b48bdee`; GitHub checks on code/config fix SHA `68eb8c4` are action-required with zero jobs; T007 remains partial and human review remains |
 | Analyze | Workflow, tox, test, fixture, configuration, and documentation-impact inventory below | Complete for this scope |
 | Implement | PR #12 changes and imported PR #11 baseline | Complete locally; no production changes |
-| Verify | Commands, documentation-impact review, and results below | Full local tox passed on `e5911cd`; targeted tests passed on `d41cf3a`; local pre-commit passes with the German-word allowlist; GitHub tox passed but pre-fix codespell failed on `3988958`; verification on the new head is pending |
+| Verify | Commands, documentation-impact review, and results below | Full local tox passed on `e5911cd`; targeted tests passed on `d41cf3a`; local pre-commit passes with the German-word allowlist; GitHub tox passed but pre-fix codespell failed on `3988958`; post-fix GitHub checks are action-required |
 
 ## Documentation impact review
 
@@ -42,6 +42,11 @@ This verification update records the base-branch merge, corrected test contract,
 
 | Check | Status | Evidence |
 |---|---|---|
+| CI on codespell-fix SHA | ACTION_REQUIRED | [Run 42371893495](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42371893495), SHA `68eb8c4`; completed `action_required`, zero jobs. No CI steps ran on the corrected SHA. |
+| Pre-commit on codespell-fix SHA | ACTION_REQUIRED | [Run 42371893208](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42371893208), SHA `68eb8c4`; completed `action_required`, zero jobs. The GitHub codespell hook has not run on the corrected SHA. |
+| Validation on codespell-fix SHA | ACTION_REQUIRED | [PR run 42371893268](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42371893268) and [push run 42371889456](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42371889456), SHA `68eb8c4`; both completed `action_required`, zero jobs. HACS/hassfest are not verified on this SHA. |
+| Autolabeler and PR lint on codespell-fix SHA | ACTION_REQUIRED | Autolabeler [runs 42371893345](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42371893345) and [42371892074](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42371892074), plus PR lint [run 42371892031](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42371892031), SHA `68eb8c4`; each completed `action_required`, zero jobs. |
+| Post-fix Actions gate diagnosis | NOT_DETERMINED | The Actions API reports no jobs and exposes no specific approval/permission cause for the runs above. An authorized repository user must inspect/resolve the gate; it was not bypassed. |
 | CI on pre-codespell-fix SHA | PASS | [Run 42370999117](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370999117), Python 3.14 job [128399641895](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370999117/job/128399641895), SHA `3988958`, attempt 2; job passed in 1m48s. Tox/pytest reported 663 passed, 22 warnings in 21.61s. |
 | Pre-commit on pre-fix SHA | FAIL (codespell only) | [Run 42370999151](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370999151), job [128399585817](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370999151/job/128399585817), SHA `3988958`, attempt 2. YAML, whitespace, Ruff, and Ruff format passed; codespell exited 65 with 37 diagnostics, all for German-language words: `als`, `lokal`, `unter`, `Dokument`, `alle`, `lokale`, `oder`, `explizit`, `Manuell`, `Juli`, `Alle`, `Ende`, `offen`, `vor`, `Modell`, `finde`, `Probleme`, and `sie`. The occurrences are in mixed-language `AGENTS.md`/`CLAUDE.md`, scripts, the German test fixture, and agent guidance; no source text was changed. |
 | Local pre-commit after allowlist adjustment | PASS | `pre-commit==4.5.0` in a temporary Python 3.12.3 environment; `pre-commit run --all-files` passed YAML, end-of-file, whitespace, debug-statements, Ruff, Ruff format, and codespell. The codespell hook remains pinned at `v2.4.1`. |
@@ -117,7 +122,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- An authorized repository user must resolve/inspect the latest inspected-head Actions gate: CI, Validation, Pre-commit, Autolabeler, and PR lint on `3e65b9d` all returned `action_required` with zero jobs and no API-exposed cause. CodeQL is not configured for PRs targeting `test/all-features`; changing its trigger scope requires maintainer review.
+- An authorized repository user must resolve/inspect the Actions gate for corrected code/config SHA `68eb8c4`: CI, Validation, Pre-commit, Autolabeler, and PR lint all returned `action_required` with zero jobs and no API-exposed cause. CodeQL is not configured for PRs targeting `test/all-features`; changing its trigger scope requires maintainer review.
 - CI #33 already verifies the pip-audit gate and tox on `b48bdee`; retain its no-suppressions policy and revisit the helper's intentional no-deps compatibility gap separately if desired.
 - The retrieved CI #33 logs explicitly show the audit and pytest results. Do not infer a cause for the earlier 404 job.
 - Obtain human review of the Draft specification and implementation. GitHub currently reports PR #12 as open but not Draft; no PR state change was made. Merge remains manual.
