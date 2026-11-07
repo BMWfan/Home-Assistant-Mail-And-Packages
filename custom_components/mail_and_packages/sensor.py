@@ -165,14 +165,15 @@ class PackagesSensor(CoordinatorEntity, SensorEntity):
         if self.type == AMAZON_EXCEPTION:
             if order := data.get(AMAZON_EXCEPTION_ORDER, data.get(ATTR_ORDER)):
                 attr[ATTR_ORDER] = order
-        elif order := data.get(AMAZON_ORDER):
-            attr[ATTR_ORDER] = order
-        elif self.type == AMAZON_HUB:
-            if code := data.get(AMAZON_HUB_CODE, data.get(ATTR_CODE)):
-                attr[ATTR_CODE] = code
-        elif self.type == AMAZON_OTP:
-            if code := data.get(AMAZON_OTP_CODE, data.get(ATTR_CODE)):
-                attr[ATTR_CODE] = code
+        else:
+            if order := data.get(AMAZON_ORDER):
+                attr[ATTR_ORDER] = order
+            if self.type == AMAZON_HUB:
+                if code := data.get(AMAZON_HUB_CODE, data.get(ATTR_CODE)):
+                    attr[ATTR_CODE] = code
+            elif self.type == AMAZON_OTP:
+                if code := data.get(AMAZON_OTP_CODE, data.get(ATTR_CODE)):
+                    attr[ATTR_CODE] = code
 
 
 class ImagePathSensors(CoordinatorEntity, SensorEntity):
