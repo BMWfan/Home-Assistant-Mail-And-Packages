@@ -2,9 +2,9 @@
 
 **Evidence date:** 2026-11-07. CI run #41 and Pre-commit run #21 were inspected on pre-fix SHA `398895823a194f4e2ba4238637b1116abd2939ea`: tox passed; codespell failed on 37 diagnostics for valid German words. The targeted dictionary adjustment passes the full local pre-commit suite and retains English spellchecking (an intentionally misspelled English token is still rejected). On code/config fix SHA `68eb8c4171ae4c9b299fd3a8b34c9708270cacb2`, GitHub CI, Validation, Pre-commit, Autolabeler, and PR lint are `action_required` with zero jobs; no remote verification ran. The earlier Ruff failure on `c9a8c63` was also fixed and verified locally. Human review remains pending. No production services were accessed.
 
-**Documentation-only follow-up (2026-11-07):** this follow-up adds a PR #11/PR #12 baseline comparison and provenance mapping, a dated static Home Assistant release-compatibility audit, a permanent SDD-Light review policy in `AGENTS.md` section 5.1, a short contributor pointer in `CONTRIBUTING.md`, and ranked feature proposals (not implemented) below. The earlier GitHub Actions snapshot is on audited parent SHA `1b32ce5b7383f395f99a8e6ab86de0619ebcd94c`: CI (`42372016921`), Validation PR (`42372016898`) and push (`42372011729`), Pre-commit (`42372016781`), Autolabeler (`42372016824`/`42372015140`), and PR lint (`42372015012`) are `action_required` with zero jobs; no cause is disclosed. The later checks for documentation commit `cdb2dc95609ae5c6ba724503ade0d6d31d383984` are recorded below. No production service or secret was accessed; the upstream audit consulted public GitHub sources. SPEC-001 remains Draft; T007 remains partial and T009 human review and manual merge remain open.
+**Documentation-only follow-up (2026-11-07):** this follow-up adds a PR #11/PR #12 baseline comparison and provenance mapping, a dated static Home Assistant release-compatibility audit, a permanent SDD-Light review policy in `AGENTS.md` section 5.1, a short contributor pointer in `CONTRIBUTING.md`, and ranked feature proposals (not implemented) below. The earlier GitHub Actions snapshots are on audited parent SHA `1b32ce5b7383f395f99a8e6ab86de0619ebcd94c` and documentation commit `cdb2dc95609ae5c6ba724503ade0d6d31d383984`; the latter is recorded below. The latest observed checks are on SHA `1c91bdc8841a5ca54fce3ee2693d26b24f348cbb`. No production service or secret was accessed; the upstream audit consulted public GitHub sources. SPEC-001 remains Draft; T007 remains partial and T009 human review and manual merge remain open.
 
-**Latest observed GitHub checks (2026-11-07), SHA `cdb2dc95609ae5c6ba724503ade0d6d31d383984`:** each listed Actions run completed as `action_required`; each jobs API response had `total_count=0`. There are no step logs or test results, and the API disclosed no reason. `action_required` is not a pass; no specific approval cause is confirmed, and these results do not establish that tests ran.
+**Earlier observed GitHub checks (2026-11-07), SHA `cdb2dc95609ae5c6ba724503ade0d6d31d383984`:** each listed Actions run completed as `action_required`; each jobs API response had `total_count=0`. There are no step logs or test results, and the API disclosed no reason. `action_required` is not a pass; no specific approval cause is confirmed, and these results do not establish that tests ran.
 
 | Workflow / event | Run |
 |---|---|
@@ -14,7 +14,19 @@
 | Autolabeler `pull_request` / `pull_request_target` | [42373449077](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373449077) / [42373446341](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373446341) |
 | Lint PR | [42373446332](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373446332) |
 
-These are the last-observed runs on `cdb2dc9`; the final follow-up SHA has not yet received checks. No local test, build, lint, or format result is claimed for `cdb2dc9`.
+These runs are historical evidence for `cdb2dc95609ae5c6ba724503ade0d6d31d383984`, not the latest observed checks. No local test, build, lint, or format result is claimed for `cdb2dc9`.
+
+**Latest observed GitHub checks (2026-11-07), SHA `1c91bdc8841a5ca54fce3ee2693d26b24f348cbb`:** each listed Actions run completed with conclusion `action_required`; each equivalent jobs lookup returned zero jobs. No reason or test output is available. These are not passes and do not establish that tests ran.
+
+| Workflow / event | Run |
+|---|---|
+| CI | [42373844976](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373844976) |
+| Validation `pull_request` / `push` | [42373844998](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373844998) / [42373841520](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373841520) |
+| Pre-commit | [42373844981](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373844981) |
+| Autolabeler `pull_request` / `pull_request_target` | [42373844982](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373844982) / [42373843510](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373843510) |
+| Lint PR | [42373843486](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373843486) |
+
+SHA `1c91bdc8841a5ca54fce3ee2693d26b24f348cbb` is the latest observed head; the next documentation-only evidence commit will have a newer SHA, and checks for that newer commit are not yet observed. No local test, build, lint, or format result is claimed for this SHA.
 
 ## SDD phase and review gates
 
