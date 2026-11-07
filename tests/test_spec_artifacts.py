@@ -59,16 +59,7 @@ class TestSpecArtifactCheck(unittest.TestCase):
             specs = root / "specs"
             specs.mkdir()
             (specs / "001-example.md").write_text(
-                "\n".join(
-                    (
-                        "## Goal",
-                        "## Requirements",
-                        "## Acceptance criteria",
-                        "## Design",
-                        "## Plan",
-                        "## Tasks",
-                    )
-                ),
+                "## Goal\n## Requirements\n## Acceptance criteria\n## Design\n## Plan\n## Tasks",
                 encoding="utf-8",
             )
 
