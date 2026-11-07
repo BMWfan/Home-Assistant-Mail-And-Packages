@@ -22,6 +22,8 @@ repos:
         args:
           # German-language historical notes are not English spelling targets.
           - --skip=tests/test_emails/*,custom_components/mail_and_packages/translations/*,HANDOFF_HISTORY.md
-          - --ignore-words-list=hass,numer,ist,paket,pakets,adresse,deine,ons,fo,te,nome,generare,impossibile,advices
+          # Keep English spelling checks while accepting confirmed German words.
+          - >-
+            --ignore-words-list=hass,numer,ist,paket,pakets,adresse,deine,ons,fo,te,nome,generare,impossibile,advices,als,alle,dokument,ende,explizit,finde,juli,lokal,lokale,manuell,modell,offen,oder,probleme,sie,unter,vor
         additional_dependencies:
           - tomli
