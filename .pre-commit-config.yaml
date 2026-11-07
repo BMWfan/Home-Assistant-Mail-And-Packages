@@ -3,6 +3,7 @@ repos:
     rev: v5.0.0
     hooks:
       - id: check-yaml
+        args: [--unsafe]  # Allow Home Assistant tags such as !secret
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: debug-statements
@@ -19,7 +20,8 @@ repos:
     hooks:
       - id: codespell
         args:
-          - --skip=tests/test_emails/*,custom_components/mail_and_packages/translations/*
-          - --ignore-words-list=hass,numer,ist,paket,pakets,adresse,deine,ons,fo,te,nome,generare,impossibile
+          # German-language historical notes are not English spelling targets.
+          - --skip=tests/test_emails/*,custom_components/mail_and_packages/translations/*,HANDOFF_HISTORY.md
+          - --ignore-words-list=hass,numer,ist,paket,pakets,adresse,deine,ons,fo,te,nome,generare,impossibile,advices
         additional_dependencies:
           - tomli
