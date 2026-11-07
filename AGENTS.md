@@ -198,6 +198,44 @@ All pull request titles must follow the Conventional Commits specification (e.g.
 - Workflow checks: Managed via the `Semantic PR Check` action in `.github/workflows/semantic-pr.yaml`.
 - Auto-labeling: Handled automatically by the built-in autolabeler in `.github/release-drafter.yml`.
 
+## 5.1 SDD-Light review policy (permanent)
+
+Any substantial change to integration behavior, configuration schema,
+persistence/storage, or release packaging must record, before merge, in the
+relevant `specs/NNN-*.md` + `specs/NNN-verification.md` pair (new work) or
+the existing SPEC-001 artifacts / the PR description (small fixes):
+
+- **(a) Latest stable Home Assistant release.** The exact HA version used
+  for testing, any breaking API/quality-scale guidance that applies, with
+  official source links (release blog/changelog, `developers.home-assistant`
+  docs, `contributors.home-assistant.io` quality-scale docs) and the SHA/tag
+  of the source actually consulted.
+- **(b) Canonical upstream changes.** What changed in the canonical upstream
+  project since the exact last-reviewed SHA, and an explicit adopt / adapt /
+  defer / reject decision for each relevant change, with commit references.
+- **(c) Fork-specific contracts.** Confirmation that fork-specific entity
+  IDs, config-entry/options state, storage schema, companion-card contracts,
+  and auth flows are covered by isolated tests (no production HA, no real
+  secrets, no external network).
+
+For **small, narrowly scoped fixes**, a lightweight proportional checklist in
+the PR description is sufficient instead of a full SPEC pair: record the
+exact HA version tested, the upstream/fork commit SHAs reviewed, official
+links consulted, the adopt/adapt/defer/reject decision, which tests were run,
+and known limitations.
+
+For **larger or more substantive work**, use the existing two-file
+`specs/NNN-*.md` (requirements/design/plan/tasks) + `specs/NNN-verification.md`
+(evidence) layout already established by SPEC-001. Do not introduce a new or
+incompatible spec layout, and do not self-approve acceptance criteria or
+implementation status — human review and manual merge remain required.
+
+Scheduled/automated monitoring of upstream HA releases or the canonical
+upstream repository is a **proposal only**: it is not implemented, and
+remains disabled pending explicit human approval. No auto-merge, autonomous
+repair loop, or automated documentation edit based on such monitoring is
+authorized by this policy.
+
 ## 6. Pull Request & Contribution Guidelines
 
 ### A. Pre-submission Checklist

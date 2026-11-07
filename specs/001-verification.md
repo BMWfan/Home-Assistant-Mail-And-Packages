@@ -2,6 +2,8 @@
 
 **Evidence date:** 2026-11-07. CI run #41 and Pre-commit run #21 were inspected on pre-fix SHA `398895823a194f4e2ba4238637b1116abd2939ea`: tox passed; codespell failed on 37 diagnostics for valid German words. The targeted dictionary adjustment passes the full local pre-commit suite and retains English spellchecking (an intentionally misspelled English token is still rejected). On code/config fix SHA `68eb8c4171ae4c9b299fd3a8b34c9708270cacb2`, GitHub CI, Validation, Pre-commit, Autolabeler, and PR lint are `action_required` with zero jobs; no remote verification ran. The earlier Ruff failure on `c9a8c63` was also fixed and verified locally. Human review remains pending. No production services were accessed.
 
+**Documentation-only follow-up (2026-11-07), PR #12 head `1b32ce5b7383f395f99a8e6ab86de0619ebcd94c`:** this follow-up adds a PR #11/PR #12 baseline comparison and provenance mapping, a dated static Home Assistant release-compatibility audit, a permanent SDD-Light review policy in `AGENTS.md` section 5.1, a short contributor pointer in `CONTRIBUTING.md`, and ranked feature proposals (not implemented) below. GitHub Actions on `1b32ce5` remain `action_required` with zero jobs for CI (`42372016921`), Validation PR (`42372016898`) and push (`42372011729`), Pre-commit (`42372016781`), Autolabeler (`42372016824`/`42372015140`), and PR lint (`42372015012`); no cause is disclosed and no success is claimed for these. No production service, secret, or network use occurred. SPEC-001 remains Draft; T009 human review and manual merge remain open.
+
 ## SDD phase and review gates
 
 | Phase | Artifact or evidence | Status / gate |
@@ -19,12 +21,12 @@
 | Documentation | Impact and decision |
 |---|---|
 | `README.md` | No documentation change needed: no user-visible integration behavior or configuration changed. README already links to `CONTRIBUTING.md`; another test-command link would duplicate contributor guidance. |
-| `CONTRIBUTING.md` | Updated to explain that tox performs a strict pip-audit of installed test-environment distributions before pytest; local commands remain unchanged. The codespell adjustment changes no commands or security requirements, so no additional contributor-documentation change is needed. |
-| `AGENTS.md` | Updated the manual test setup to install the HA pytest helper with `--no-deps`, matching tox and preserving the HA 2026.11.0 pin. |
+| `CONTRIBUTING.md` | Updated to explain that tox performs a strict pip-audit of installed test-environment distributions before pytest; local commands remain unchanged. The codespell adjustment changes no commands or security requirements, so no additional contributor-documentation change is needed. This 2026-11-07 follow-up adds a short pointer to the new permanent SDD-Light review policy in `AGENTS.md` section 5.1; no commands changed. |
+| `AGENTS.md` | Updated the manual test setup to install the HA pytest helper with `--no-deps`, matching tox and preserving the HA 2026.11.0 pin. This 2026-11-07 follow-up adds a new, permanent section 5.1 ("SDD-Light review policy") requiring HA-release/upstream/fork-contract review evidence for substantial changes, with a lightweight checklist option for small fixes; scheduled upstream monitoring is documented as proposed and disabled, not implemented. |
 | `DEVCONTAINER.md` | No change needed: the merge and test assertion do not change the container or supported runtime. |
 | Example configuration (`config/configuration.yaml`) | The base branch includes a `remote_homeassistant` development mirror using `!secret` references. The pytest fixture uses an isolated test `hass` and synthetic `MockConfigEntry` data; tests do not load this file. No real secrets were read and no HA instance was launched. |
 | Changelog/release notes | No change needed: this is internal test/verification work, not an unreleased user-facing feature or release. No `CHANGELOG.md` exists in the repository. |
-| `specs/001-*.md` | Updated verification evidence and this impact review are recorded in the existing Draft SPEC-001 artifacts; requirements and acceptance criteria were not changed. |
+| `specs/001-*.md` | Updated verification evidence and this impact review are recorded in the existing Draft SPEC-001 artifacts; requirements and acceptance criteria were not changed. This 2026-11-07 follow-up adds the PR #11/PR #12 provenance comparison, the dated HA compatibility audit, and ranked feature proposals below, and updates `specs/001-test-environment.md` task T007 evidence only; no acceptance criterion, Draft status, or T009 review requirement was changed. |
 
 No additional README or user-facing documentation change is warranted. The merge synchronizes the feature branch with its declared base; the PR diff remains scoped to SPEC-001 and test/CI work. The test assertion and manual helper-install command are documented in the relevant contributor guidance; no acceptance criteria changed.
 
@@ -120,9 +122,192 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 - The companion-card requirement is limited to producer-side entity contract checks because the consumer project/tooling is absent. Browser/consumer validation remains not run.
 - No self-healing automation is implemented; the two-attempt cap is consequently not enforced. Human review and manual merge remain required.
 
+## PR #11 / PR #12 baseline comparison and provenance (2026-11-07)
+
+Upstream PR #11 (`BMWfan/Home-Assistant-Mail-And-Packages#11`) head at audit
+time is `6a31eebe0c3b0250c52c3e1c843e8555c5385718`, with seven commits: six
+baseline follow-up commits plus a later tox fix. This PR (#12), head
+`1b32ce5b7383f395f99a8e6ab86de0619ebcd94c` on base `test/all-features`
+`71d2111e23de1ec0ca641a310d74cfb2c4c25237`, contains the corresponding
+changes in its history and current diff. Provenance mapping by commit
+subject/hash, as far as the retrievable record allows:
+
+| PR #11 commit | Subject (as retrieved) | Corresponding PR #12 state |
+|---|---|---|
+| `a6e2e53` | Define evidence-first testing/security baseline | Present: the corresponding SPEC/verification requirements (evidence-first testing and security baseline) are recorded in `specs/001-test-environment.md` and `specs/001-verification.md`. |
+| `666c716` | Record evidence-based test/hardening inventory | Present: the read-only inventory of workflows, tox, tests, and hardening is recorded in `specs/001-test-environment.md` (T001) and `specs/001-verification.md`. |
+| `db7e095` | Keep auto-formatting opt-in | Present: `tox -l`/`tox.ini` default envlist excludes the mutating `format` env; `format` remains read-only (`ruff format --check`), run only when explicitly selected. |
+| `ec39c71` | Allow HA YAML tags | Present: the `check-yaml` pre-commit hook is configured with `--unsafe` so HA-specific YAML tags (e.g. `!include`, `!secret`) do not fail the hook. |
+| `26512cd` | Remove `HANDOFF_HISTORY.md` whitespace | Present: no trailing-whitespace diagnostics remain in `HANDOFF_HISTORY.md` under the current pre-commit whitespace hook. |
+| `c562c08` | Scope codespell / preserve DHL vocabulary | Present and further extended: codespell has scoped skip/ignore exceptions preserving DHL-related vocabulary; PR #12 additionally adds a German-word allowlist in its own commit `68eb8c4` (see below), which is not itself one of the seven PR #11 commits. |
+| `6a31eeb` | Later tox mapping / mutating-formatter fix (PR #11 head) | Present: corresponds to this repository's existing tox envlist/format-mapping configuration; no separate regression was found. |
+
+PR #12 keeps the existing `specs/001-*.md` two-file SPEC artifact layout only;
+no duplicate or alternate spec layout was introduced.
+
+**Caveat:** this mapping was verified via the GitHub PR #11/PR #12 file and
+commit APIs (commit subjects and the files each commit touches), matched
+against PR #12's corresponding files/sections (SPEC/verification documents,
+`tox.ini` read-only format env, `check-yaml --unsafe`, `HANDOFF_HISTORY.md`
+whitespace, and codespell skip/ignore plus the German allowlist). It is
+**not** a byte-for-byte comparison of the two PRs' entire trees. No required
+PR #11 item was found to be absent from PR #12.
+
+## Home Assistant release compatibility audit (static, dated 2026-11-07)
+
+| Source | Finding |
+|---|---|
+| HA Core latest-stable release API | Version `2026.11.0`, published 2026-11-04, tag commit `74cf5a49c63ed8d4d87717844bf14f79c28c9cea`. Release API/tag metadata was verified. The official release-notes **source markdown** was read via the GitHub API at `home-assistant/home-assistant.io`, file `source/_posts/2026-11-04-release-202611.markdown`, latest file-affecting commit `9ec83f84c9d11169bd6824ee0a54800033822a24` (https://github.com/home-assistant/home-assistant.io/blob/9ec83f84c9d11169bd6824ee0a54800033822a24/source/_posts/2026-11-04-release-202611.markdown). Direct retrieval of the **rendered** page (`https://www.home-assistant.io/blog/2026/11/04/release-202611/`) and `https://www.home-assistant.io/changelogs/core-2026.11` via `web_fetch` was blocked in this environment; the raw source markdown review is limited in scope and is not a claim of an exhaustive review of the full changelog. |
+| HA Core tagged source for `2026.11.0` | `REQUIRED_PYTHON_VER = (3, 14, 2)`. |
+| This verification's test pairing | Python 3.14.9 and HA 2026.11.0, as recorded throughout this document (e.g. the full tox run on `e5911cd`). This is the pinned CI/local test pairing actually exercised, not a declaration of the full HA/Python support matrix. |
+| `home-assistant/developers.home-assistant` (docs source) | Current `master` commit `50b518898989b67bb76b69827f227aa6f0acd32a`. Documents config-entry setup/unload/reconfigure/options, coordinator polling, manifest requirements, entity patterns, and diagnostics. |
+| `home-assistant/contributors.home-assistant.io` (quality-scale docs) | Current `main` commit `ed61b5a5553f3d92e94f80375b87a59eab02a5da`; quality-scale rules under `src/content/docs/core/quality-scale/` cover `runtime_data`, reauth/reconfigure flows, diagnostics, config flow, entity metadata, and tests. |
+
+No release-specific breaking API change was found against the sources
+actually consulted above. This is **not** a claim of an exhaustive review of
+the HA Core changelog or of all 5,827 changes between the versions involved;
+it is limited to the release/tag metadata, the developer-docs source, and the
+quality-scale docs source listed, at the commit/tag SHAs recorded above.
+
+### Additional verified findings against official sources (2026-11-07)
+
+These findings come from reading HA Core's tagged `2026.11.0` source and
+official HA blog posts; they are static-source review only, not an
+exhaustive changelog sweep, and no code was changed based on them.
+
+| Finding | Evidence | Status |
+|---|---|---|
+| (a) Forward deprecation of `CONN_CLASS_CLOUD_POLL` | HA Core `2026.11.0` tag's `homeassistant/config_entries.py` still defines `CONN_CLASS_CLOUD_POLL` as a `DeprecatedConstant`, with removal version `2027.5.0` ([source](https://github.com/home-assistant/core/blob/74cf5a49c63ed8d4d87717844bf14f79c28c9cea/homeassistant/config_entries.py)). This fork's `custom_components/mail_and_packages/config_flow.py:915` still assigns `CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL`. Upstream HA's own `dev` branch has already removed the constant's use in commit `d9cd889` (home-assistant/core#1546). | Works today on `2026.11.0`; this is an explicit **forward deprecation**, not a current failure. Follow-up needed before `2027.5.0`. No code was changed here. |
+| (b) Coordinator `config_entry` assignment order | HA `2026.11.0`'s `DataUpdateCoordinator.__init__` assigns `self.config_entry` from the current config-entry context unless an explicit `config_entry` kwarg is passed to `super().__init__()`. This fork's `custom_components/mail_and_packages/coordinator.py` sets `self.config_entry = config_entry` at line 103 and then calls `super().__init__(hass, _LOGGER, name=self.name, update_interval=self.interval)` at line 117 without passing `config_entry=...`; existing tests manually reset `coordinator.config_entry` afterward. | **Latent source-level fragility, not a confirmed runtime defect.** No normal setup failure was established and no live HA instance was started to reproduce one; this is flagged for a small, separately reviewed fix/regression test, not treated as confirmed broken. |
+| (c) `DeviceInfo` plain-dict usage | The plain-`dict` `DeviceInfo` shim remains supported in `2026.11.0` and is marked "To be deprecated" with **no removal date set** (per https://www.home-assistant.io/blog/2026/10/13/device-info-class/). All six of this integration's platforms currently use the plain-dict form. | Supported today; no forced migration date exists yet. Tracked as a future, undated proposal only. |
+| (d) Repair-issue refresh APIs and manifest categories | `2026.11` adds repair-issue `config_entry_id`/refresh APIs (https://www.home-assistant.io/blog/2026/10/28/issue-registry-refresh/) and optional manifest `categories` (https://www.home-assistant.io/blog/2026/10/20/integration-categories/); this integration's package-tracking purpose matches the `productivity_information` category, but `manifest.json` does not yet set any `categories` value. | Optional, additive manifest metadata; not required for current operation. |
+| (e) Flow-result step IDs and setup/unload return types | All of this integration's flow results already use explicit step IDs, consistent with https://www.home-assistant.io/blog/2026/10/23/flow-results-require-step-id/. Custom-integration `async_setup_entry`/`async_unload_entry` boolean returns remain supported per https://www.home-assistant.io/blog/2026/10/23/config-entry-methods-return-none/. | No action needed; current code already matches current guidance on both points. |
+| (f) `hacs.json` minimum HA version | `hacs.json` declares a minimum HA version of `2025.5.0`. CI only exercises `2026.11.0`; the stated `2025.5.0` floor is **not verified** by this or any other check in this repository. | Unverified compatibility floor; not addressed by this documentation-only update. |
+
+### Static code review against current quality-scale guidance
+
+Code inspection (no live HA instance) found:
+
+- `manifest.json` declares `config_flow: true`, required dependencies,
+  `integration_type: service`, and `iot_class: cloud_polling`.
+- The integration uses a typed `ConfigEntry.runtime_data`, a coordinator with
+  a first-refresh/lifecycle pattern and `ConfigEntryNotReady` /
+  `ConfigEntryAuthFailed` handling, a config flow with reconfigure and reauth
+  steps (`async_step_reconfigure`, `async_step_reauth`/
+  `async_step_reauth_confirm`), diagnostics, and repair flows. There is **no**
+  separate `OptionsFlow` handler in `config_flow.py`.
+- Coordinator-backed platforms include calendar and event entities in
+  addition to sensor/camera.
+- Sensor and camera entities use entry-scoped unique IDs; producer-side
+  attribute tests exist (`tests/test_sensor.py` and related).
+- PR #12 adds manifest contract tests and an independent two-entry
+  reload/state-preservation test (see "Isolated environment and safety"
+  above).
+
+These findings match patterns documented by the current quality-scale docs
+(`ConfigEntry.runtime_data`, options/reconfigure, diagnostics redaction,
+tests, entity metadata) cited above, but do **not** assert any
+release-specific deprecation unless it is explicitly documented in a source
+listed above. This is code-inspection and isolated-test evidence only: there
+is no live HA startup test here, and no companion-card source or browser
+test tooling is available in this repository (consistent with the existing
+"Isolated environment and safety" and test-status-matrix entries above).
+
+### Test and runtime limitations (recap)
+
+- No live HA startup test was run (`NOT_RUN` in the test status matrix).
+- No companion-card source or browser/consumer test tooling is present in
+  this repository (`NOT_RUN`).
+- `web_fetch` to the rendered `home-assistant.io` pages was blocked in this
+  environment; the release-announcement **source markdown** was instead read
+  via the GitHub API at commit `9ec83f84c9d11169bd6824ee0a54800033822a24`
+  (see table above), while the rendered blog page and the separate
+  changelog page were cited by URL only, not read, and this remains a
+  limited, non-exhaustive review.
+- This audit distinguishes three evidence classes used throughout this
+  document: **static review** (source/docs inspection without execution),
+  **local tests** (tox/pytest/pre-commit run in this environment), and
+  **remote gated checks** (GitHub Actions runs that returned
+  `action_required` with zero jobs, which are neither pass nor fail).
+
+### Ranked, qualified feature-opportunity proposals (not implemented)
+
+The following are **proposals only**, requiring a separate SDD cycle
+(`specs/NNN-*.md` + `specs/NNN-verification.md`) before any implementation;
+none of this work was started as part of this documentation update.
+
+1. **Adopt `ConfigEntry.runtime_data` consistently where not yet used** (if
+   any remaining module still stores runtime state outside it). Official
+   basis: `contributors.home-assistant.io` quality-scale docs (`main`
+   `ed61b5a`) and `developers.home-assistant` config-entry docs (`master`
+   `50b5188`). Estimated risk: low (if already fully adopted, this is a
+   no-op); effort: low; compatibility: no entity/storage schema change
+   expected. Needs confirmation of current coverage before scoping.
+2. **Expand reauth/reconfigure flow test coverage** for any auth paths not
+   yet covered by isolated tests, per the same quality-scale reauth/
+   reconfigure rule. Risk: low; effort: low-to-medium; compatibility: test-only,
+   no runtime change.
+3. **Review diagnostics redaction completeness** against the quality-scale
+   diagnostics rule, to confirm no sensitive IMAP/17track field is
+   unredacted. Risk: medium (requires careful review to avoid both
+   under- and over-redaction); effort: low; compatibility: diagnostics-only,
+   no entity/storage change.
+4. **Migrate `config_flow.py:915` off `CONN_CLASS_CLOUD_POLL`** before its
+   `2027.5.0` removal (finding (a) above). Official basis: HA Core
+   `2026.11.0` tagged `homeassistant/config_entries.py` and upstream HA's own
+   `dev`-branch removal (commit `d9cd889`, home-assistant/core#1546). Risk:
+   low (constant is deprecated, not yet removed); effort: low; compatibility:
+   no entity/storage/behavior change expected, config-flow metadata only.
+   Not urgent for `2026.11.0`, but should not slip past `2027.5.0`.
+5. **Add an explicit `config_entry=` kwarg to the coordinator's
+   `super().__init__()` call** (finding (b) above), to remove the
+   assign-then-override pattern in `coordinator.py` and its matching test
+   workaround. Risk: low-to-medium (touches coordinator initialization, a
+   shared/base module requiring explicit sign-off per `AGENTS.md`); effort:
+   low; compatibility: no entity/storage change expected, but requires full
+   regression-test coverage before merge because it is a shared-module
+   change. This is a proposed fix for a latent fragility, not a confirmed
+   defect.
+6. **Set a `categories` value (e.g. `productivity_information`) in
+   `manifest.json`** (finding (d) above). Official basis:
+   https://www.home-assistant.io/blog/2026/10/20/integration-categories/.
+   Risk: very low (additive, optional manifest metadata); effort: low;
+   compatibility: no runtime behavior change.
+
+These rankings are qualified by the static-review-only nature of this audit;
+each proposal requires its own requirements/design/plan/tasks cycle and
+explicit human review before any code change, per the SDD-Light policy in
+`AGENTS.md` section 5.1.
+
+## Upstream audit pointer (assessment/planning only, 2026-11-07)
+
+A separate, full canonical-upstream audit was requested; it is **pending /
+report in progress**, not completed here. The following facts were verified
+by the primary agent and are recorded as a pointer only:
+
+- The canonical public non-fork repository identified in GitHub metadata is
+  `moralmunky/Home-Assistant-Mail-And-Packages`.
+- Upstream default branch `master` is at `f2a8ecfedb5627a8e7a1871ce7948e50c77e1142`;
+  the active development branch `dev` is at
+  `0eec4af19924a21607761e0bb1d6a741a66e2733`.
+- Upstream's latest stable release is `0.6.9`; latest beta is `0.6.10-b0`.
+- This fork's relevant base `test/all-features` is at
+  `71d2111e23de1ec0ca641a310d74cfb2c4c25237`; this PR (#12) head at audit
+  start was `1b32ce5b7383f395f99a8e6ab86de0619ebcd94c`.
+- The common ancestor between this fork and upstream `dev` is
+  `115b21305cb1a99748b5d3e41be1dfee5a62656f`; upstream `dev` is 178 commits
+  ahead of that ancestor, and this fork is 156 commits ahead of it.
+- Tracking issue: https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/13.
+  This is assessment/planning only: **no upstream code has been imported**,
+  and no integration work on upstream changes will start until SPEC-001 is
+  accepted by human review. A detailed, prioritized comparison matrix is not
+  yet posted there; it will be added only once the primary agent confirms it
+  is ready, and is not claimed as complete by this documentation update.
+
 ## Next actions
 
 - An authorized repository user must resolve/inspect the Actions gate for corrected code/config SHA `68eb8c4`: CI, Validation, Pre-commit, Autolabeler, and PR lint all returned `action_required` with zero jobs and no API-exposed cause. CodeQL is not configured for PRs targeting `test/all-features`; changing its trigger scope requires maintainer review.
 - CI #33 already verifies the pip-audit gate and tox on `b48bdee`; retain its no-suppressions policy and revisit the helper's intentional no-deps compatibility gap separately if desired.
 - The retrieved CI #33 logs explicitly show the audit and pytest results. Do not infer a cause for the earlier 404 job.
 - Obtain human review of the Draft specification and implementation. GitHub currently reports PR #12 as open but not Draft; no PR state change was made. Merge remains manual.
+- The upstream audit (see "Upstream audit pointer" above) remains pending/in progress at `BMWfan/Home-Assistant-Mail-And-Packages#13`; SPEC-001 must be accepted by human review before any such upstream change is implemented.

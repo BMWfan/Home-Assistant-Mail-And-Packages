@@ -69,6 +69,17 @@ For a pull-request base SHA, validate changed SPEC-001 artifacts locally with
 HACS and hassfest validation run in the **Validation** GitHub Actions workflow;
 start it from the Actions tab with **Run workflow** when needed.
 
+## SDD-Light review for substantial changes
+
+For any substantial change to integration behavior, configuration, or
+persistence, see the permanent **SDD-Light review policy** in `AGENTS.md`
+(section 5.1): review the current stable Home Assistant release/quality-scale
+guidance, canonical upstream changes since the last-reviewed SHA, and
+fork-specific contracts with isolated tests, and record the exact versions,
+SHAs, decisions, and test results in the PR or in `specs/NNN-*.md` +
+`specs/NNN-verification.md`. Small fixes only need a short proportional
+checklist in the PR description.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under its MIT License.
