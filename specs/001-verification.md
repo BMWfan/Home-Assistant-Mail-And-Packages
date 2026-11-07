@@ -2,7 +2,19 @@
 
 **Evidence date:** 2026-11-07. CI run #41 and Pre-commit run #21 were inspected on pre-fix SHA `398895823a194f4e2ba4238637b1116abd2939ea`: tox passed; codespell failed on 37 diagnostics for valid German words. The targeted dictionary adjustment passes the full local pre-commit suite and retains English spellchecking (an intentionally misspelled English token is still rejected). On code/config fix SHA `68eb8c4171ae4c9b299fd3a8b34c9708270cacb2`, GitHub CI, Validation, Pre-commit, Autolabeler, and PR lint are `action_required` with zero jobs; no remote verification ran. The earlier Ruff failure on `c9a8c63` was also fixed and verified locally. Human review remains pending. No production services were accessed.
 
-**Documentation-only follow-up (2026-11-07), PR #12 head `1b32ce5b7383f395f99a8e6ab86de0619ebcd94c`:** this follow-up adds a PR #11/PR #12 baseline comparison and provenance mapping, a dated static Home Assistant release-compatibility audit, a permanent SDD-Light review policy in `AGENTS.md` section 5.1, a short contributor pointer in `CONTRIBUTING.md`, and ranked feature proposals (not implemented) below. GitHub Actions on `1b32ce5` remain `action_required` with zero jobs for CI (`42372016921`), Validation PR (`42372016898`) and push (`42372011729`), Pre-commit (`42372016781`), Autolabeler (`42372016824`/`42372015140`), and PR lint (`42372015012`); no cause is disclosed and no success is claimed for these. No production service, secret, or network use occurred. SPEC-001 remains Draft; T009 human review and manual merge remain open.
+**Documentation-only follow-up (2026-11-07):** this follow-up adds a PR #11/PR #12 baseline comparison and provenance mapping, a dated static Home Assistant release-compatibility audit, a permanent SDD-Light review policy in `AGENTS.md` section 5.1, a short contributor pointer in `CONTRIBUTING.md`, and ranked feature proposals (not implemented) below. The earlier GitHub Actions snapshot is on audited parent SHA `1b32ce5b7383f395f99a8e6ab86de0619ebcd94c`: CI (`42372016921`), Validation PR (`42372016898`) and push (`42372011729`), Pre-commit (`42372016781`), Autolabeler (`42372016824`/`42372015140`), and PR lint (`42372015012`) are `action_required` with zero jobs; no cause is disclosed. The later checks for documentation commit `cdb2dc95609ae5c6ba724503ade0d6d31d383984` are recorded below. No production service or secret was accessed; the upstream audit consulted public GitHub sources. SPEC-001 remains Draft; T007 remains partial and T009 human review and manual merge remain open.
+
+**Latest observed GitHub checks (2026-11-07), SHA `cdb2dc95609ae5c6ba724503ade0d6d31d383984`:** each listed Actions run completed as `action_required`; each jobs API response had `total_count=0`. There are no step logs or test results, and the API disclosed no reason. `action_required` is not a pass; no specific approval cause is confirmed, and these results do not establish that tests ran.
+
+| Workflow / event | Run |
+|---|---|
+| CI | [42373449062](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373449062) |
+| Validation `pull_request` / `push` | [42373449080](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373449080) / [42373444056](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373444056) |
+| Pre-commit | [42373449057](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373449057) |
+| Autolabeler `pull_request` / `pull_request_target` | [42373449077](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373449077) / [42373446341](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373446341) |
+| Lint PR | [42373446332](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42373446332) |
+
+These are the last-observed runs on `cdb2dc9`; the final follow-up SHA has not yet received checks. No local test, build, lint, or format result is claimed for `cdb2dc9`.
 
 ## SDD phase and review gates
 
@@ -28,7 +40,7 @@
 | Changelog/release notes | No change needed: this is internal test/verification work, not an unreleased user-facing feature or release. No `CHANGELOG.md` exists in the repository. |
 | `specs/001-*.md` | Updated verification evidence and this impact review are recorded in the existing Draft SPEC-001 artifacts; requirements and acceptance criteria were not changed. This 2026-11-07 follow-up adds the PR #11/PR #12 provenance comparison, the dated HA compatibility audit, and ranked feature proposals below, and updates `specs/001-test-environment.md` task T007 evidence only; no acceptance criterion, Draft status, or T009 review requirement was changed. |
 
-No additional README or user-facing documentation change is warranted. The merge synchronizes the feature branch with its declared base; the PR diff remains scoped to SPEC-001 and test/CI work. The test assertion and manual helper-install command are documented in the relevant contributor guidance; no acceptance criteria changed.
+No additional README or user-facing documentation change is warranted. The PR diff includes SPEC-001, test/CI work, and the SDD-Light documentation in `AGENTS.md` and `CONTRIBUTING.md`; no runtime behavior or acceptance criteria changed. The test assertion and manual helper-install command are documented in the relevant contributor guidance.
 
 This verification update records the base-branch merge, corrected test contract, and current evidence. The test change does not alter runtime behavior or public configuration.
 
@@ -87,8 +99,8 @@ This verification update records the base-branch merge, corrected test contract,
 | Validation, HACS, and hassfest | PASS | Validation run [42177444672](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177444672), job [127798340474](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177444672/job/127798340474), SHA `b48bdee`; Validate, HACS validation, and Hassfest validation steps succeeded. |
 | PR lint | PASS | Run [42177447538](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177447538), job [127798346669](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42177447538/job/127798346669), SHA `b48bdee`; completed successfully. |
 | Pre-commit on verified PR SHA | NOT_VERIFIED | The only surfaced pre-commit run is [42162228366](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42162228366) on older SHA `3f427c0`. No run for `b48bdee` was found. This is absent, not an `action_required` result. |
-| GitHub CodeQL on verified PR SHA | NOT_RUN | No run for `b48bdee` was found. `.github/workflows/codeql-analysis.yml` limits pull-request target branches to `master`, `0.2.0`, and `0.3.0`, excluding PR #12's `test/all-features` base. The last surfaced run [42162228330](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42162228330) is on older SHA `3f427c0`. No approval-gated CodeQL result is present for the tested SHA. |
-| Local CodeQL on tested code | PASS | CodeQL checker found zero alerts after commit `e5911cd`; GitHub CodeQL is not configured for the `test/all-features` PR target. |
+| GitHub CodeQL on PR #12 base | NOT_CONFIGURED | `.github/workflows/codeql-analysis.yml` limits pull-request target branches to `master`, `0.2.0`, and `0.3.0`, excluding PR #12's `test/all-features` base. The last surfaced run [42162228330](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42162228330) is on older SHA `3f427c0`; no GitHub CodeQL result is established for `b48bdee` or `cdb2dc9`. |
+| Local CodeQL on tested code | PASS (historical) | CodeQL checker found zero alerts after commit `e5911cd`. This is local evidence for that tested SHA only, not a GitHub CodeQL result or evidence for `cdb2dc9`. |
 | Local secret scan | PASS | No secrets were detected in the files passed to the scanner, including the final test and documentation changes. |
 | Automated dependency vulnerability scanning | PASS | `tox` runs strict pip-audit before pytest; `pip-audit==2.10.1` is pinned. Local tox audit passed on `e5911cd`; CI #33 also passed on `b48bdee`. |
 | Home Assistant live startup | NOT_RUN | Not required; no HA instance was launched |
@@ -281,28 +293,33 @@ explicit human review before any code change, per the SDD-Light policy in
 
 ## Upstream audit pointer (assessment/planning only, 2026-11-07)
 
-A separate, full canonical-upstream audit was requested; it is **pending /
-report in progress**, not completed here. The following facts were verified
-by the primary agent and are recorded as a pointer only:
+The detailed prioritized canonical-upstream audit was posted in the
+[PR #12 response thread](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/pull/12#issuecomment-6707075190);
+issue #13 remains the tracking issue. It is assessment/planning only, not an
+exhaustive 178-commit review or full card/attribute diff. The verified source
+and history facts are recorded here as a concise pointer:
 
 - The canonical public non-fork repository identified in GitHub metadata is
   `moralmunky/Home-Assistant-Mail-And-Packages`.
 - Upstream default branch `master` is at `f2a8ecfedb5627a8e7a1871ce7948e50c77e1142`;
   the active development branch `dev` is at
   `0eec4af19924a21607761e0bb1d6a741a66e2733`.
-- Upstream's latest stable release is `0.6.9`; latest beta is `0.6.10-b0`.
+- Upstream's latest stable release is `0.6.9` at
+  `b2d33107a8b5de79bfca5ef985f2e8c3fa6875cd`; latest beta is `0.6.10-b0` at
+  `57d218d0413237d2cc878d5252f8f2b66c575a03`.
 - This fork's relevant base `test/all-features` is at
   `71d2111e23de1ec0ca641a310d74cfb2c4c25237`; this PR (#12) head at audit
   start was `1b32ce5b7383f395f99a8e6ab86de0619ebcd94c`.
-- The common ancestor between this fork and upstream `dev` is
-  `115b21305cb1a99748b5d3e41be1dfee5a62656f`; upstream `dev` is 178 commits
-  ahead of that ancestor, and this fork is 156 commits ahead of it.
-- Tracking issue: https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/13.
-  This is assessment/planning only: **no upstream code has been imported**,
-  and no integration work on upstream changes will start until SPEC-001 is
-  accepted by human review. A detailed, prioritized comparison matrix is not
-  yet posted there; it will be added only once the primary agent confirms it
-  is ready, and is not claimed as complete by this documentation update.
+- Against upstream `dev`, merge-base is
+  `115b21305cb1a99748b5d3e41be1dfee5a62656f`; full-history
+  `git rev-list --left-right --count fork...dev` is `178 156`. Against
+  upstream `master`, merge-base is
+  `1867b7322878c72e31f2ff7db8ae9e9cb55a7dc8` and the counts are `461 5`.
+- This is prioritized assessment/planning, not an exhaustive review of all
+  178 commits or a full companion-card/entity attribute diff. **No upstream
+  code has been imported**, and no integration work on upstream changes will
+  start until SPEC-001 is accepted by human review. No production Home
+  Assistant, mailbox, or secrets were accessed.
 
 ## Next actions
 
@@ -310,4 +327,4 @@ by the primary agent and are recorded as a pointer only:
 - CI #33 already verifies the pip-audit gate and tox on `b48bdee`; retain its no-suppressions policy and revisit the helper's intentional no-deps compatibility gap separately if desired.
 - The retrieved CI #33 logs explicitly show the audit and pytest results. Do not infer a cause for the earlier 404 job.
 - Obtain human review of the Draft specification and implementation. GitHub currently reports PR #12 as open but not Draft; no PR state change was made. Merge remains manual.
-- The upstream audit (see "Upstream audit pointer" above) remains pending/in progress at `BMWfan/Home-Assistant-Mail-And-Packages#13`; SPEC-001 must be accepted by human review before any such upstream change is implemented.
+- The detailed upstream audit is posted in the PR #12 response thread; issue #13 remains the tracking issue (see "Upstream audit pointer" above). SPEC-001 must be accepted by human review before any upstream change is implemented.
