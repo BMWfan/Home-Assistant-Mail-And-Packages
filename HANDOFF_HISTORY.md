@@ -1,6 +1,6 @@
 # Handoff – Mail and Packages (branch `test/all-features`)
 
-Stand: 2026-07-22 (aktualisiert)  
+Stand: 2026-07-22 (aktualisiert)
 Aktuelles Release: **v0.6.2-test78** (prerelease auf GitHub)
 
 > Abschnitte 2–3 unten dokumentieren die **historische** IMAP-Timeout-Saga (test11–17).
@@ -220,7 +220,7 @@ Integration bricht nach 120 s mit Timeout ab beim Scan. Betroffener User hat:
 - ~30 aktive Sensor-Typen
 
 ### Ursache
-Ursprünglicher Code: pro Sensor × pro Ordner 1 `SELECT` + 1 `SEARCH`.  
+Ursprünglicher Code: pro Sensor × pro Ordner 1 `SELECT` + 1 `SEARCH`.
 Bei 30 Sensoren × 13 Ordnern = **390 SELECT-Kommandos** à ~250 ms = ~97 s.
 
 ### Fix (test11, test12)

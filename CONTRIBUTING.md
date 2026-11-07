@@ -46,6 +46,40 @@ People *love* thorough bug reports. I'm not even kidding.
 
 Use [black](https://github.com/ambv/black) to make sure the code follows the style.
 
+## Run tests and validation
+
+Use Python 3.14, matching CI. From the repository root, create and activate a
+virtual environment, then install and run the test tools:
+
+```bash
+python3.14 -m venv .venv
+source .venv/bin/activate
+python -m pip install tox==4.32.0 tox-gh-actions==3.5.0
+tox
+```
+
+Tox runs pytest, Ruff lint and format checks, and mypy in isolated environments.
+Before pytest, the Python 3.14 environment runs a strict `pip-audit` scan of all
+installed distributions, including Home Assistant and the test dependencies.
+The pytest environment disables external sockets, allowing only loopback access
+for tests. For focused runs, use `tox -e py314 -- tests/test_init.py --no-cov`
+or run Ruff directly with `ruff check --no-fix .` and `ruff format --check .`.
+For a pull-request base SHA, validate changed SPEC-001 artifacts locally with
+`python check_spec_artifacts.py --base-ref <PR-base-sha>`.
+HACS and hassfest validation run in the **Validation** GitHub Actions workflow;
+start it from the Actions tab with **Run workflow** when needed.
+
+## SDD-Light review for substantial changes
+
+For any substantial change to integration behavior, configuration, or
+persistence, see the permanent **SDD-Light review policy** in `AGENTS.md`
+(section 5.1): review the current stable Home Assistant release/quality-scale
+guidance, canonical upstream changes since the last-reviewed SHA, and
+fork-specific contracts with isolated tests, and record the exact versions,
+SHAs, decisions, and test results in the PR or in `specs/NNN-*.md` +
+`specs/NNN-verification.md`. Small fixes only need a short proportional
+checklist in the PR description.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under its MIT License.
