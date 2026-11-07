@@ -123,3 +123,29 @@ permissions:
 All pull request titles must follow the Conventional Commits specification (e.g., `feat: ...`, `fix: ...`, `ci: ...`).
 - Workflow checks: Managed via the `Semantic PR Check` action in `.github/workflows/semantic-pr.yaml`.
 - Auto-labeling: Handled automatically by the built-in autolabeler in `.github/release-drafter.yml`.
+
+---
+
+## 7. SDD-Light: Direct ChatGPT–GitHub Workflow (preferred)
+
+For work initiated in ChatGPT, use GitHub Issues as the canonical specification,
+acceptance criteria and task tracker. Prefer direct authorized GitHub connector
+operations for implementation over launching a hosted Codex or Copilot Coding
+Agent; hosted agents are optional and may require separate AI Credits.
+
+1. Read the issue, existing repository instructions, current branch and relevant
+   code. Classify the work as S (small), M (feature/spec), or L (architecture,
+   security, migration with spec, plan, tasks and rollback).
+2. Create a focused feature branch. Commit implementation and regression tests
+   through available GitHub file/commit APIs; never imply an agent was started.
+3. Open a draft PR linked to the issue, describing scope, risks, verification
+   evidence and remaining gaps. Follow this repository's conventional PR title
+   and security requirements.
+4. Inspect CI and failed-job logs, address failures on the branch and perform a
+   complete diff review. Report unrun checks as pending, not passed.
+5. Merge, release, production deployment and approval require the owner's
+   explicit authorization. Never bypass branch protections or auto-merge.
+
+If connector permissions or capabilities are insufficient, report the exact
+blocker. Do not automatically assign Copilot/Codex or post agent triggers.
+Do not use real IMAP credentials, production Home Assistant access or secrets.
