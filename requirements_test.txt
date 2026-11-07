@@ -11,5 +11,5 @@ homeassistant==2026.11.0
 freezegun
 cython
 PyTurboJPEG
-ruff>=0.15.0
+ruff==0.15.0
 mypy

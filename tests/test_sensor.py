@@ -12,7 +12,13 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.mail_and_packages.const import (
     AMAZON_EXCEPTION,
+    AMAZON_EXCEPTION_ORDER,
+    AMAZON_HUB,
+    AMAZON_HUB_CODE,
     AMAZON_ORDER,
+    AMAZON_OTP,
+    AMAZON_OTP_CODE,
+    ATTR_CODE,
     ATTR_ORDER,
     DOMAIN,
 )
@@ -410,6 +416,8 @@ async def test_packages_sensor_attributes_edge_cases(hass):
     )
     attrs_ex = sensor_ex.extra_state_attributes
     assert attrs_ex[ATTR_ORDER] == ["Error #1"]
+    coord_ex.data[AMAZON_EXCEPTION_ORDER] = ["Exception #2"]
+    assert sensor_ex.extra_state_attributes[ATTR_ORDER] == ["Exception #2"]
 
     # Test attributes for regular Amazon packages sensor
     sensor_desc = MagicMock(key="amazon_packages")
@@ -471,20 +479,26 @@ async def test_image_path_sensor_grid(hass):
 
 
 @pytest.mark.parametrize(
-    ("sensor_type", "code_key"),
+    ("sensor_type", "sensor_name", "expected_code"),
     [
-        ("amazon_otp", "amazon_otp_code"),
-        ("amazon_hub", "amazon_hub_code"),
+        (AMAZON_OTP, "Mail Amazon OTP", ["654321"]),
+        (AMAZON_HUB, "Mail Amazon Hub", ["123456"]),
     ],
 )
-def test_amazon_code_kept_when_order_exists(sensor_type, code_key):
+def test_amazon_code_kept_when_order_exists(sensor_type, sensor_name, expected_code):
     """Amazon pickup/delivery codes must survive alongside an order number."""
-    sensor = object.__new__(PackagesSensor)
-    sensor.type = sensor_type
-    attributes = {}
-    sensor._add_amazon_attributes(
-        attributes,
-        {AMAZON_ORDER: ["123-1234567-1234567"], code_key: "123456"},
+    coordinator = MagicMock()
+    coordinator.data = {
+        AMAZON_ORDER: ["123-1234567-1234567"],
+        AMAZON_OTP_CODE: ["654321"],
+        AMAZON_HUB_CODE: ["123456"],
+    }
+    sensor = PackagesSensor(
+        MockConfigEntry(domain=DOMAIN, data={CONF_HOST: "test"}),
+        MagicMock(key=sensor_type, name=sensor_name),
+        coordinator,
     )
-    assert attributes[ATTR_ORDER] == ["123-1234567-1234567"]
-    assert attributes["code"] == "123456"
+    assert sensor.extra_state_attributes == {
+        ATTR_ORDER: ["123-1234567-1234567"],
+        ATTR_CODE: expected_code,
+    }
