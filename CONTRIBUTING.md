@@ -11,13 +11,12 @@ Contributing to this project should be as easy and transparent as possible, whet
 
 Github is used to host code, to track issues and feature requests, as well as accept pull requests.
 
-Pull requests are the best way to propose changes to the codebase.
+Pull requests are the best way to propose changes to the codebase. Read [AGENTS.md](AGENTS.md) for the S/M/L specification workflow, compatibility requirements, and project-specific verification guidance before starting feature work.
 
-1. Fork the repo and create your branch from `dev`.
+1. Fork the repo and create your branch from the target branch named by the issue or maintainer (roadmap work targets `test/all-features`).
 2. If you've changed something, update the documentation.
-3. Make sure your code lints (using black).
-4. Test you contribution.
-5. Issue that pull request!
+3. Run the relevant tests and checks (`tox` runs pytest, Ruff lint/format checks, and mypy).
+4. Open a draft pull request, wait for Actions and independent review, and merge only with maintainer approval.
 
 ## Any contributions you make will be under the MIT Software License
 
@@ -41,10 +40,6 @@ Report a bug by [opening a new issue](../../issues/new/choose); it's that easy!
 - Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
 
 People *love* thorough bug reports. I'm not even kidding.
-
-## Use a Consistent Coding Style
-
-Use [black](https://github.com/ambv/black) to make sure the code follows the style.
 
 ## License
 
