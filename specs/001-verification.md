@@ -1,6 +1,6 @@
 # SPEC-001 — Verification evidence and remaining gates
 
-**Evidence date:** 2026-11-07. **Failure investigated:** SHA `c9a8c6331666e88f76bf16a7aad889dc040b6f4f`. CI's full tox log identifies a Ruff lint failure in the newly added deletion-only regression; all 663 tests, pip-audit, and mypy passed. The one-line lint correction passes targeted local verification. GitHub checks on `c9a8c63` for Validation, Pre-commit, and Autolabeler report `action_required` with zero jobs; the API does not expose a specific approval/permission reason. Resulting-SHA Actions checks remain to be inspected after this correction is pushed. Human review remains pending. No production services were accessed.
+**Evidence date:** 2026-11-07. **Current head:** `d41cf3a1403eb5ff5b51e1d25c7af5375694fa98`. CI run #37 on prior SHA `c9a8c6331666e88f76bf16a7aad889dc040b6f4f` identified a Ruff lint failure in the deletion-only regression; its other stages, including all 663 tests, pip-audit, and mypy, passed. The one-line lint correction passes targeted local verification. Current-head CI, Validation, Pre-commit, Autolabeler, and PR-lint Actions runs all report `action_required` with zero jobs; the API does not expose a specific approval/permission cause. No successful GitHub Actions validation is established on `d41cf3a`. Human review remains pending. No production services were accessed.
 
 ## SDD phase and review gates
 
@@ -9,10 +9,10 @@
 | Specify | `specs/001-test-environment.md` requirements and acceptance criteria | Draft; human review required |
 | Clarify | PR #12 review comments and CI investigation | Requirements reconciled; old CI root cause remains unknown because retrieved logs contained no tox output |
 | Plan | `specs/001-test-environment.md` design and plan sections | Draft; no architecture or acceptance criteria were self-approved |
-| Tasks | `specs/001-test-environment.md` task checklist | CI #33 evidence is for `b48bdee`; checks triggered for tested SHA `e5911cd` are action-required with zero jobs; T007 remains partial and human review remains |
+| Tasks | `specs/001-test-environment.md` task checklist | CI #33 evidence is for `b48bdee`; checks on current SHA `d41cf3a` are action-required with zero jobs; T007 remains partial and human review remains |
 | Analyze | Workflow, tox, test, fixture, configuration, and documentation-impact inventory below | Complete for this scope |
 | Implement | PR #12 changes and imported PR #11 baseline | Complete locally; no production changes |
-| Verify | Commands, documentation-impact review, and results below | Focused and full local tox pass on `e5911cd`; current-SHA Actions are gated; human review is pending |
+| Verify | Commands, documentation-impact review, and results below | Focused and full local tox pass on `e5911cd`; targeted lint/unit checks pass on `d41cf3a`; current-SHA Actions are gated; human review is pending |
 
 ## Documentation impact review
 
@@ -42,14 +42,20 @@ This verification update records the base-branch merge, corrected test contract,
 
 | Check | Status | Evidence |
 |---|---|---|
+| Current-head CI | ACTION_REQUIRED | [Run 42370627728](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370627728), SHA `d41cf3a`; completed `action_required`, zero jobs. No CI steps ran on this SHA. |
+| Current-head Validation | ACTION_REQUIRED | [PR run 42370627647](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370627647) and [push run 42370623454](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370623454), SHA `d41cf3a`; both completed `action_required`, zero jobs. HACS/hassfest are not verified on this SHA. |
+| Current-head Pre-commit | ACTION_REQUIRED | [Run 42370627608](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370627608), SHA `d41cf3a`; completed `action_required`, zero jobs. |
+| Current-head Autolabeler | ACTION_REQUIRED | [PR run 42370627931](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370627931) and [pull_request_target run 42370626798](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370626798), SHA `d41cf3a`; both completed `action_required`, zero jobs. |
+| Current-head PR lint | ACTION_REQUIRED | [Run 42370625973](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370625973), SHA `d41cf3a`; completed `action_required`, zero jobs. |
+| Current-head status diagnosis | NOT_DETERMINED | The Actions API reports no jobs for the runs above and does not expose a specific approval/permission cause. The combined commit-status API returned zero statuses. A repository maintainer must inspect/resolve the gate; it was not bypassed. |
 | CI run that exposed the current failure | FAIL (diagnosed) | [Run 42198668574](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42198668574), job [128382480615](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42198668574/job/128382480615), SHA `c9a8c63`; Python 3.14.10; step `Run tox`; job duration 1m42s. Exact lint output: `FLY002 Consider f-string instead of string join` at `tests/test_spec_artifacts.py:62:17`, followed by `Found 1 error.` The overall tox result was `lint: FAIL code 1`; `mypy: OK`, `py314: OK`, and `evaluation failed :( (85.19 seconds)`, causing exit 255. |
 | CI tests/audit within the failing run | PASS (not overall CI) | Same job: pip-audit printed `No known vulnerabilities found`; pytest printed `663 passed, 22 warnings in 18.23s`, and coverage was 90.41%. These passing stages do not change the overall CI failure. |
-| Local fix verification | PASS | Ruff 0.15.0 `ruff check --no-fix tests/test_spec_artifacts.py` and `ruff format --check tests/test_spec_artifacts.py` passed after replacing the flagged tuple join with a newline literal. `python -m unittest tests.test_spec_artifacts -v`: 4 passed; `python -m py_compile check_spec_artifacts.py tests/test_spec_artifacts.py` and `git diff --check` passed. Full tox was not rerun locally for this literal-only test-data change. |
+| Local fix verification | PASS | On `d41cf3a`, Ruff 0.15.0 `ruff check --no-fix tests/test_spec_artifacts.py` and `ruff format --check tests/test_spec_artifacts.py` passed after replacing the flagged tuple join with a newline literal. `python -m unittest tests.test_spec_artifacts -v`: 4 passed; `python -m py_compile check_spec_artifacts.py tests/test_spec_artifacts.py` and `git diff --check` passed. Full tox was not rerun locally for this literal-only test-data change. |
 | Validation on failure SHA | ACTION_REQUIRED | [Run 42198659735](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42198659735), SHA `c9a8c63`; completed `action_required`. |
 | Pre-commit on failure SHA | ACTION_REQUIRED | [Run 42198668282](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42198668282), SHA `c9a8c63`; completed `action_required`. |
 | Autolabeler on failure SHA | ACTION_REQUIRED | [Run 42198668741](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42198668741) (`pull_request`) and [run 42198665336](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42198665336) (`pull_request_target`), SHA `c9a8c63`; both completed `action_required`. |
 | PR lint on failure SHA | ACTION_REQUIRED | [Run 42198665100](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42198665100), SHA `c9a8c63`; completed `action_required`. |
-| Actions gate diagnosis | NOT_DETERMINED | The run snapshots for Validation, Pre-commit, both Autolabeler runs, and PR lint show `action_required`; the API exposes no jobs and no specific approval or permission reason. A repository maintainer must inspect/resolve the repository-side gate; no gate was bypassed. |
+| Actions gate diagnosis on failure SHA | NOT_DETERMINED | The run snapshots for Validation, Pre-commit, both Autolabeler runs, and PR lint show `action_required`; the API exposes no jobs and no specific approval or permission reason. A repository maintainer must inspect/resolve the repository-side gate; no gate was bypassed. |
 | Focused HA init lifecycle | PASS | `env -u GITHUB_ACTIONS PATH="/opt/hostedtoolcache/Python/3.14.9/x64/bin:/tmp/spec001-tox-tools/bin:$PATH" /tmp/spec001-tox-tools/bin/tox -e py314 -- tests/test_init.py --no-cov -q --tb=short`; 38 passed, 5 warnings on tested SHA `e5911cd`. |
 | Focused multi-entry isolation | PASS | Included in the focused init run above; registry identities and deep-copied active state/attributes for the second entry were unchanged after reloading the first. |
 | Full pytest suite and tox checks | PASS | Full tox on tested SHA `e5911cd`, Python 3.14.9; 662 passed, 22 warnings in 23.57s; configured integration Python coverage 90.41% (minimum 90%); total tox duration 33.94s. |
@@ -107,7 +113,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- Inspect resulting-SHA CI, Validation, Pre-commit, Autolabeler, and PR-lint after the lint fix. On `c9a8c63`, non-CI checks returned `action_required` with zero jobs and no API-exposed cause; a repository maintainer must resolve any repository-side approval/permission gate. CodeQL is not configured for PRs targeting `test/all-features`; changing its trigger scope requires maintainer review.
+- An authorized repository user must resolve/inspect the current-head Actions gate: CI, Validation, Pre-commit, Autolabeler, and PR lint on `d41cf3a` all returned `action_required` with zero jobs and no API-exposed cause. CodeQL is not configured for PRs targeting `test/all-features`; changing its trigger scope requires maintainer review.
 - CI #33 already verifies the pip-audit gate and tox on `b48bdee`; retain its no-suppressions policy and revisit the helper's intentional no-deps compatibility gap separately if desired.
 - The retrieved CI #33 logs explicitly show the audit and pytest results. Do not infer a cause for the earlier 404 job.
 - Obtain human review of the Draft specification and implementation. GitHub currently reports PR #12 as open but not Draft; no PR state change was made. Merge remains manual.
