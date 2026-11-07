@@ -1,6 +1,6 @@
 # SPEC-001 — Verification evidence and remaining gates
 
-**Evidence date:** 2026-11-07. **Current head:** `d41cf3a1403eb5ff5b51e1d25c7af5375694fa98`. CI run #37 on prior SHA `c9a8c6331666e88f76bf16a7aad889dc040b6f4f` identified a Ruff lint failure in the deletion-only regression; its other stages, including all 663 tests, pip-audit, and mypy, passed. The one-line lint correction passes targeted local verification. Current-head CI, Validation, Pre-commit, Autolabeler, and PR-lint Actions runs all report `action_required` with zero jobs; the API does not expose a specific approval/permission cause. No successful GitHub Actions validation is established on `d41cf3a`. Human review remains pending. No production services were accessed.
+**Evidence date:** 2026-11-07. **Latest inspected head:** `f44cb2a8c116054a2638fe481f3ce57e424f7bbd` (documentation-only commit after code/test fix `d41cf3a1403eb5ff5b51e1d25c7af5375694fa98`). CI run #37 on prior SHA `c9a8c6331666e88f76bf16a7aad889dc040b6f4f` identified a Ruff lint failure in the deletion-only regression; its other stages, including all 663 tests, pip-audit, and mypy, passed. The one-line lint correction passes targeted local verification on `d41cf3a`. Current inspected-head CI, Validation, Pre-commit, Autolabeler, and PR-lint Actions runs all report `action_required` with zero jobs; the API does not expose a specific approval/permission cause. No successful GitHub Actions validation is established on `f44cb2a`. Human review remains pending. No production services were accessed.
 
 ## SDD phase and review gates
 
@@ -9,10 +9,10 @@
 | Specify | `specs/001-test-environment.md` requirements and acceptance criteria | Draft; human review required |
 | Clarify | PR #12 review comments and CI investigation | Requirements reconciled; old CI root cause remains unknown because retrieved logs contained no tox output |
 | Plan | `specs/001-test-environment.md` design and plan sections | Draft; no architecture or acceptance criteria were self-approved |
-| Tasks | `specs/001-test-environment.md` task checklist | CI #33 evidence is for `b48bdee`; checks on current SHA `d41cf3a` are action-required with zero jobs; T007 remains partial and human review remains |
+| Tasks | `specs/001-test-environment.md` task checklist | CI #33 evidence is for `b48bdee`; checks on latest inspected SHA `f44cb2a` are action-required with zero jobs; T007 remains partial and human review remains |
 | Analyze | Workflow, tox, test, fixture, configuration, and documentation-impact inventory below | Complete for this scope |
 | Implement | PR #12 changes and imported PR #11 baseline | Complete locally; no production changes |
-| Verify | Commands, documentation-impact review, and results below | Focused and full local tox pass on `e5911cd`; targeted lint/unit checks pass on `d41cf3a`; current-SHA Actions are gated; human review is pending |
+| Verify | Commands, documentation-impact review, and results below | Focused and full local tox pass on `e5911cd`; targeted lint/unit checks pass on code/test SHA `d41cf3a`; latest inspected-head Actions are gated; human review is pending |
 
 ## Documentation impact review
 
@@ -42,12 +42,12 @@ This verification update records the base-branch merge, corrected test contract,
 
 | Check | Status | Evidence |
 |---|---|---|
-| Current-head CI | ACTION_REQUIRED | [Run 42370627728](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370627728), SHA `d41cf3a`; completed `action_required`, zero jobs. No CI steps ran on this SHA. |
-| Current-head Validation | ACTION_REQUIRED | [PR run 42370627647](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370627647) and [push run 42370623454](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370623454), SHA `d41cf3a`; both completed `action_required`, zero jobs. HACS/hassfest are not verified on this SHA. |
-| Current-head Pre-commit | ACTION_REQUIRED | [Run 42370627608](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370627608), SHA `d41cf3a`; completed `action_required`, zero jobs. |
-| Current-head Autolabeler | ACTION_REQUIRED | [PR run 42370627931](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370627931) and [pull_request_target run 42370626798](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370626798), SHA `d41cf3a`; both completed `action_required`, zero jobs. |
-| Current-head PR lint | ACTION_REQUIRED | [Run 42370625973](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370625973), SHA `d41cf3a`; completed `action_required`, zero jobs. |
-| Current-head status diagnosis | NOT_DETERMINED | The Actions API reports no jobs for the runs above and does not expose a specific approval/permission cause. The combined commit-status API returned zero statuses. A repository maintainer must inspect/resolve the gate; it was not bypassed. |
+| Latest inspected-head CI | ACTION_REQUIRED | [Run 42370823553](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370823553), SHA `f44cb2a`; completed `action_required`, zero jobs. No CI steps ran on this SHA. |
+| Latest inspected-head Validation | ACTION_REQUIRED | [PR run 42370823583](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370823583) and [push run 42370817005](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370817005), SHA `f44cb2a`; both completed `action_required`, zero jobs. HACS/hassfest are not verified on this SHA. |
+| Latest inspected-head Pre-commit | ACTION_REQUIRED | [Run 42370823640](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370823640), SHA `f44cb2a`; completed `action_required`, zero jobs. |
+| Latest inspected-head Autolabeler | ACTION_REQUIRED | [PR run 42370823544](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370823544) and [pull_request_target run 42370819844](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370819844), SHA `f44cb2a`; both completed `action_required`, zero jobs. |
+| Latest inspected-head PR lint | ACTION_REQUIRED | [Run 42370819789](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42370819789), SHA `f44cb2a`; completed `action_required`, zero jobs. |
+| Latest inspected-head status diagnosis | NOT_DETERMINED | The Actions API reports no jobs for the runs above and does not expose a specific approval/permission cause. The combined commit-status API returned zero statuses. A repository maintainer must inspect/resolve the gate; it was not bypassed. |
 | CI run that exposed the current failure | FAIL (diagnosed) | [Run 42198668574](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42198668574), job [128382480615](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/actions/runs/42198668574/job/128382480615), SHA `c9a8c63`; Python 3.14.10; step `Run tox`; job duration 1m42s. Exact lint output: `FLY002 Consider f-string instead of string join` at `tests/test_spec_artifacts.py:62:17`, followed by `Found 1 error.` The overall tox result was `lint: FAIL code 1`; `mypy: OK`, `py314: OK`, and `evaluation failed :( (85.19 seconds)`, causing exit 255. |
 | CI tests/audit within the failing run | PASS (not overall CI) | Same job: pip-audit printed `No known vulnerabilities found`; pytest printed `663 passed, 22 warnings in 18.23s`, and coverage was 90.41%. These passing stages do not change the overall CI failure. |
 | Local fix verification | PASS | On `d41cf3a`, Ruff 0.15.0 `ruff check --no-fix tests/test_spec_artifacts.py` and `ruff format --check tests/test_spec_artifacts.py` passed after replacing the flagged tuple join with a newline literal. `python -m unittest tests.test_spec_artifacts -v`: 4 passed; `python -m py_compile check_spec_artifacts.py tests/test_spec_artifacts.py` and `git diff --check` passed. Full tox was not rerun locally for this literal-only test-data change. |
@@ -113,7 +113,7 @@ The previously reported CI job `127711456311` (run `42162228288`, attempt 2) fai
 
 ## Next actions
 
-- An authorized repository user must resolve/inspect the current-head Actions gate: CI, Validation, Pre-commit, Autolabeler, and PR lint on `d41cf3a` all returned `action_required` with zero jobs and no API-exposed cause. CodeQL is not configured for PRs targeting `test/all-features`; changing its trigger scope requires maintainer review.
+- An authorized repository user must resolve/inspect the latest inspected-head Actions gate: CI, Validation, Pre-commit, Autolabeler, and PR lint on `f44cb2a` all returned `action_required` with zero jobs and no API-exposed cause. CodeQL is not configured for PRs targeting `test/all-features`; changing its trigger scope requires maintainer review.
 - CI #33 already verifies the pip-audit gate and tox on `b48bdee`; retain its no-suppressions policy and revisit the helper's intentional no-deps compatibility gap separately if desired.
 - The retrieved CI #33 logs explicitly show the audit and pytest results. Do not infer a cause for the earlier 404 job.
 - Obtain human review of the Draft specification and implementation. GitHub currently reports PR #12 as open but not Draft; no PR state change was made. Merge remains manual.
