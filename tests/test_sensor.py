@@ -6,6 +6,7 @@ import types
 from unittest.mock import MagicMock, patch
 
 import pytest
+from homeassistant.components.sensor import SensorEntityDescription
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -495,7 +496,7 @@ def test_amazon_code_kept_when_order_exists(sensor_type, sensor_name, expected_c
     }
     sensor = PackagesSensor(
         MockConfigEntry(domain=DOMAIN, data={CONF_HOST: "test"}),
-        MagicMock(key=sensor_type, name=sensor_name),
+        SensorEntityDescription(key=sensor_type, name=sensor_name),
         coordinator,
     )
     assert sensor.extra_state_attributes == {

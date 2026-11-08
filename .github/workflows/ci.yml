@@ -37,7 +37,7 @@ jobs:
           enable-cache: true
 
       - name: 📦 Install tox
-        run: uv pip install --system tox tox-gh-actions
+        run: uv pip install --system tox==4.32.0 tox-gh-actions==3.5.0
 
       - name: 🏃 Run tox
         run: tox
