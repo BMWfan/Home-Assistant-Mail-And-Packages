@@ -9,6 +9,10 @@ import subprocess
 from pathlib import Path
 
 SPEC_PATH = re.compile(r"^specs/(?P<number>\d{3})-(?P<slug>[a-z0-9][a-z0-9-]*)\.md$")
+FOLDER_PATH = re.compile(
+    r"^specs/(?P<directory>\d{3}-[a-z0-9][a-z0-9-]*)/"
+    r"(?P<artifact>[a-z0-9][a-z0-9-]*\.md)$"
+)
 SPEC_HEADINGS = (
     "## Goal",
     "## Requirements",
@@ -41,7 +45,7 @@ def changed_paths(base_sha: str) -> list[str]:
 
 
 def check_spec_artifacts(changed: list[str], repository_root: Path) -> list[str]:
-    """Check only changed root-level specs and their required companion artifacts."""
+    """Check changed legacy specs and new folders, preserving untouched artifacts."""
     candidates = [
         path for path in changed if path.startswith("specs/") and path.endswith(".md")
     ]
@@ -50,15 +54,22 @@ def check_spec_artifacts(changed: list[str], repository_root: Path) -> list[str]
 
     errors: list[str] = []
     numbers: set[str] = set()
+    folders: dict[str, set[str]] = {}
     for path in candidates:
         match = SPEC_PATH.fullmatch(path)
-        if match is None:
-            errors.append(
-                f"{path}: use the existing specs/NNN-name.md or "
-                "specs/NNN-verification.md layout."
+        if match is not None:
+            numbers.add(match.group("number"))
+            continue
+        folder = FOLDER_PATH.fullmatch(path)
+        if folder is not None:
+            folders.setdefault(folder.group("directory"), set()).add(
+                folder.group("artifact")
             )
             continue
-        numbers.add(match.group("number"))
+        errors.append(
+            f"{path}: use specs/NNN-name.md + specs/NNN-verification.md "
+            "or specs/NNN-name/<artifact>.md."
+        )
 
     for number in sorted(numbers):
         spec_files = sorted(
@@ -83,6 +94,34 @@ def check_spec_artifacts(changed: list[str], repository_root: Path) -> list[str]
             )
         else:
             errors.extend(_missing_headings(verification_path, VERIFICATION_HEADINGS))
+    for directory, artifacts in sorted(folders.items()):
+        errors.extend(_check_folder(directory, artifacts, repository_root))
+    return errors
+
+
+def _check_folder(directory: str, changed: set[str], root: Path) -> list[str]:
+    """Validate minimum folder artifacts; S/M/L classification stays in review."""
+    folder = root / "specs" / directory
+    required = ["spec.md", "tasks.md"]
+    optional_pair = {"plan.md", "verification.md"}
+    if changed & optional_pair or any(
+        (folder / name).exists() for name in optional_pair
+    ):
+        # Include deleted paths: deleting both files must not silently erase
+        # previously recorded planning/verification evidence.
+        required.extend(sorted(optional_pair))
+    errors = []
+    for name in required:
+        path = folder / name
+        if not path.is_file() or not path.read_text(encoding="utf-8").strip():
+            errors.append(
+                f"specs/{directory}/{name}: required artifact is missing or empty."
+            )
+    number = directory.split("-", 1)[0]
+    if any(path.name != directory for path in (root / "specs").glob(f"{number}-*")):
+        errors.append(
+            f"specs/{directory}: specification number {number} is already used."
+        )
     return errors
 
 
