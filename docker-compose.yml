@@ -1,0 +1,62 @@
+services:
+  homeassistant:
+    container_name: mail_and_packages_dev
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      # config/configuration.yaml enables the `debugpy:` integration for
+      # VS Code remote debugging (Python -> Remote Attach on this port).
+      - "5678:5678"
+    volumes:
+      # HA's own config dir (entities, .storage, configuration.yaml). Kept
+      # out of git except configuration.yaml itself -- see .gitignore.
+      - ./config:/config
+      # The integration's actual source lives at <repo>/custom_components/
+      # (not under config/), so it stays a single source of truth shared
+      # with the non-Docker devcontainer setup (see DEVCONTAINER.md) and
+      # with tests/. This bind-mounts just that one directory into the path
+      # HA expects (/config/custom_components/mail_and_packages) instead of
+      # duplicating or symlinking the code into config/.
+      - ./custom_components/mail_and_packages:/config/custom_components/mail_and_packages
+      # Companion Lovelace card -- a SEPARATE repo
+      # (github.com/BMWfan/Home-Assistant-Mail-And-Packages-Custom-Card),
+      # not a subfolder of this one. Clone it next to this repo and mount
+      # its dist/ into HA's www/ (served at /local/...). Override the path
+      # with a .env file or `CARD_DIST_PATH=... docker compose up` if you
+      # cloned it somewhere else or under its full GitHub name
+      # (Home-Assistant-Mail-And-Packages-Custom-Card) instead of
+      # mail-packages-card.
+      - ${CARD_DIST_PATH:-../mail-packages-card/dist}:/config/www/mail-packages-card:ro
+    environment:
+      - TZ=Europe/Berlin
+    healthcheck:
+      # /manifest.json is served regardless of onboarding state -- /api/onboarding
+      # 404s once onboarding is complete and would keep the container unhealthy.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8123/manifest.json', timeout=5)"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 15s
+
+  # Creates the initial HA owner account via the onboarding API so the browser
+  # wizard is skipped. Skips itself when HA_OWNER_* are unset (see .env.example)
+  # or when onboarding already ran. This is only HA's own onboarding -- the Mail
+  # and Packages config flow (IMAP credentials) is separate and still manual.
+  bootstrap-owner:
+    # Dedicated image (scripts/bootstrap-owner.Dockerfile) with bash/curl/jq
+    # baked in at build time, instead of apk-installing them on every
+    # `docker compose up` via a bare alpine base. The env-var skip check
+    # (HA_OWNER_USERNAME/PASSWORD unset -> no-op) now lives in the script
+    # itself, run directly as the image ENTRYPOINT.
+    build:
+      context: ./scripts
+      dockerfile: bootstrap-owner.Dockerfile
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    environment:
+      - HA_OWNER_USERNAME=${HA_OWNER_USERNAME:-}
+      - HA_OWNER_PASSWORD=${HA_OWNER_PASSWORD:-}
+      - HA_OWNER_NAME=${HA_OWNER_NAME:-}
+      - HA_BASE_URL=http://homeassistant:8123

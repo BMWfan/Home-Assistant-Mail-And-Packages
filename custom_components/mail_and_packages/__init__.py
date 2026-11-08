@@ -1,19 +1,31 @@
 """Mail and Packages Integration."""
 
 import asyncio
+import functools
 import logging
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_RESOURCES
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import (
+    config_validation as cv,
+)
+from homeassistant.helpers import (
+    device_registry as dr,
+)
+from homeassistant.helpers import (
+    issue_registry as ir,
+)
+from homeassistant.util import dt as dt_util
 
 from . import const
 from .const import (
     ATTR_IMAGE_NAME,
     ATTR_IMAGE_PATH,
     AUTH_TYPE_PASSWORD,
+    CONF_17TRACK_API_KEY,
     CONF_AMAZON_CUSTOM_IMG,
     CONF_AMAZON_CUSTOM_IMG_FILE,
     CONF_AMAZON_DAYS,
@@ -54,6 +66,7 @@ from .coordinator import (
     MailAndPackagesData,
     MailDataUpdateCoordinator,
 )
+from .shippers.universal import guess_carrier
 from .utils.image import default_image_path, hash_file
 
 __all__ = [
@@ -103,6 +116,9 @@ __all__ = [
 _LOGGER = logging.getLogger(__name__)
 
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
 async def async_setup(hass: HomeAssistant, config_entry: MailAndPackagesConfigEntry):  # pylint: disable=unused-argument
     """Disallow configuration via YAML."""
     return True
@@ -121,8 +137,14 @@ async def async_setup_entry(
     hass.data.setdefault(DOMAIN, {})
     updated_config = config_entry.data.copy()
 
-    # Sort the resources
-    updated_config[CONF_RESOURCES] = sorted(updated_config[CONF_RESOURCES])
+    # Sort the legacy `resources` list when present. It only exists on configs
+    # migrated from before the fork replaced the resources-editing UI with the
+    # per-carrier `*_enabled` flags -- fresh installs never get the key, and
+    # accessing it unconditionally made every new config entry fail setup with
+    # KeyError: 'resources'. The coordinator treats a missing key as "no
+    # filter", so leaving it absent is the intended state, not an empty list.
+    if CONF_RESOURCES in updated_config:
+        updated_config[CONF_RESOURCES] = sorted(updated_config[CONF_RESOURCES])
 
     if updated_config != config_entry.data:
         hass.config_entries.async_update_entry(config_entry, data=updated_config)
@@ -133,22 +155,139 @@ async def async_setup_entry(
     # Setup the data coordinator
     coordinator = MailDataUpdateCoordinator(hass, config, config_entry)
 
+    config_entry.runtime_data = MailAndPackagesData(coordinator=coordinator, cameras=[])
+
+    await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+
     # Fetch initial data so we have data when entities subscribe
     await coordinator.async_refresh()
 
     # Raise ConfigEntryNotReady if coordinator didn't update
     if not coordinator.last_update_success:
         if isinstance(coordinator.last_exception, ConfigEntryAuthFailed):
+            # Create a repairs issue for authentication failure
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                "auth_failed",
+                is_fixable=True,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="auth_failed",
+                data={"entry_id": config_entry.entry_id},
+            )
+            # Platforms were already forwarded above -- unload them before
+            # raising, or HA's setup retry forwards them a second time and
+            # every platform dies with "has already been setup!" (observed
+            # live: 246 repeats while scans were timing out).
+            await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
             raise coordinator.last_exception
         exc = coordinator.last_exception
         detail = (str(exc) or type(exc).__name__) if exc else "unknown error"
         _LOGGER.error("Error updating sensor data: %s", detail)
+        await hass.config_entries.async_unload_platforms(config_entry, PLATFORMS)
         raise ConfigEntryNotReady
 
-    config_entry.runtime_data = MailAndPackagesData(coordinator=coordinator, cameras=[])
+    # Manual shipment add/remove -- gated behind a 17track API key, since
+    # that's what gets a manually-added number its status/history at all
+    # (no email ever mentions it, so the normal IMAP scan can't find it).
+    hass.services.async_register(
+        DOMAIN,
+        "add_tracking",
+        functools.partial(_handle_add_tracking, hass),
+        schema=vol.Schema(
+            {
+                vol.Required("tracking_number"): cv.string,
+                vol.Optional("retailer"): cv.string,
+                vol.Optional("memo"): cv.string,
+            }
+        ),
+    )
 
-    await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+    hass.services.async_register(
+        DOMAIN,
+        "remove_tracking",
+        functools.partial(_handle_remove_tracking, hass),
+        schema=vol.Schema({vol.Required("tracking_number"): cv.string}),
+    )
+
     return True
+
+
+async def _handle_add_tracking(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Enrich a manually-added tracking number via 17track right away."""
+    number = call.data["tracking_number"].strip()
+    if not number:
+        return
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if not entry.data.get(CONF_17TRACK_API_KEY):
+            _LOGGER.warning(
+                "mail_and_packages.add_tracking: no 17track API key "
+                "configured on entry %s, ignoring",
+                entry.entry_id,
+            )
+            continue
+        c = entry.runtime_data.coordinator
+        c._manual_tracking[number] = {  # noqa: SLF001
+            "carrier": guess_carrier(number),
+            "retailer": call.data.get("retailer") or None,
+            "memo": call.data.get("memo") or None,
+            "added": dt_util.now().date().isoformat(),
+        }
+        await c._async_save_tracking()  # noqa: SLF001
+
+        # Enrich immediately via 17track instead of waiting for the next
+        # scheduled scan -- this touches only 17track, not IMAP, so it's
+        # cheap. Strip any stale manual entries first so repeat calls
+        # (add another number before the next real scan) don't
+        # duplicate previously-added ones.
+        c.data["universal_tracking_details"] = [
+            item
+            for item in (c.data.get("universal_tracking_details") or [])
+            if item.get("source") != "manual"
+        ]
+        today_iso = dt_util.now().date().isoformat()
+        await c._process_manual_tracking(c.data, entry.data, today_iso)  # noqa: SLF001
+        c.async_set_updated_data(c.data)
+
+
+async def _handle_remove_tracking(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Remove a manually-tracked shipment or history entry by number."""
+    number = call.data["tracking_number"].strip()
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        c = entry.runtime_data.coordinator
+        had_manual = c._manual_tracking.pop(number, None) is not None  # noqa: SLF001
+        before = len(c._history)  # noqa: SLF001
+        # Amazon history records are keyed by "order", not "number" (see
+        # _record_amazon_delivered_history) -- match either so an
+        # Amazon archive entry can be removed the same way as a
+        # tracking-number one.
+        c._history = [  # noqa: SLF001
+            record
+            for record in c._history  # noqa: SLF001
+            if record.get("number") != number and record.get("order") != number
+        ]
+        had_history = len(c._history) != before  # noqa: SLF001
+        if not (had_manual or had_history):
+            continue
+
+        await c._async_save_tracking()  # noqa: SLF001
+        # had_manual means the number was still in the active manual
+        # list (a delivered manual number is popped from it already, see
+        # _process_manual_tracking), so it was still counted in
+        # universal_packages -- decrement to match the row we're
+        # dropping from universal_tracking_details below.
+        if had_manual:
+            c.data["universal_packages"] = max(
+                0, c.data.get("universal_packages", 0) - 1
+            )
+        c.data["universal_tracking_details"] = [
+            item
+            for item in (c.data.get("universal_tracking_details") or [])
+            if item.get("number") != number
+        ]
+        c.data["packages_history"] = len(c._history)  # noqa: SLF001
+        c.data["packages_history_details"] = list(c._history)  # noqa: SLF001
+        c.async_set_updated_data(c.data)
 
 
 async def async_remove_config_entry_device(  # pylint: disable-next=unused-argument

@@ -40,10 +40,16 @@
           "generic_custom_img": "Použít vlastní obrázek obecný 'bez dodání'?",
           "allow_forwarded_emails": "Povolit přeposílané e-maily kromě výchozí hodnoty služby (např. no-reply@usps.com)",
           "generate_grid": "Create image grid for LLM vision models",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Počet dní zpět pro kontrolu e-mailů o balících (minimum 1, výchozí 3)",
+          "amazon_enabled": "Povolit senzory balíků Amazon",
+          "seventeen_track_api_key": "API klíč 17track.net (volitelné)",
+          "dhl_brief_enabled": "Povolit náhled dopisů DHL"
         },
         "description": "Dokončete konfiguraci přizpůsobením následujících položek na základě struktury e-mailu a instalace Home Assistant.\n\nPodrobnosti o [Mail and Packages integration](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) můžete zkontrolovat na [configurace, styly a automatizace](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) na GitHubu.",
-        "title": "Mail and Packages (Krok 2 ze 3)"
+        "title": "Mail and Packages (Krok 2 ze 3)",
+        "data_description": {
+          "seventeen_track_api_key": "Volitelné. S API klíčem 17track.net poskytuje 17track směrodatný stav pro všechna zjištěná sledovací čísla (kromě Amazonu) — detekce stavu na základě e-mailů dopravce se pak přeskočí."
+        }
       },
       "options_3": {
         "data": {
@@ -152,10 +158,16 @@
           "walmart_custom_img": "Use custom 'no Walmart delivery' image?",
           "fedex_custom_img": "Use custom 'no FedEx delivery' image?",
           "allow_forwarded_emails": "Allow forwarded emails in addition to a service's default (e.g. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Počet dní zpět pro kontrolu e-mailů o balících (minimum 1, výchozí 3)",
+          "amazon_enabled": "Povolit senzory balíků Amazon",
+          "seventeen_track_api_key": "API klíč 17track.net (volitelné)",
+          "dhl_brief_enabled": "Povolit náhled dopisů DHL"
         },
         "description": "Finish the configuration by customizing the following based on your email structure and Home Assistant installation.\n\nIf using Amazon forwarded emails please separate each address with a comma or enter (none) to clear this setting.",
-        "title": "Mail and Packages (Step 2 of 2)"
+        "title": "Mail and Packages (Step 2 of 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Volitelné. S API klíčem 17track.net poskytuje 17track směrodatný stav pro všechna zjištěná sledovací čísla (kromě Amazonu) — detekce stavu na základě e-mailů dopravce se pak přeskočí."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -186,10 +198,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Directory to store images"
+          "storage": "Directory to store images",
+          "dhl_brief_reauth": "Znovu ověřit náhled dopisů DHL"
         },
         "description": "Please enter the directory you'd like your images to be stored in.\nThe default is auto populated.",
-        "title": "Image storage location"
+        "title": "Image storage location",
+        "data_description": {
+          "dhl_brief_reauth": "Ponechte nezaškrtnuté, chcete-li zachovat stávající přihlášení DHL. Zaškrtněte pouze v případě, že se chcete znovu přihlásit k DHL (např. po vypršení nebo odvolání tokenu)."
+        }
       },
       "reauth_confirm": {
         "description": "The authentication for your mail server has expired or is invalid. Please re-authenticate to continue.",
@@ -263,6 +279,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Náhled dopisů DHL: přihlášení vypršelo",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Znovu ověřit náhled dopisů DHL",
+            "description": "Vaše přihlášení k DHL vypršelo, takže nelze načíst nová oznámení o dopisech.\n\n1. Otevřete tento odkaz a přihlaste se k DHL: {auth_url}\n2. Po přihlášení budete přesměrováni na stránku, která zůstane prázdná — to je v pořádku.\n3. Zkopírujte adresu této stránky (začíná na dhllogin://) a vložte ji níže.",
+            "data": {
+              "dhl_brief_code": "Přihlašovací kód DHL nebo URL přesměrování"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Tento kód nelze použít. Přihlaste se prosím znovu."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: klíč API odmítnut",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Aktualizujte svůj klíč API 17track.net",
+            "description": "Váš klíč API 17track.net byl odmítnut, takže již nelze zjišťovat stav zásilek.\n\nZískejte klíč na 17track.net (Můj účet > Nastavení zabezpečení > Klíč API) a vložte jej níže.",
+            "data": {
+              "seventeen_track_api_key": "Klíč API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Zadejte platný klíč API 17track.net."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Ověření Mail and Packages selhalo",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Znovu ověřit poštovní server",
+            "description": "Ověření k vašemu poštovnímu serveru IMAP selhalo. Kliknutím na odeslat spustíte proces opětovného ověření."
+          }
+        }
       }
     }
   }

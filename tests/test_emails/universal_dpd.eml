@@ -1,0 +1,17 @@
+Delivered-To: recipient@example.com
+Date: Mon, 10 Jun 2024 11:00:00 +0200
+From: "Webshop GmbH" <noreply@webshop.de>
+To: recipient@example.com
+Subject: Ihre Bestellung wurde versendet
+Message-ID: <20240610110000.uni002@webshop.de>
+Content-Type: text/plain; charset="UTF-8"
+MIME-Version: 1.0
+
+Hallo,
+
+Ihre Bestellung wurde versendet. Die Sendungsnummer lautet: 05085100012345
+
+Sie können Ihr Paket unter dpd.de verfolgen.
+
+Mit freundlichen Grüßen,
+Webshop GmbH

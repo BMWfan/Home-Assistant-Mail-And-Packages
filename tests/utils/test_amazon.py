@@ -156,12 +156,32 @@ def test_get_decoded_subject_non_bytes_decoded():
         assert get_decoded_subject(msg) == "String Subject"
 
 
+def test_get_decoded_subject_multiple_encoded_parts():
+    """Test get_decoded_subject joins multi-part encoded headers."""
+    msg = email.message_from_string(
+        "Subject: =?UTF-8?Q?Ihre_Sendung?= =?UTF-8?Q?_ist_unterwegs_=F0=9F=9A=9A?="
+    )
+    assert get_decoded_subject(msg) == "Ihre Sendung ist unterwegs \U0001f69a"
+
+
+def test_get_decoded_subject_from_html_title():
+    """Test get_decoded_subject falls back to HTML title when Subject is missing."""
+    msg = email.message_from_string(
+        "From: test@test.com\n"
+        "Content-Type: text/html; charset=utf-8\n"
+        "\n"
+        "<html><head><title>Package delivered</title></head>"
+        "<body>Your order arrived.</body></html>"
+    )
+    assert get_decoded_subject(msg) == "Package delivered"
+
+
 def test_amazon_email_addresses_various_fwds():
     """Test amazon_email_addresses with various fwd types (Line 119)."""
     # Test with None (triggers Line 119)
-    assert len(amazon_email_addresses(fwds=None)) == 3
+    assert len(amazon_email_addresses(fwds=None)) == 10
     # Test with non-list/tuple (triggers Line 119)
-    assert len(amazon_email_addresses(fwds=123)) == 3
+    assert len(amazon_email_addresses(fwds=123)) == 10
 
 
 @pytest.mark.asyncio

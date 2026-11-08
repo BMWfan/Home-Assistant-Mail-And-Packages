@@ -36,10 +36,16 @@
           "generic_custom_img": "Использовать пользовательское изображение общее 'нет доставки'?",
           "generate_grid": "Создать сетку изображений для моделей зрения LLM",
           "allow_forwarded_emails": "Разрешить переадресованные электронные письма в дополнение к значениям по умолчанию службы (например, no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Сколько дней назад проверять письма о посылках (минимум 1, по умолчанию 3)",
+          "amazon_enabled": "Включить датчики посылок Amazon",
+          "seventeen_track_api_key": "API-ключ 17track.net (необязательно)",
+          "dhl_brief_enabled": "Включить предпросмотр писем DHL"
         },
         "description": "Завершите настройку, настроив следующие параметры в зависимости от структуры электронной почты и установки Home Assistant. \n\n Подробнее о параметрах [Интеграция с почтой и пакетами] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) см. В разделе [конфигурация, шаблоны и раздел автоматизации] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) на GitHub.",
-        "title": "Почта и пакеты (шаг 2 из 2)"
+        "title": "Почта и пакеты (шаг 2 из 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Необязательно. С API-ключом 17track.net сервис 17track предоставляет достоверный статус для всех обнаруженных трек-номеров (кроме Amazon) — определение статуса по письмам перевозчика при этом пропускается."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Использовать пользовательское изображение общее 'нет доставки'?",
           "generate_grid": "Создать сетку изображений для моделей зрения LLM",
           "allow_forwarded_emails": "Разрешить переадресованные электронные письма в дополнение к значениям по умолчанию службы (например, no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Сколько дней назад проверять письма о посылках (минимум 1, по умолчанию 3)",
+          "amazon_enabled": "Включить датчики посылок Amazon",
+          "seventeen_track_api_key": "API-ключ 17track.net (необязательно)",
+          "dhl_brief_enabled": "Включить предпросмотр писем DHL"
         },
         "description": "Завершите настройку, настроив следующее в соответствии со структурой вашей электронной почты и установкой Home Assistant.\n\nДля получения подробной информации о вариантах [интеграции Почта и Пакеты](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) ознакомьтесь с [разделом конфигурации, шаблонов и автоматизации](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) на GitHub.\n\nЕсли вы используете переадресованные электронные письма Amazon, разделите каждый адрес запятой или введите (none), чтобы очистить эту настройку.",
-        "title": "Почта и пакеты (шаг 2 из 2)"
+        "title": "Почта и пакеты (шаг 2 из 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Необязательно. С API-ключом 17track.net сервис 17track предоставляет достоверный статус для всех обнаруженных трек-номеров (кроме Amazon) — определение статуса по письмам перевозчика при этом пропускается."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -114,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Каталог для хранения изображений"
+          "storage": "Каталог для хранения изображений",
+          "dhl_brief_reauth": "Повторная аутентификация предпросмотра писем DHL"
         },
         "description": "Пожалуйста, введите директорию, в которой вы хотите хранить свои изображения. \nПо умолчанию она заполняется автоматически.",
-        "title": "Место хранения изображения"
+        "title": "Место хранения изображения",
+        "data_description": {
+          "dhl_brief_reauth": "Оставьте флажок снятым, чтобы сохранить текущий вход в DHL. Установите только если хотите снова войти в DHL (например, после истечения срока действия или отзыва токена)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
@@ -197,6 +213,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Предпросмотр писем DHL: вход устарел",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Повторная аутентификация предпросмотра писем DHL",
+            "description": "Ваш вход в DHL устарел, поэтому новые уведомления о письмах не могут быть получены.\n\n1. Откройте эту ссылку и войдите в DHL: {auth_url}\n2. После входа вы будете перенаправлены на пустую страницу — это нормально.\n3. Скопируйте адрес этой страницы (начинается с dhllogin://) и вставьте его ниже.",
+            "data": {
+              "dhl_brief_code": "Код входа DHL или URL перенаправления"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Не удалось использовать этот код. Пожалуйста, войдите снова."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API-ключ отклонён",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Обновите свой API-ключ 17track.net",
+            "description": "Ваш API-ключ 17track.net был отклонён, поэтому статус отправлений больше не может быть получен.\n\nПолучите ключ на 17track.net (Мой аккаунт > Настройки безопасности > API-ключ) и вставьте его ниже.",
+            "data": {
+              "seventeen_track_api_key": "API-ключ 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Введите действительный API-ключ 17track.net."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Ошибка авторизации Mail and Packages",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Повторная авторизация почтового сервера",
+            "description": "Не удалось авторизоваться на вашем почтовом сервере IMAP. Нажмите «Отправить», чтобы начать процесс повторной авторизации."
+          }
+        }
       }
     }
   }

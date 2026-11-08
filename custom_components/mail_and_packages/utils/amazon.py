@@ -42,7 +42,13 @@ _LOGGER = logging.getLogger(__name__)
 _MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 DOMAIN_LANG_MAP = {
-    "amazon.de": ["versandbestaetigung", "Geliefert:", "Zugestellt:"],
+    "amazon.de": [
+        "versandbestaetigung",
+        "Geliefert:",
+        "Zugestellt:",
+        "Versendet:",
+        "In Zustellung:",
+    ],
     "amazon.it": ["conferma-spedizione", "Consegna effettuata:", "Arriverà"],
     "amazon.nl": [
         "update-bestelling",
@@ -89,20 +95,30 @@ def filter_amazon_strings(strings: list[str], domain: str) -> list[str]:
 def get_decoded_subject(msg: email.message.Message) -> str:
     """Decode email subject."""
     header_val = msg["subject"]
-    if not header_val:
-        return ""
-    decoded = decode_header(header_val)[0]
-    subject_bytes, encoding = decoded
-    if encoding:
-        try:
+    if header_val:
+        decoded_parts = []
+        for subject_bytes, encoding in decode_header(header_val):
             if isinstance(subject_bytes, bytes):
-                return subject_bytes.decode(encoding, "ignore")
-            return str(subject_bytes)
-        except (LookupError, UnicodeError):
-            pass
-    if isinstance(subject_bytes, bytes):
-        return subject_bytes.decode("utf-8", "ignore")
-    return str(subject_bytes)
+                if encoding:
+                    try:
+                        decoded_parts.append(subject_bytes.decode(encoding, "ignore"))
+                        continue
+                    except (LookupError, UnicodeError):
+                        pass
+                decoded_parts.append(subject_bytes.decode("utf-8", "ignore"))
+            else:
+                decoded_parts.append(str(subject_bytes))
+        return "".join(decoded_parts)
+
+    body = get_email_body(msg)
+    if not body:
+        return ""
+    title_match = re.search(
+        r"<title[^>]*>([^<]+)</title>", body, re.IGNORECASE | re.DOTALL
+    )
+    if not title_match:
+        return ""
+    return title_match.group(1).strip()
 
 
 def get_email_body(msg: email.message.Message) -> str:
@@ -142,16 +158,40 @@ async def parse_amazon_arrival_date(
 
     # Try using regex for more precise extraction of the arrival date string
     if date_str := amazon_date_regex(email_msg):
+        base_datetime = datetime.datetime.combine(
+            email_date or today_date,
+            datetime.time(),
+        )
+
+        # 1. Try parsing without PREFER_DATES_FROM: future to handle relative terms (any language)
+        dateobj = await hass.async_add_executor_job(
+            partial(
+                dateparser.parse,
+                date_str,
+                settings={
+                    "RELATIVE_BASE": base_datetime,
+                    "RETURN_AS_TIMEZONE_AWARE": False,
+                },
+            ),
+        )
+        if dateobj:
+            parsed_date = dateobj.date()
+            base_date = email_date or today_date
+            # Only accept matches that resolve to email_date (today) or email_date + 1 day (tomorrow)
+            if (
+                parsed_date == base_date
+                or parsed_date == base_date + datetime.timedelta(days=1)
+            ):
+                return parsed_date
+
+        # 2. Fall back to parsing with PREFER_DATES_FROM: future for absolute dates
         dateobj = await hass.async_add_executor_job(
             partial(
                 dateparser.parse,
                 date_str,
                 settings={
                     "PREFER_DATES_FROM": "future",
-                    "RELATIVE_BASE": datetime.datetime.combine(
-                        email_date or today_date,
-                        datetime.time(),
-                    ),
+                    "RELATIVE_BASE": base_datetime,
                     "RETURN_AS_TIMEZONE_AWARE": False,
                 },
             ),
@@ -199,13 +239,18 @@ def amazon_email_addresses(
     if domain is None:
         domain = "amazon.com"
 
-    # Use both AMAZON_EMAIL and AMAZON_SHIPMENT_TRACKING for prefixes
+    # Use both AMAZON_EMAIL and AMAZON_SHIPMENT_TRACKING for prefixes.
+    # NOTE: sender local-parts are intentionally NOT language-filtered. Amazon
+    # sends shipment/delivery mail from the same local-parts in every country
+    # (order-update@, shipment-tracking@, versandbestaetigung@, ...), always at
+    # the local domain. Filtering them by language (as we do for subjects) wrongly
+    # dropped e.g. order-update@amazon.de -- the actual sender for amazon.de --
+    # so every Amazon mail was missed. Over-including harmless local-parts just
+    # widens the FROM OR-search; the subject filter still gates real matches.
     prefixes = list(AMAZON_EMAIL)
     for p in AMAZON_SHIPMENT_TRACKING:
         if f"{p}@" not in prefixes:
             prefixes.append(f"{p}@")
-
-    prefixes = filter_amazon_strings(prefixes, domain)
 
     value = [f"{e}{domain}" for e in prefixes]
     if fwds:
@@ -241,11 +286,11 @@ async def search_amazon_emails(
         amazon_subjects = filter_amazon_strings(amazon_subjects, domain)
 
     (server_response, sdata) = await email_search(
-        account,
-        address_list,
-        tfmt,
-        amazon_subjects,
-        forwarding_header,
+        account=account,
+        address=address_list,
+        date=tfmt,
+        subject=amazon_subjects,
+        header=forwarding_header,
     )
 
     if server_response != "OK" or not sdata[0]:
@@ -290,6 +335,20 @@ async def download_amazon_img(
             _LOGGER.error("Problem downloading file: %s", err)
 
 
+# Amazon serves driver delivery photos from per-region S3 buckets named
+# "<region>-prod-temp.s3[.<region>].amazonaws.com" (e.g. us-prod-temp.s3...,
+# gb-prod-temp.s3.eu-west-1..., and eu/de variants). Matching the pattern
+# instead of a fixed host list means new regions work without a code change.
+_AMAZON_IMG_HOST_RE = re.compile(
+    r"^[a-z]{2,4}-prod-temp\.s3\.([a-z0-9-]+\.)?amazonaws\.com$"
+)
+
+
+def _is_amazon_delivery_image_host(host: str) -> bool:
+    """Return True if host is a known Amazon delivery-photo bucket."""
+    return host in AMAZON_IMG_LIST or bool(_AMAZON_IMG_HOST_RE.match(host))
+
+
 async def get_amazon_image_urls(
     sdata: Any,
     account: IMAP4_SSL,
@@ -314,7 +373,7 @@ async def get_amazon_image_urls(
                     part_content = part_payload.decode("utf-8", "ignore")
                     found = pattern.findall(part_content)
                     for url in found:
-                        if url[1] not in AMAZON_IMG_LIST:
+                        if not _is_amazon_delivery_image_host(url[1]):
                             continue
                         full_url = url[0] + url[1] + url[2]
                         if full_url not in urls:
@@ -356,7 +415,7 @@ def amazon_date_regex(email_msg: str, patterns: list[str] | None = None) -> str 
         patterns = AMAZON_TIME_PATTERN_REGEX
 
     for pattern in patterns:
-        if (found := re.compile(pattern).search(email_msg)) is not None:
+        if (found := re.compile(pattern, re.IGNORECASE).search(email_msg)) is not None:
             if found.groups():
                 return found.group(1)
     return None

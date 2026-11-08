@@ -7,3 +7,36 @@ logger:
 
 # If you need to debug uncomment the line below (doc: https://www.home-assistant.io/integrations/debugpy/)
 debugpy:
+
+# --- Read-only mirror of the production instance ---
+# Mirrors prod's entities (incl. the live mail_and_packages sensors with their
+# real attribute shapes) into this container, prefixed `remote_`. That way the
+# companion card can be developed against realistic data without configuring a
+# real IMAP mailbox here. Requires config/secrets.yaml (git-ignored) with
+# remote_ha_host / remote_ha_port / remote_ha_token, and the
+# remote_homeassistant custom component under config/custom_components/.
+#
+# NOTE: this needs the same component installed on the PROD side too -- it
+# serves the /api/remote_homeassistant/discovery endpoint this connects to.
+remote_homeassistant:
+  instances:
+    - host: !secret remote_ha_host
+      port: !secret remote_ha_port
+      secure: true
+      access_token: !secret remote_ha_token
+      entity_prefix: remote_
+      # Read-only domains only: nothing switchable is mirrored, so prod devices
+      # can't be actuated from this dev container.
+      include:
+        domains:
+          - sensor
+          - binary_sensor
+          - camera
+      exclude:
+        domains:
+          - light
+          - switch
+          - lock
+          - climate
+          - cover
+          - media_player

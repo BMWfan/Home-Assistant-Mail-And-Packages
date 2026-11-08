@@ -11,12 +11,16 @@ Contributing to this project should be as easy and transparent as possible, whet
 
 Github is used to host code, to track issues and feature requests, as well as accept pull requests.
 
-Pull requests are the best way to propose changes to the codebase. Read [AGENTS.md](AGENTS.md) for the S/M/L specification workflow, compatibility requirements, and project-specific verification guidance before starting feature work.
+Pull requests are the best way to propose changes to the codebase. Read
+[AGENTS.md](AGENTS.md) for the proportional S/M/L specification workflow,
+compatibility and cross-repository contract requirements.
 
-1. Fork the repo and create your branch from the target branch named by the issue or maintainer (roadmap work targets `test/all-features`).
-2. If you've changed something, update the documentation.
-3. Run the relevant tests and checks (`tox` runs pytest, Ruff lint/format checks, and mypy).
-4. Open a draft pull request, wait for Actions and independent review, and merge only with maintainer approval.
+1. Branch from the target named in the issue or by the maintainer; roadmap work
+   targets `test/all-features`. Stack dependent work on its reviewed prerequisite.
+2. Update affected documentation and use the S/M/L artifacts in `AGENTS.md`.
+3. Run relevant tests and read-only Ruff/mypy checks through tox as described below.
+4. Open a draft PR, report actual CI evidence, obtain independent review and merge
+   only with owner approval. No production tests, autonomous merge or release.
 
 ## Any contributions you make will be under the MIT Software License
 
@@ -40,6 +44,41 @@ Report a bug by [opening a new issue](../../issues/new/choose); it's that easy!
 - Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
 
 People *love* thorough bug reports. I'm not even kidding.
+
+## Run tests and validation
+
+Use Python 3.14, matching CI. From the repository root, create and activate a
+virtual environment, then install and run the test tools:
+
+```bash
+python3.14 -m venv .venv
+source .venv/bin/activate
+python -m pip install tox==4.32.0 tox-gh-actions==3.5.0
+tox
+```
+
+Tox runs pytest, Ruff lint and format checks, and mypy in isolated environments.
+Before pytest, the Python 3.14 environment runs a strict `pip-audit` scan of all
+installed distributions, including Home Assistant and the test dependencies.
+The pytest environment disables external sockets, allowing only loopback access
+for tests. For focused runs, use `tox -e py314 -- tests/test_init.py --no-cov`
+or run Ruff directly with `ruff check --no-fix .` and `ruff format --check .`.
+For a pull-request base SHA, validate changed legacy or folder-based specification artifacts locally with
+`python check_spec_artifacts.py --base-ref <PR-base-sha>`.
+HACS and hassfest validation run in the **Validation** GitHub Actions workflow;
+start it from the Actions tab with **Run workflow** when needed.
+
+## SDD-Light review for substantial changes
+
+For any substantial change to integration behavior, configuration, or
+persistence, see the permanent **SDD-Light review policy** in `AGENTS.md`
+(section 5.1): review the current stable Home Assistant release/quality-scale
+guidance, canonical upstream changes since the last-reviewed SHA, and
+fork-specific contracts with isolated tests, and record the exact versions,
+SHAs, decisions, and test results in the PR, the active legacy
+`specs/NNN-*.md` + `specs/NNN-verification.md` pair, or a new `specs/NNN-slug/`
+bundle. Preserve active artifact paths; use the S/M/L rules in section 6. Small fixes only need a short proportional
+checklist in the PR description.
 
 ## License
 

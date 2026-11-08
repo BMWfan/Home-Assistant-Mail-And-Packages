@@ -36,10 +36,16 @@
           "generic_custom_img": "Använd anpassad generisk 'ingen leverans' bild?",
           "generate_grid": "Skapa bildrutnät för LLM-visionsmodeller",
           "allow_forwarded_emails": "Tillåt vidarebefordrade e-postmeddelanden utöver en tjänsts standardvärde (t.ex. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Antal dagar bakåt att kontrollera paket-e-post (minst 1, standard 3)",
+          "amazon_enabled": "Aktivera Amazon-paketsensorer",
+          "seventeen_track_api_key": "17track.net API-nyckel (valfritt)",
+          "dhl_brief_enabled": "Aktivera förhandsvisning av DHL-brev"
         },
         "description": "Avsluta konfigurationen genom att anpassa följande baserat på din e-poststruktur och installation av hemassistent. \n\n Mer information om alternativen [Mail and Packages] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) läser [konfiguration, mallar , och automatiseringsavsnitt] (https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) på GitHub.",
-        "title": "Mail och paket (steg 2 av 2)"
+        "title": "Mail och paket (steg 2 av 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Valfritt. Med en 17track.net API-nyckel tillhandahåller 17track den auktoritativa statusen för alla upptäckta spårningsnummer (utom Amazon) — den e-postbaserade statusdetekteringen för transportörer förbigås då."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Använd anpassad generisk 'ingen leverans' bild?",
           "generate_grid": "Skapa bildrutnät för LLM-visionsmodeller",
           "allow_forwarded_emails": "Tillåt vidarebefordrade e-postmeddelanden utöver en tjänsts standardvärde (t.ex. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Antal dagar bakåt att kontrollera paket-e-post (minst 1, standard 3)",
+          "amazon_enabled": "Aktivera Amazon-paketsensorer",
+          "seventeen_track_api_key": "17track.net API-nyckel (valfritt)",
+          "dhl_brief_enabled": "Aktivera förhandsvisning av DHL-brev"
         },
         "description": "Slutför konfigurationen genom att anpassa följande baserat på din e-poststruktur och Home Assistant-installation.\n\nFör detaljer om [Mail and Packages integration](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) alternativen granska [konfiguration, mallar och automatiseringssektionen](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) på GitHub.\n\nOm du använder vidarebefordrade e-postmeddelanden från Amazon, separera varje adress med ett kommatecken eller ange (ingen) för att rensa denna inställning.",
-        "title": "Mail och paket (steg 2 av 2)"
+        "title": "Mail och paket (steg 2 av 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Valfritt. Med en 17track.net API-nyckel tillhandahåller 17track den auktoritativa statusen för alla upptäckta spårningsnummer (utom Amazon) — den e-postbaserade statusdetekteringen för transportörer förbigås då."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -114,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Katalog för att lagra bilder"
+          "storage": "Katalog för att lagra bilder",
+          "dhl_brief_reauth": "Autentisera DHL-brevförhandsvisning igen"
         },
         "description": "Vänligen ange den katalog du vill att dina bilder ska lagras i.\nStandardinställningen är automatiskt ifylld.",
-        "title": "Bildlagringsplats"
+        "title": "Bildlagringsplats",
+        "data_description": {
+          "dhl_brief_reauth": "Lämna omarkerat för att behålla din nuvarande DHL-inloggning. Markera endast om du vill logga in på DHL igen (t.ex. efter att token har gått ut eller återkallats)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
@@ -197,6 +213,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "DHL-brevförhandsvisning: inloggning har upphört",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Autentisera DHL-brevförhandsvisning igen",
+            "description": "Din DHL-inloggning har upphört, så inga nya brevaviseringar kan hämtas.\n\n1. Öppna den här länken och logga in på DHL: {auth_url}\n2. Efter inloggningen omdirigeras du till en sida som förblir tom — det är normalt.\n3. Kopiera sidans adress (den börjar med dhllogin://) och klistra in den nedan.",
+            "data": {
+              "dhl_brief_code": "DHL-inloggningskod eller omdirigerings-URL"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Koden kunde inte användas. Försök logga in igen."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: API-nyckel avvisad",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Uppdatera din 17track.net API-nyckel",
+            "description": "Din 17track.net API-nyckel avvisades, så leveransstatus kan inte längre hämtas.\n\nHämta din nyckel från 17track.net (Mitt konto > Säkerhetsinställningar > API-nyckel) och klistra in den nedan.",
+            "data": {
+              "seventeen_track_api_key": "17track.net API-nyckel"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Ange en giltig 17track.net API-nyckel."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Mail and Packages-autentisering misslyckades",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Återautentisera e-postserver",
+            "description": "Autentisering mot din IMAP-e-postserver misslyckades. Klicka på skicka för att starta återautentiseringsflödet."
+          }
+        }
       }
     }
   }

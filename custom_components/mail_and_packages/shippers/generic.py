@@ -30,6 +30,8 @@ from custom_components.mail_and_packages.const import (
 from custom_components.mail_and_packages.utils.cache import EmailCache
 from custom_components.mail_and_packages.utils.email import find_text, find_text_matches
 from custom_components.mail_and_packages.utils.imap import (
+    QuerySpec,
+    build_search,
     email_fetch,
     email_fetch_headers,
     email_search,
@@ -148,6 +150,9 @@ class GenericShipper(Shipper):
         if result[ATTR_TRACKING]:
             count = len(result[ATTR_TRACKING])
 
+        if is_delivered:
+            result["pre_filtered_tracking"] = result.get(ATTR_TRACKING, [])
+
         # For _delivered sensors, the extended-window search gives us tracking
         # numbers needed for deduplication (above), but the count must reflect
         # only today's deliveries so the sensor resets at midnight.
@@ -169,6 +174,7 @@ class GenericShipper(Shipper):
                 sensor_type, today_found, account, cache
             )
             count = len(today_tracking) if today_tracking else today_count
+            result[ATTR_TRACKING] = today_tracking
 
         result[ATTR_COUNT] = count
         if shipper_cfg:
@@ -202,6 +208,97 @@ class GenericShipper(Shipper):
             email_addresses = forwarded_emails + email_addresses
         return forwarding_header, email_addresses
 
+    def collect_queries(
+        self,
+        account: IMAP4_SSL,
+        date: str,
+        sensors: list[str],
+        since_date: str | None = None,
+    ) -> list[QuerySpec]:
+        """Return structured search criteria for sensors without executing them.
+
+        Called by the coordinator to pre-populate the search cache via
+        batch_search_folders, which classifies one broad per-folder fetch
+        against each entry's criteria instead of running one SEARCH per entry.
+        Each entry's `query` string is still the exact string build_search()
+        would produce, so the normal per-sensor email_search() path (which
+        builds and looks up that same string) gets cache hits either way.
+        """
+        is_yahoo = False
+        if hasattr(account, "host") and isinstance(account.host, str):
+            host_lower = account.host.lower()
+            is_yahoo = "yahoo" in host_lower or "aol" in host_lower
+
+        queries: list[QuerySpec] = []
+        for sensor_type in sensors:
+            cfg = SENSOR_DATA.get(sensor_type, {})
+            email_addresses = cfg.get(ATTR_EMAIL, [])
+            subjects = cfg.get(ATTR_SUBJECT, [])
+            if (
+                sensor_type.endswith("_packages")
+                and not email_addresses
+                and not subjects
+            ):
+                continue
+
+            _, resolved = self._resolve_forwarding(email_addresses)
+            forwarding_header = self.config.get(CONF_FORWARDING_HEADER, "")
+            if not forwarding_header or forwarding_header == "(none)":
+                forwarding_header = ""
+
+            search_date = date
+            if (
+                since_date
+                and sensor_type.endswith(
+                    ("_delivering", "_exception", "_delivered", "_packages")
+                )
+                and sensor_type != "post_de_delivering"
+            ):
+                search_date = since_date
+
+            subject_list = (
+                subjects
+                if isinstance(subjects, list)
+                else ([subjects] if subjects else [])
+            )
+            for i in range(0, max(len(subject_list), 1), 10):
+                batch = subject_list[i : i + 10]
+                _, q = build_search(
+                    resolved, search_date, batch, forwarding_header, is_yahoo=is_yahoo
+                )
+                queries.append(
+                    QuerySpec(
+                        query=q,
+                        addresses=tuple(resolved),
+                        subjects=tuple(batch),
+                        since_date=search_date,
+                        header=forwarding_header,
+                    )
+                )
+
+            # _delivered sensors also search with today's date
+            if (
+                sensor_type.endswith("_delivered")
+                and since_date
+                and search_date != date
+            ):
+                for i in range(0, max(len(subject_list), 1), 10):
+                    batch = subject_list[i : i + 10]
+                    _, q = build_search(
+                        resolved, date, batch, forwarding_header, is_yahoo=is_yahoo
+                    )
+                    queries.append(
+                        QuerySpec(
+                            query=q,
+                            addresses=tuple(resolved),
+                            subjects=tuple(batch),
+                            since_date=date,
+                            header=forwarding_header,
+                        )
+                    )
+
+        return queries
+
     async def process_batch(
         self,
         account: IMAP4_SSL,
@@ -221,10 +318,14 @@ class GenericShipper(Shipper):
         # Merge results and aggregate global tracking
         res = {}
         for sensor, sensor_res in batch_results:
+            tracking = (
+                sensor_res.pop("pre_filtered_tracking", [])
+                if sensor.endswith("_delivered")
+                else sensor_res.get(ATTR_TRACKING)
+            )
             res.update(sensor_res)
             # Expose per-sensor raw tracking for coordinator state management.
             # Keyed as "_tracking_details" to distinguish from the public data dict.
-            tracking = sensor_res.get(ATTR_TRACKING)
             if tracking and sensor.endswith(
                 ("_delivering", "_delivered", "_exception")
             ):
@@ -255,11 +356,17 @@ class GenericShipper(Shipper):
             if sensor not in sensor_res and ATTR_COUNT in sensor_res:
                 sensor_res[sensor] = sensor_res[ATTR_COUNT]
 
+            # Capture today-only tracking for _delivered sensors BEFORE
+            # _deduplicate_batch_tracking runs (which currently only modifies
+            # _delivering and _packages sensor results).
+            if sensor_res.get(ATTR_TRACKING) and sensor.endswith("_delivered"):
+                sensor_res[f"{sensor}_tracking"] = sensor_res[ATTR_TRACKING]
+
             # Record results for post-processing
             batch_results.append((sensor, sensor_res))
 
             # Aggregate all tracking numbers found
-            if ATTR_TRACKING in sensor_res:
+            if sensor_res.get(ATTR_TRACKING):
                 all_tracking.update(sensor_res[ATTR_TRACKING])
 
         return batch_results, all_tracking
@@ -283,7 +390,14 @@ class GenericShipper(Shipper):
 
             tracking = set(sensor_res.get(ATTR_TRACKING, []))
             if sensor.endswith("_delivered"):
-                shippers[prefix]["delivered"].update(tracking)
+                # ATTR_TRACKING on _delivered sensors holds only TODAY's
+                # deliveries (so the sensor resets at midnight); dedup must
+                # use the extended-window list or packages delivered on a
+                # previous day are never subtracted from _delivering.
+                extended = sensor_res.get("pre_filtered_tracking")
+                shippers[prefix]["delivered"].update(
+                    tracking if extended is None else set(extended)
+                )
             elif sensor.endswith(("_delivering", "_exception")):
                 shippers[prefix]["delivering"].update(tracking)
                 shippers[prefix]["update_targets"].append((sensor, sensor_res))
@@ -390,11 +504,12 @@ class GenericShipper(Shipper):
         image_found = False
 
         (server_response, sdata) = await email_search(
-            account,
-            email_addresses,
-            date,
-            subjects,
-            forwarding_header,
+            account=account,
+            address=email_addresses,
+            date=date,
+            subject=subjects,
+            body=config.get(ATTR_BODY, ""),
+            header=forwarding_header,
         )
 
         if server_response == "OK" and sdata[0]:
@@ -647,7 +762,11 @@ class GenericShipper(Shipper):
                 msg_parts = (await email_fetch(account, eid, "(RFC822)"))[1]
             for response_part in msg_parts:
                 if isinstance(response_part, (bytes, bytearray)):
-                    if generic_delivery_image_extraction(
+                    # The extraction does blocking file I/O (the image
+                    # write) and CPU-heavy email parsing — run the whole
+                    # sync function off the event loop.
+                    if await self.hass.async_add_executor_job(
+                        generic_delivery_image_extraction,
                         response_part,
                         s_config["image_path"],
                         s_config["image_name"],

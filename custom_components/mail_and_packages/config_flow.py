@@ -20,23 +20,28 @@ from homeassistant.const import (
     CONF_USERNAME,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import config_entry_oauth2_flow, selector
 
 from .const import (
     AUTH_TYPE_OAUTH_GOOGLE,
     AUTH_TYPE_OAUTH_MICROSOFT,
     AUTH_TYPE_PASSWORD,
+    CONF_17TRACK_API_KEY,
     CONF_ALLOW_EXTERNAL,
     CONF_ALLOW_FORWARDED_EMAILS,
     CONF_AMAZON_CUSTOM_IMG,
     CONF_AMAZON_CUSTOM_IMG_FILE,
     CONF_AMAZON_DAYS,
     CONF_AMAZON_DOMAIN,
+    CONF_AMAZON_ENABLED,
     CONF_AMAZON_FWDS,
     CONF_AUTH_TYPE,
     CONF_CUSTOM_DAYS,
     CONF_CUSTOM_IMG,
     CONF_CUSTOM_IMG_FILE,
+    CONF_DHL_BRIEF_ENABLED,
+    CONF_DHL_BRIEF_TOKENS,
     CONF_DURATION,
     CONF_FEDEX_CUSTOM_IMG,
     CONF_FEDEX_CUSTOM_IMG_FILE,
@@ -51,6 +56,8 @@ from .const import (
     CONF_IMAP_SECURITY,
     CONF_IMAP_TIMEOUT,
     CONF_PATH,
+    CONF_POST_DE_CUSTOM_IMG,
+    CONF_POST_DE_CUSTOM_IMG_FILE,
     CONF_SCAN_INTERVAL,
     CONF_STORAGE,
     CONF_UPS_CUSTOM_IMG,
@@ -81,6 +88,8 @@ from .const import (
     DEFAULT_IMAP_TIMEOUT,
     DEFAULT_PATH,
     DEFAULT_PORT,
+    DEFAULT_POST_DE_CUSTOM_IMG,
+    DEFAULT_POST_DE_CUSTOM_IMG_FILE,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_STORAGE,
     DEFAULT_UPS_CUSTOM_IMG,
@@ -91,7 +100,12 @@ from .const import (
     OAUTH_IMAP_DEFAULTS,
     OAUTH_SCOPES,
 )
-from .helpers import get_resources
+from .shippers.dhl_briefankundigung import (
+    exchange_code,
+    extract_code,
+    generate_code_verifier,
+    get_auth_url,
+)
 from .utils.email import generate_service_email_domains, validate_email_address
 from .utils.image import _check_ffmpeg
 from .utils.imap import InvalidAuth, decode_imap_utf7, login, logout
@@ -220,6 +234,11 @@ def _validate_path_input(user_input: dict, errors: dict) -> None:
             CONF_GENERIC_CUSTOM_IMG_FILE,
             CONF_GENERIC_CUSTOM_IMG_FILE,
         ),
+        (
+            CONF_POST_DE_CUSTOM_IMG,
+            CONF_POST_DE_CUSTOM_IMG_FILE,
+            CONF_POST_DE_CUSTOM_IMG_FILE,
+        ),
     ]
 
     for toggle, file_key, error_key in file_checks:
@@ -264,6 +283,21 @@ async def _validate_forwarded_emails(user_input: dict, errors: dict) -> None:
         ]
     else:
         errors[CONF_FORWARDED_EMAILS] = status[0]
+
+
+def _flatten_step_2_sections(user_input: dict) -> dict:
+    """Flatten the step-2 UI sections back into top-level keys.
+
+    The step-2 schema groups fields into HA ``section()`` boxes, so the
+    submitted ``user_input`` nests those fields under the section keys
+    (``sec_amazon``/``sec_dhl``/``sec_source``). Move them back up so the
+    rest of the flow can read them as plain top-level keys.
+    """
+    for _sec in ("sec_amazon", "sec_dhl", "sec_source"):
+        nested = user_input.pop(_sec, None)
+        if isinstance(nested, dict):
+            user_input.update(nested)
+    return user_input
 
 
 async def _validate_user_input(user_input: dict) -> tuple:
@@ -448,7 +482,7 @@ def _get_schema_imap(user_input: list, default_dict: list) -> Any:
             vol.Optional(
                 CONF_VERIFY_SSL,
                 default=_get_default(CONF_VERIFY_SSL, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
         },
     )
 
@@ -511,13 +545,52 @@ async def _get_schema_step_2(
 
     return vol.Schema(
         {
+            "sec_source": section(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            "tracking_source",
+                            default=(
+                                "seventeen_track"
+                                if _get_default(CONF_17TRACK_API_KEY, "")
+                                else "mail"
+                            ),
+                        ): selector.SelectSelector(
+                            selector.SelectSelectorConfig(
+                                options=["mail", "seventeen_track"],
+                                mode=selector.SelectSelectorMode.LIST,
+                                translation_key="tracking_source",
+                            )
+                        ),
+                    }
+                ),
+                {"collapsed": False},
+            ),
+            "sec_amazon": section(
+                vol.Schema(
+                    {
+                        vol.Optional(
+                            CONF_AMAZON_ENABLED,
+                            default=_get_default(CONF_AMAZON_ENABLED, False),
+                        ): selector.BooleanSelector(),
+                    }
+                ),
+                {"collapsed": False},
+            ),
+            "sec_dhl": section(
+                vol.Schema(
+                    {
+                        vol.Optional(
+                            CONF_DHL_BRIEF_ENABLED,
+                            default=_get_default(CONF_DHL_BRIEF_ENABLED, False),
+                        ): selector.BooleanSelector(),
+                    }
+                ),
+                {"collapsed": False},
+            ),
             vol.Required(CONF_FOLDER, default=default_folder): multi_folder_select(
                 {m: m for m in mailboxes}
             ),
-            vol.Required(
-                CONF_RESOURCES,
-                default=_get_default(CONF_RESOURCES),
-            ): cv.multi_select(get_resources()),
             vol.Optional(
                 CONF_SCAN_INTERVAL,
                 default=_get_default(CONF_SCAN_INTERVAL),
@@ -537,43 +610,47 @@ async def _get_schema_step_2(
             vol.Optional(
                 CONF_ALLOW_FORWARDED_EMAILS,
                 default=_get_default(CONF_ALLOW_FORWARDED_EMAILS, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_GENERATE_GRID,
                 default=_get_default(CONF_GENERATE_GRID, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_GENERATE_MP4,
                 default=_get_default(CONF_GENERATE_MP4, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_ALLOW_EXTERNAL,
                 default=_get_default(CONF_ALLOW_EXTERNAL, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_CUSTOM_IMG,
                 default=_get_default(CONF_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_AMAZON_CUSTOM_IMG,
                 default=_get_default(CONF_AMAZON_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_UPS_CUSTOM_IMG,
                 default=_get_default(CONF_UPS_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_WALMART_CUSTOM_IMG,
                 default=_get_default(CONF_WALMART_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_FEDEX_CUSTOM_IMG,
                 default=_get_default(CONF_FEDEX_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_GENERIC_CUSTOM_IMG,
                 default=_get_default(CONF_GENERIC_CUSTOM_IMG, False),
-            ): cv.boolean,
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_POST_DE_CUSTOM_IMG,
+                default=_get_default(CONF_POST_DE_CUSTOM_IMG, False),
+            ): selector.BooleanSelector(),
         },
     )
 
@@ -658,6 +735,18 @@ def _get_schema_step_3(user_input: dict, default_dict: dict) -> Any:
             )
         ] = cv.string
 
+    # Only show Post DE custom image file field if Post DE custom image is enabled
+    if user_input.get(CONF_POST_DE_CUSTOM_IMG):
+        schema[
+            vol.Optional(
+                CONF_POST_DE_CUSTOM_IMG_FILE,
+                default=_get_default(
+                    CONF_POST_DE_CUSTOM_IMG_FILE,
+                    DEFAULT_POST_DE_CUSTOM_IMG_FILE,
+                ),
+            )
+        ] = cv.string
+
     return vol.Schema(schema)
 
 
@@ -725,8 +814,8 @@ def _get_schema_step_forwarded_emails(
     )
 
 
-def _get_schema_step_storage(user_input: dict, default_dict: dict) -> Any:
-    """Get a schema using the default_dict as a backup."""
+def _get_schema_seventeen_track(user_input: dict, default_dict: dict) -> Any:
+    """Return the schema for the 17track.net API-key step (shown when the toggle is on)."""
     if user_input is None:
         user_input = {}
 
@@ -737,11 +826,38 @@ def _get_schema_step_storage(user_input: dict, default_dict: dict) -> Any:
     return vol.Schema(
         {
             vol.Required(
-                CONF_STORAGE,
-                default=_get_default(CONF_STORAGE, DEFAULT_STORAGE),
+                CONF_17TRACK_API_KEY,
+                default=_get_default(CONF_17TRACK_API_KEY, ""),
             ): cv.string,
         },
     )
+
+
+def _get_schema_step_storage(
+    user_input: dict, default_dict: dict, show_dhl_reauth: bool = False
+) -> Any:
+    """Get a schema using the default_dict as a backup."""
+    if user_input is None:
+        user_input = {}
+
+    def _get_default(key: str, fallback_default: Any = None) -> None:
+        """Get default value for key."""
+        return user_input.get(key, default_dict.get(key, fallback_default))
+
+    schema = {
+        vol.Required(
+            CONF_STORAGE,
+            default=_get_default(CONF_STORAGE, DEFAULT_STORAGE),
+        ): cv.string,
+    }
+    # Only offered on reconfigure when DHL is already set up with a token:
+    # ticking it forces a fresh DHL login (e.g. after the token was revoked),
+    # otherwise the existing login is kept untouched.
+    if show_dhl_reauth:
+        schema[vol.Optional("dhl_brief_reauth", default=False)] = (
+            selector.BooleanSelector()
+        )
+    return vol.Schema(schema)
 
 
 async def _validate_login(
@@ -825,6 +941,7 @@ class MailAndPackagesFlowHandler(
         self._entry = None
         self._data = {}
         self._errors = {}
+        self._dhl_code_verifier: str | None = None
 
     async def async_step_user(self, user_input=None):
         """Handle a flow initialized by the user."""
@@ -950,31 +1067,15 @@ class MailAndPackagesFlowHandler(
         """Configure form step 2."""
         self._errors = {}
         if user_input is not None:
+            _flatten_step_2_sections(user_input)
             self._errors, user_input = await _validate_user_input(user_input)
             self._data.update(user_input)
-            _LOGGER.debug("RESOURCES: %s", self._data[CONF_RESOURCES])
             if len(self._errors) == 0:
-                if self._data[CONF_ALLOW_FORWARDED_EMAILS]:
-                    return await self.async_step_config_forwarded_emails()
-                if any(
-                    sensor in self._data[CONF_RESOURCES] for sensor in AMAZON_SENSORS
-                ):
-                    return await self.async_step_config_amazon()
-                has_custom_image = (
-                    self._data.get(CONF_CUSTOM_IMG)
-                    or self._data.get(CONF_AMAZON_CUSTOM_IMG)
-                    or self._data.get(CONF_UPS_CUSTOM_IMG)
-                    or self._data.get(CONF_WALMART_CUSTOM_IMG)
-                    or self._data.get(CONF_FEDEX_CUSTOM_IMG)
-                    or self._data.get(CONF_GENERIC_CUSTOM_IMG)
-                )
-                if has_custom_image:
-                    return await self.async_step_config_3()
-
-                return self.async_create_entry(
-                    title=f"Mail and Packages ({self._data[CONF_HOST]})",
-                    data=self._data,
-                )
+                if self._data.pop("tracking_source", "mail") == "seventeen_track":
+                    return await self.async_step_seventeen_track()
+                # Mail-based tracking selected -> drop any stored 17track key.
+                self._data.pop(CONF_17TRACK_API_KEY, None)
+                return await self._route_after_config_2()
             return await self._show_config_2(user_input)
 
         return await self._show_config_2(user_input)
@@ -999,6 +1100,7 @@ class MailAndPackagesFlowHandler(
             CONF_WALMART_CUSTOM_IMG: DEFAULT_WALMART_CUSTOM_IMG,
             CONF_FEDEX_CUSTOM_IMG: DEFAULT_FEDEX_CUSTOM_IMG,
             CONF_GENERIC_CUSTOM_IMG: DEFAULT_GENERIC_CUSTOM_IMG,
+            CONF_POST_DE_CUSTOM_IMG: DEFAULT_POST_DE_CUSTOM_IMG,
             CONF_ALLOW_FORWARDED_EMAILS: DEFAULT_ALLOW_FORWARDED_EMAILS,
         }
 
@@ -1010,6 +1112,47 @@ class MailAndPackagesFlowHandler(
                 defaults,
                 self.hass,
             ),
+            errors=self._errors,
+        )
+
+    async def _route_after_config_2(self):
+        """Branch after step 2 (and the optional 17track step) during setup."""
+        if self._data[CONF_ALLOW_FORWARDED_EMAILS]:
+            return await self.async_step_config_forwarded_emails()
+        if self._data.get(CONF_AMAZON_ENABLED) or any(
+            sensor in self._data.get(CONF_RESOURCES, []) for sensor in AMAZON_SENSORS
+        ):
+            return await self.async_step_config_amazon()
+        has_custom_image = (
+            self._data.get(CONF_CUSTOM_IMG)
+            or self._data.get(CONF_AMAZON_CUSTOM_IMG)
+            or self._data.get(CONF_UPS_CUSTOM_IMG)
+            or self._data.get(CONF_WALMART_CUSTOM_IMG)
+            or self._data.get(CONF_FEDEX_CUSTOM_IMG)
+            or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+            or self._data.get(CONF_POST_DE_CUSTOM_IMG)
+        )
+        if has_custom_image:
+            return await self.async_step_config_3()
+        return self.async_create_entry(
+            title=f"Mail and Packages ({self._data[CONF_HOST]})",
+            data=self._data,
+        )
+
+    async def async_step_seventeen_track(self, user_input=None):
+        """Enter the 17track.net API key (setup) when the toggle is on."""
+        self._errors = {}
+        if user_input is not None:
+            key = (user_input.get(CONF_17TRACK_API_KEY) or "").strip()
+            if not key:
+                # Toggle is on -> a key is mandatory.
+                self._errors[CONF_17TRACK_API_KEY] = "seventeen_track_required"
+            else:
+                self._data[CONF_17TRACK_API_KEY] = key
+                return await self._route_after_config_2()
+        return self.async_show_form(
+            step_id="seventeen_track",
+            data_schema=_get_schema_seventeen_track(user_input, self._data),
             errors=self._errors,
         )
 
@@ -1035,6 +1178,7 @@ class MailAndPackagesFlowHandler(
             CONF_WALMART_CUSTOM_IMG_FILE: DEFAULT_WALMART_CUSTOM_IMG_FILE,
             CONF_FEDEX_CUSTOM_IMG_FILE: DEFAULT_FEDEX_CUSTOM_IMG_FILE,
             CONF_GENERIC_CUSTOM_IMG_FILE: DEFAULT_GENERIC_CUSTOM_IMG_FILE,
+            CONF_POST_DE_CUSTOM_IMG_FILE: DEFAULT_POST_DE_CUSTOM_IMG_FILE,
         }
 
         return self.async_show_form(
@@ -1056,6 +1200,7 @@ class MailAndPackagesFlowHandler(
                     or self._data.get(CONF_UPS_CUSTOM_IMG)
                     or self._data.get(CONF_WALMART_CUSTOM_IMG)
                     or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+                    or self._data.get(CONF_POST_DE_CUSTOM_IMG)
                 ):
                     return await self.async_step_config_3()
                 return await self.async_step_config_storage()
@@ -1090,11 +1235,9 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
-                if any(
-                    sensor in self._data[CONF_RESOURCES] for sensor in AMAZON_SENSORS
-                ):
+                if self._data.get(CONF_AMAZON_ENABLED):
                     return await self.async_step_config_amazon()
-                if self._data[CONF_CUSTOM_IMG]:
+                if self._data.get(CONF_CUSTOM_IMG):
                     return await self.async_step_config_3()
 
                 return await self.async_step_config_storage()
@@ -1123,6 +1266,8 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
+                if self._data.get(CONF_DHL_BRIEF_ENABLED):
+                    return await self.async_step_dhl_brief_auth()
                 return self.async_create_entry(
                     title=f"Mail and Packages ({self._data[CONF_HOST]})",
                     data=self._data,
@@ -1224,29 +1369,14 @@ class MailAndPackagesFlowHandler(
         self._errors = {}
         _LOGGER.debug("Loading step 2...")
         if user_input is not None:
+            _flatten_step_2_sections(user_input)
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(user_input)
             if len(self._errors) == 0:
-                if self._data.get(CONF_ALLOW_FORWARDED_EMAILS, False):
-                    return await self.async_step_reconfig_forwarded_emails()
-
-                if any(
-                    sensor in self._data.get(CONF_RESOURCES, [])
-                    for sensor in AMAZON_SENSORS
-                ):
-                    return await self.async_step_reconfig_amazon()
-                has_custom_image = (
-                    self._data.get(CONF_CUSTOM_IMG)
-                    or self._data.get(CONF_AMAZON_CUSTOM_IMG)
-                    or self._data.get(CONF_UPS_CUSTOM_IMG)
-                    or self._data.get(CONF_WALMART_CUSTOM_IMG)
-                    or self._data.get(CONF_FEDEX_CUSTOM_IMG)
-                    or self._data.get(CONF_GENERIC_CUSTOM_IMG)
-                )
-                if has_custom_image:
-                    return await self.async_step_reconfig_3()
-
-                return await self.async_step_reconfig_storage()
+                if self._data.pop("tracking_source", "mail") == "seventeen_track":
+                    return await self.async_step_reconfig_seventeen_track()
+                self._data.pop(CONF_17TRACK_API_KEY, None)
+                return await self._route_after_reconfig_2()
 
             return await self._show_reconfig_2(user_input)
 
@@ -1262,6 +1392,44 @@ class MailAndPackagesFlowHandler(
                 self._data,
                 self.hass,
             ),
+            errors=self._errors,
+        )
+
+    async def _route_after_reconfig_2(self):
+        """Branch after step 2 (and the optional 17track step) on reconfigure."""
+        if self._data.get(CONF_ALLOW_FORWARDED_EMAILS, False):
+            return await self.async_step_reconfig_forwarded_emails()
+        if self._data.get(CONF_AMAZON_ENABLED) or any(
+            sensor in self._data.get(CONF_RESOURCES, []) for sensor in AMAZON_SENSORS
+        ):
+            return await self.async_step_reconfig_amazon()
+        has_custom_image = (
+            self._data.get(CONF_CUSTOM_IMG)
+            or self._data.get(CONF_AMAZON_CUSTOM_IMG)
+            or self._data.get(CONF_UPS_CUSTOM_IMG)
+            or self._data.get(CONF_WALMART_CUSTOM_IMG)
+            or self._data.get(CONF_FEDEX_CUSTOM_IMG)
+            or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+            or self._data.get(CONF_POST_DE_CUSTOM_IMG)
+        )
+        if has_custom_image:
+            return await self.async_step_reconfig_3()
+        return await self.async_step_reconfig_storage()
+
+    async def async_step_reconfig_seventeen_track(self, user_input=None):
+        """Enter the 17track.net API key (reconfigure) when the toggle is on."""
+        self._errors = {}
+        if user_input is not None:
+            key = (user_input.get(CONF_17TRACK_API_KEY) or "").strip()
+            if not key:
+                # Toggle is on -> a key is mandatory.
+                self._errors[CONF_17TRACK_API_KEY] = "seventeen_track_required"
+            else:
+                self._data[CONF_17TRACK_API_KEY] = key
+                return await self._route_after_reconfig_2()
+        return self.async_show_form(
+            step_id="reconfig_seventeen_track",
+            data_schema=_get_schema_seventeen_track(user_input, self._data),
             errors=self._errors,
         )
 
@@ -1288,6 +1456,7 @@ class MailAndPackagesFlowHandler(
             CONF_WALMART_CUSTOM_IMG_FILE: DEFAULT_WALMART_CUSTOM_IMG_FILE,
             CONF_FEDEX_CUSTOM_IMG_FILE: DEFAULT_FEDEX_CUSTOM_IMG_FILE,
             CONF_GENERIC_CUSTOM_IMG_FILE: DEFAULT_GENERIC_CUSTOM_IMG_FILE,
+            CONF_POST_DE_CUSTOM_IMG_FILE: DEFAULT_POST_DE_CUSTOM_IMG_FILE,
         }
 
         return self.async_show_form(
@@ -1310,6 +1479,7 @@ class MailAndPackagesFlowHandler(
                     or self._data.get(CONF_WALMART_CUSTOM_IMG)
                     or self._data.get(CONF_FEDEX_CUSTOM_IMG)
                     or self._data.get(CONF_GENERIC_CUSTOM_IMG)
+                    or self._data.get(CONF_POST_DE_CUSTOM_IMG)
                 )
                 if has_custom_image:
                     return await self.async_step_reconfig_3()
@@ -1345,10 +1515,7 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
-                if any(
-                    sensor in self._data.get(CONF_RESOURCES, [])
-                    for sensor in AMAZON_SENSORS
-                ):
+                if self._data.get(CONF_AMAZON_ENABLED):
                     return await self.async_step_reconfig_amazon()
                 if self._data.get(CONF_CUSTOM_IMG, False):
                     return await self.async_step_reconfig_3()
@@ -1374,6 +1541,27 @@ class MailAndPackagesFlowHandler(
             self._data.update(user_input)
             self._errors, user_input = await _validate_user_input(self._data)
             if len(self._errors) == 0:
+                # Transient flow-only flag -- never store it on the entry.
+                reauth = bool(self._data.pop("dhl_brief_reauth", False))
+                if self._data.get(CONF_DHL_BRIEF_ENABLED):
+                    # Reuse the existing DHL login across reconfigures instead
+                    # of forcing the browser code flow every time. The
+                    # coordinator refreshes and persists these tokens in the
+                    # background, so read the CURRENT ones from the live entry
+                    # (self._data is a wizard-start snapshot that may already be
+                    # stale -- writing it back would clobber a just-refreshed
+                    # token and break auth). Send the user through the login only
+                    # when there is no token yet (first-time enable) OR when they
+                    # explicitly opted to re-authenticate (e.g. token revoked).
+                    current_tokens = self._entry.data.get(CONF_DHL_BRIEF_TOKENS)
+                    if current_tokens and not reauth:
+                        self._data[CONF_DHL_BRIEF_TOKENS] = current_tokens
+                    else:
+                        return await self.async_step_reconfig_dhl_brief_auth()
+                else:
+                    # Brief preview turned off -> drop the stored tokens so a
+                    # later re-enable triggers a fresh login.
+                    self._data.pop(CONF_DHL_BRIEF_TOKENS, None)
                 self.hass.config_entries.async_update_entry(
                     self._entry,
                     data=self._data,
@@ -1388,8 +1576,90 @@ class MailAndPackagesFlowHandler(
 
     async def _show_reconfig_storage(self, user_input):
         """Step 3 setup."""
+        # Offer the optional "re-authenticate DHL" toggle only when it makes
+        # sense: DHL preview enabled AND a token already exists on the entry.
+        show_dhl_reauth = bool(
+            self._data.get(CONF_DHL_BRIEF_ENABLED)
+            and self._entry
+            and self._entry.data.get(CONF_DHL_BRIEF_TOKENS)
+        )
         return self.async_show_form(
             step_id="reconfig_storage",
-            data_schema=_get_schema_step_storage(user_input, self._data),
+            data_schema=_get_schema_step_storage(
+                user_input, self._data, show_dhl_reauth
+            ),
+            errors=self._errors,
+        )
+
+    # ------------------------------------------------------------------ DHL --
+
+    async def async_step_dhl_brief_auth(self, user_input=None):
+        """Exchange DHL authorization code for tokens (new setup)."""
+        self._errors = {}
+        if user_input is not None:
+            raw = user_input.get("dhl_brief_code", "").strip()
+            code = extract_code(raw)
+            if not code:
+                self._errors["dhl_brief_code"] = "invalid_auth"
+            else:
+                try:
+                    tokens = await exchange_code(
+                        self.hass, code, self._dhl_code_verifier
+                    )
+                    self._data[CONF_DHL_BRIEF_TOKENS] = tokens
+                except Exception:  # noqa: BLE001
+                    self._errors["dhl_brief_code"] = "invalid_auth"
+            if not self._errors:
+                return self.async_create_entry(
+                    title=f"Mail and Packages ({self._data[CONF_HOST]})",
+                    data=self._data,
+                )
+
+        # A new PKCE code_verifier is minted every time the form is (re)shown
+        # -- reusing one across attempts gets rejected by DHL as a replay.
+        self._dhl_code_verifier = generate_code_verifier()
+        return self.async_show_form(
+            step_id="config_dhl_brief_auth",
+            data_schema=vol.Schema({vol.Required("dhl_brief_code"): cv.string}),
+            description_placeholders={
+                "auth_url": get_auth_url(self._dhl_code_verifier)
+            },
+            errors=self._errors,
+        )
+
+    async def async_step_reconfig_dhl_brief_auth(self, user_input=None):
+        """Exchange DHL authorization code for tokens (reconfigure)."""
+        self._errors = {}
+        if user_input is not None:
+            raw = user_input.get("dhl_brief_code", "").strip()
+            code = extract_code(raw)
+            if not code:
+                self._errors["dhl_brief_code"] = "invalid_auth"
+            else:
+                try:
+                    tokens = await exchange_code(
+                        self.hass, code, self._dhl_code_verifier
+                    )
+                    self._data[CONF_DHL_BRIEF_TOKENS] = tokens
+                except Exception:  # noqa: BLE001
+                    self._errors["dhl_brief_code"] = "invalid_auth"
+            if not self._errors:
+                self.hass.config_entries.async_update_entry(
+                    self._entry,
+                    data=self._data,
+                )
+                await self.hass.config_entries.async_reload(self._entry.entry_id)
+                _LOGGER.debug("%s reconfigured (DHL).", DOMAIN)
+                return self.async_abort(reason="reconfigure_successful")
+
+        # A new PKCE code_verifier is minted every time the form is (re)shown
+        # -- reusing one across attempts gets rejected by DHL as a replay.
+        self._dhl_code_verifier = generate_code_verifier()
+        return self.async_show_form(
+            step_id="reconfig_dhl_brief_auth",
+            data_schema=vol.Schema({vol.Required("dhl_brief_code"): cv.string}),
+            description_placeholders={
+                "auth_url": get_auth_url(self._dhl_code_verifier)
+            },
             errors=self._errors,
         )

@@ -23,6 +23,8 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_entry_oauth2_flow
+from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import (
     ConfigEntryAuthFailed,
     DataUpdateCoordinator,
@@ -31,26 +33,46 @@ from homeassistant.helpers.update_coordinator import (
 
 from . import const
 from .const import (
+    AMAZON_DELIVERED_ORDERS,
+    AMAZON_ORDER_TRACKING,
     ATTR_USPS_IMAGE,
     AUTH_TYPE_PASSWORD,
     CONF_ALLOW_EXTERNAL,
     CONF_AUTH_TYPE,
     CONF_CUSTOM_DAYS,
+    CONF_DHL_BRIEF_ENABLED,
+    CONF_DHL_BRIEF_TOKENS,
     CONF_FOLDER,
     CONF_IMAP_SECURITY,
     CONF_IMAP_TIMEOUT,
     DEFAULT_CUSTOM_DAYS,
     DEFAULT_IMAP_TIMEOUT,
     DOMAIN,
+    HISTORY_RETENTION_DAYS,
     MAX_TRACKING_AGE_DAYS,
 )
 from .helpers import copy_images
 from .shippers import get_shipper_for_sensor
+from .shippers.dhl_briefankundigung import DHLBriefankundigungClient
+from .shippers.universal import UniversalTrackingShipper
 from .utils.cache import EmailCache
 from .utils.image import default_image_path, hash_file, image_file_name
-from .utils.imap import InvalidAuth, login, logout, selectfolder
+from .utils.imap import (
+    InvalidAuth,
+    QuerySpec,
+    batch_search_folders,
+    login,
+    logout,
+    selectfolder,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+# Per-carrier email status sensor suffixes. In 17track mode (API key set)
+# sensors with these suffixes are skipped: the API is the authoritative
+# status source, and each skipped sensor saves IMAP commands on servers
+# with tight per-connection command budgets (e.g. Exchange Online).
+_STATUS_SENSOR_SUFFIXES = ("_delivering", "_delivered", "_exception", "_packages")
 
 
 @dataclass
@@ -84,6 +106,11 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         self._file_mtime_cache = {}
         self._hash_cache = {}
         self._in_transit_tracking: dict[str, dict[str, str]] = {}
+        self._history: list[dict] = []
+        self._history_backfilled = False
+        self._manual_tracking: dict[str, dict] = {}
+        self._tracking_loaded = False
+        self._store: Store = Store(hass, 1, f"{DOMAIN}.tracking")
 
         _LOGGER.debug("Data will be update every %s", self.interval)
 
@@ -137,9 +164,20 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                         except Exception as err:
                             _LOGGER.error("Error refreshing OAuth token")
                             _LOGGER.debug("OAuth token refresh error details: %s", err)
-                            raise UpdateFailed("OAuth token refresh failed") from err
+                            # Auth is broken -> ConfigEntryAuthFailed makes HA
+                            # raise a reauth repair (Settings > Repairs) and
+                            # prompt re-authentication, instead of an opaque
+                            # "update failed" retry loop.
+                            raise ConfigEntryAuthFailed(
+                                "OAuth token refresh failed"
+                            ) from err
 
                     data = await self.process_emails(self.hass, config)
+                except ConfigEntryAuthFailed:
+                    # Let auth failures (OAuth refresh above, or IMAP login in
+                    # _get_imap_connection) reach the coordinator so it opens a
+                    # reauth repair -- do NOT convert them to UpdateFailed below.
+                    raise
                 except UpdateFailed:
                     raise
                 except Exception as error:
@@ -179,18 +217,59 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             days = config.get(CONF_CUSTOM_DAYS, DEFAULT_CUSTOM_DAYS)
             since_date = (now - datetime.timedelta(days=days)).strftime("%d-%b-%Y")
 
+            # Load persisted tracking state on first scan after startup
+            if not self._tracking_loaded:
+                await self._async_load_tracking()
+                self._tracking_loaded = True
+
             # Process logic
-            shipper_data = await self._update_shippers(
+            shipper_data, account = await self._update_shippers(
                 account, config, today, since_date, cache
             )
-            tracking_details = shipper_data.pop("_tracking_details", {})
+            # 17track key bad/expired -> repair issue (Settings > Repairs);
+            # cleared automatically once a query succeeds again.
+            if shipper_data.pop("_17track_auth_failed", False):
+                ir.async_create_issue(
+                    hass,
+                    DOMAIN,
+                    "seventeen_track_auth_failed",
+                    is_fixable=True,
+                    severity=ir.IssueSeverity.ERROR,
+                    translation_key="seventeen_track_auth_failed",
+                    data={"entry_id": self.config_entry.entry_id},
+                )
+            else:
+                ir.async_delete_issue(hass, DOMAIN, "seventeen_track_auth_failed")
+            # When a 17track API key is configured, use only the status data
+            # that 17track produced (keyed as _17track_details). This prevents
+            # email-based status classifications from conflicting with the
+            # authoritative 17track status. Without an API key the existing
+            # email-based _tracking_details are used as before.
+            if config.get(const.CONF_17TRACK_API_KEY):
+                tracking_details = shipper_data.pop("_17track_details", {})
+                shipper_data.pop("_tracking_details", None)
+            else:
+                tracking_details = shipper_data.pop("_tracking_details", {})
             data.update(shipper_data)
+            await self._process_manual_tracking(data, config, today_iso)
             self._apply_tracking_state(data, tracking_details, today_iso)
+            self._record_amazon_delivered_history(data, today_iso)
+            self._backfill_history(data, today_iso)
+            self._finalize_history(data, today_iso)
+            if config.get(const.CONF_17TRACK_API_KEY):
+                self._derive_17track_delivered_counts(data, today_iso)
+
+            # Persist updated tracking state so it survives restarts
+            await self._async_save_tracking()
 
             # Aggregate global transit and delivered sensors
             self._aggregate_package_counts(data)
         finally:
             await logout(account)
+
+        # Fetch DHL Briefankündigung (letter previews) if configured
+        if config.get(CONF_DHL_BRIEF_ENABLED):
+            await self._fetch_dhl_brief(hass, data)
 
         # Post-process external images
         if config.get(CONF_ALLOW_EXTERNAL):
@@ -207,10 +286,11 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             "mail_updated": datetime.datetime.now(datetime.UTC).isoformat(),
             "amazon_delivered_by_others": 0,
         }
-        resources = self.config.get(CONF_RESOURCES, [])
-        for sensor in resources:
+        for sensor in const.SENSOR_TYPES:
             if sensor not in data:
                 data[sensor] = 0
+        # DHL brief sensor list starts empty (no letters yet)
+        data["dhl_brief_letters"] = []
         return data
 
     async def _setup_image_config(self, hass: HomeAssistant, config: dict) -> dict:
@@ -224,6 +304,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             "walmart_image": (False, False, True, False),
             "fedex_image": (False, False, False, True),
             "usps_image": (False, False, False, False),
+            "post_de_image": (False, False, False, False),
         }
 
         for key, params in shipper_images.items():
@@ -248,21 +329,51 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
             )
         except InvalidAuth as err:
             _LOGGER.error("Authentication failed: %s", err)
+            # Create a repairs issue for authentication failure
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                "auth_failed",
+                is_fixable=True,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="auth_failed",
+                data={"entry_id": self.config_entry.entry_id}
+                if self.config_entry
+                else None,
+            )
             raise ConfigEntryAuthFailed from err
         except Exception as err:
             _LOGGER.error("Error logging into IMAP: %s", err)
             raise UpdateFailed(f"Login failed: {err}") from err
+        # Login succeeded, delete the issue if it exists
+        issue_registry = ir.async_get(self.hass)
+        if (DOMAIN, "auth_failed") in issue_registry.issues:
+            ir.async_delete_issue(self.hass, DOMAIN, "auth_failed")
+
+        # Stashed so utils.imap can transparently reconnect if a command
+        # stalls mid-scan (observed against Exchange Online: a connection
+        # stops responding to further commands after enough have been
+        # issued, regardless of pacing between them).
+        account._login_kwargs = {  # noqa: SLF001
+            "host": config.get(CONF_HOST),
+            "port": config.get(CONF_PORT),
+            "user": config.get(CONF_USERNAME),
+            "pwd": config.get(CONF_PASSWORD),
+            "security": config.get(CONF_IMAP_SECURITY),
+            "verify": config.get(CONF_VERIFY_SSL),
+            "oauth_token": config.get("oauth_token"),
+            "timeout": self.timeout,
+        }
+        account._hass = self.hass  # noqa: SLF001
 
         folders = config.get(CONF_FOLDER)
-        if not folders:
-            folders = ["INBOX"]
-        elif isinstance(folders, str):
+        if isinstance(folders, str):
             folders = [folders]
         elif isinstance(folders, (list, tuple, set)):
             folders = [f for f in folders if isinstance(f, str) and f]
-            if not folders:
-                folders = ["INBOX"]
         else:
+            folders = []
+        if not folders:
             folders = ["INBOX"]
         account._folders = folders  # noqa: SLF001
         account._current_folder = None  # noqa: SLF001
@@ -281,6 +392,64 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
         return account
 
+    async def _prefetch_imap_searches(
+        self,
+        account: IMAP4_SSL,
+        sensors_by_shipper: dict,
+        today: str,
+        since_date: str,
+    ) -> IMAP4_SSL:
+        """Collect all IMAP queries from all shippers and batch-execute per folder.
+
+        This ensures each IMAP folder is SELECTed exactly once for the entire
+        scan instead of once per sensor, cutting SELECT round-trips from
+        N_sensors × N_folders down to N_folders.
+
+        Returns the account to use for the rest of the scan -- batch_search_folders
+        may return a new connection object if a stalled command forced a reconnect.
+        """
+        all_queries: list[QuerySpec] = []
+        for shipper_group in sensors_by_shipper.values():
+            shipper_instance = shipper_group[0][0]
+            sensors = [s[1] for s in shipper_group]
+            if hasattr(shipper_instance, "collect_queries"):
+                try:
+                    all_queries.extend(
+                        shipper_instance.collect_queries(
+                            account, today, sensors, since_date
+                        )
+                    )
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Could not collect queries for pre-fetch: %s", err)
+
+        if all_queries:
+            n_folders = len(getattr(account, "_folders", ["INBOX"]))
+            n_unique = len({spec.query for spec in all_queries})
+            _LOGGER.debug(
+                "Pre-fetching %d unique queries across %d folder(s) "
+                "(%d total before dedup) via one broad search per folder",
+                n_unique,
+                n_folders,
+                len(all_queries),
+            )
+            prefetch_start = monotonic()
+            account = await batch_search_folders(account, all_queries)
+            _LOGGER.debug(
+                "Pre-fetch complete in %.1fs (%d broad SEARCHes + batched FETCHes)",
+                monotonic() - prefetch_start,
+                n_folders,
+            )
+        return account
+
+    # Fork-native sensors that didn't exist when a user's legacy `resources`
+    # list (the old "which carrier to scan" UI selection) was created, so
+    # they can never appear in that list. A legacy filter must not hide them.
+    _ALWAYS_SCANNED_SENSORS = {
+        "universal_packages",
+        "dhl_brief_anzahl",
+        "packages_history",
+    }
+
     async def _update_shippers(
         self,
         account: IMAP4_SSL,
@@ -288,18 +457,71 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         today: str,
         since_date: str,
         cache: EmailCache,
-    ) -> dict:
-        """Group and process sensors by shipper."""
-        data = {}
-        resources = config.get(CONF_RESOURCES, [])
-        sensors_by_shipper = {}
+    ) -> tuple[dict, IMAP4_SSL]:
+        """Group and process sensors by shipper.
 
-        for sensor in resources:
+        Returns (data, account) -- the account may be a new connection object
+        if pre-fetch had to reconnect after a stalled command; the cache is
+        re-pointed at it so subsequent fetches don't use the dead connection.
+        """
+        data = {}
+        amazon_enabled = config.get(const.CONF_AMAZON_ENABLED, False)
+        seventeen_track_mode = bool(config.get(const.CONF_17TRACK_API_KEY))
+        # Legacy `resources` field (pre-fork UI's carrier selection). Only
+        # non-empty for old configs migrated from before the fork removed
+        # the resources-editing UI; new installations never set it, so the
+        # filter below is a no-op for them.
+        active_resources = config.get(CONF_RESOURCES)
+        sensors_by_shipper: dict[str, list[tuple]] = {}
+
+        # Data-driven binary sensors (search-criteria based, e.g.
+        # usps_mail_delivered) live only in BINARY_SENSORS; upstream covered
+        # them via the resources-driven loop the fork removed, so scan them
+        # alongside the regular SENSOR_TYPES keys.
+        binary_data_sensors = [
+            key
+            for key in const.BINARY_SENSORS
+            if key in const.SENSOR_DATA and key not in const.SENSOR_TYPES
+        ]
+        for sensor in [*const.SENSOR_TYPES, *binary_data_sensors]:
+            if not amazon_enabled and sensor.startswith("amazon_"):
+                continue
+            # 17track mode: the API is the authoritative package status
+            # source, so per-carrier email status searches are skipped to
+            # save IMAP commands. Mail sensors, binary data sensors, fork-
+            # native sensors, and Amazon (not covered by 17track) keep
+            # scanning.
+            if (
+                seventeen_track_mode
+                and sensor.endswith(_STATUS_SENSOR_SUFFIXES)
+                and not sensor.startswith("amazon_")
+                and sensor not in self._ALWAYS_SCANNED_SENSORS
+                and sensor not in binary_data_sensors
+            ):
+                continue
+            # Revive the legacy `resources` field as an opt-in performance
+            # filter: old configs with a long, unused carrier list (e.g.
+            # auspost, poczta_polska, ...) previously caused every carrier to
+            # be scanned regardless of that selection, blowing up scan times.
+            # Only filters when a non-empty legacy list is present; fork-
+            # native sensors and binary data sensors are never filtered.
+            if (
+                active_resources
+                and sensor not in active_resources
+                and sensor not in self._ALWAYS_SCANNED_SENSORS
+                and sensor not in binary_data_sensors
+            ):
+                continue
             shipper = get_shipper_for_sensor(self.hass, config, sensor)
             if shipper:
                 sensors_by_shipper.setdefault(shipper.name, []).append(
                     (shipper, sensor)
                 )
+
+        account = await self._prefetch_imap_searches(
+            account, sensors_by_shipper, today, since_date
+        )
+        cache.account = account
 
         for shipper_name, shipper_group in sensors_by_shipper.items():
             shipper_instance = shipper_group[0][0]
@@ -312,6 +534,10 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                     account, today, sensors, cache, since_date=since_date
                 )
                 if isinstance(results, dict):
+                    if "_tracking_details" in results:
+                        data.setdefault("_tracking_details", {}).update(
+                            results.pop("_tracking_details")
+                        )
                     data.update(results)
                 success = True
             except Exception as err:  # noqa: BLE001
@@ -324,7 +550,7 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                     monotonic() - shipper_start,
                 )
 
-        return data
+        return data, account
 
     def _apply_tracking_state(
         self,
@@ -333,25 +559,83 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         today_iso: str,
     ) -> None:
         """Update in-transit tracking state and override sensor counts."""
-        prefixes: set[str] = set()
+        # Full per-number detail (incl. 17track's event "history") only
+        # lives in the universal shipper's own lists -- look it up by
+        # number so a delivered record retains its event history instead of
+        # losing it the moment the number drops out of active tracking.
+        details_by_number = {
+            item.get("number"): item
+            for item in (
+                list(data.get("universal_tracking_details") or [])
+                + list(data.get("universal_delivered_details") or [])
+            )
+            if item.get("number")
+        }
+        prefixes: set[str] = set(self._in_transit_tracking.keys())
         for sensor_key in tracking_details:
             prefix = "_".join(sensor_key.split("_")[:-1])
             if prefix:
                 prefixes.add(prefix)
 
         for prefix in prefixes:
+            if prefix in self._in_transit_tracking and not (
+                f"{prefix}_delivering" in tracking_details
+                or f"{prefix}_exception" in tracking_details
+                or f"{prefix}_delivered" in tracking_details
+            ):
+                _LOGGER.debug(
+                    "Prefix '%s' has no tracking_details entries — "
+                    "may be a removed carrier; tracking will persist until TTL expiry",
+                    prefix,
+                )
+
             delivering = list(tracking_details.get(f"{prefix}_delivering", []))
             delivering += list(tracking_details.get(f"{prefix}_exception", []))
             delivered = list(tracking_details.get(f"{prefix}_delivered", []))
 
-            self._update_tracking_for_prefix(
+            delivered_removed = self._update_tracking_for_prefix(
                 prefix, delivering, delivered, today_iso, MAX_TRACKING_AGE_DAYS
             )
+            for tid, first_seen in delivered_removed:
+                self._history.append(
+                    {
+                        "carrier": prefix,
+                        "number": tid,
+                        "delivered": today_iso,
+                        "first_seen": first_seen,
+                        "history": details_by_number.get(tid, {}).get("history") or [],
+                    }
+                )
 
             in_transit = self._in_transit_tracking.get(prefix, {})
-            if in_transit:
+            # A carrier that reported DELIVERING/EXCEPTION tracking details
+            # this scan must have its count overridden even when the
+            # in-transit map ends up EMPTY: when every tracked package has a
+            # delivered notification, the raw IMAP count (which cannot dedup
+            # prior-day deliveries) would otherwise leak through as the
+            # sensor value. Batch-level dedup already zeroes the count for
+            # shippers that emit tracking details, so this is defense in
+            # depth at the state-machine layer. Delivered-only details must
+            # NOT trigger the override: a carrier whose delivering emails
+            # yielded no extractable tracking numbers has a legitimate
+            # email-based count that tracking-level dedup cannot verify —
+            # and carriers with no tracking details at all keep their
+            # email-count value untouched.
+            has_details = any(
+                f"{prefix}_{suffix}" in tracking_details
+                for suffix in ("delivering", "exception")
+            )
+            if in_transit or has_details:
+                if not in_transit and data.get(f"{prefix}_delivering"):
+                    _LOGGER.debug(
+                        "Prefix '%s': no tracked packages remain in transit — "
+                        "overriding delivering count %s -> 0",
+                        prefix,
+                        data.get(f"{prefix}_delivering"),
+                    )
                 data[f"{prefix}_tracking"] = list(in_transit.keys())
                 data[f"{prefix}_delivering"] = len(in_transit)
+            if in_transit:
                 delivered_count = data.get(f"{prefix}_delivered", 0)
                 data[f"{prefix}_packages"] = len(in_transit) + (
                     delivered_count if isinstance(delivered_count, int) else 0
@@ -364,8 +648,13 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         delivered: list[str],
         today_iso: str,
         ttl_days: int,
-    ) -> None:
-        """Add/expire delivering tracking numbers and remove delivered ones."""
+    ) -> list[tuple[str, str | None]]:
+        """Add/expire delivering tracking numbers and remove delivered ones.
+
+        Returns (tracking_number, first_seen) pairs for numbers that were
+        removed because they were delivered, so callers can record them in
+        the persistent history.
+        """
         if prefix not in self._in_transit_tracking:
             self._in_transit_tracking[prefix] = {}
 
@@ -377,8 +666,11 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
                 in_transit[tid] = today_iso
 
         # Remove delivered tracking numbers
+        delivered_removed: list[tuple[str, str | None]] = []
         for tid in delivered:
-            in_transit.pop(tid, None)
+            if tid in in_transit:
+                first_seen = in_transit.pop(tid)
+                delivered_removed.append((tid, first_seen))
 
         # Expire entries older than TTL
         cutoff = (
@@ -387,6 +679,211 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
         expired = [tid for tid, seen in in_transit.items() if seen < cutoff]
         for tid in expired:
             del in_transit[tid]
+
+        return delivered_removed
+
+    def _record_amazon_delivered_history(self, data: dict, today_iso: str) -> None:
+        """Add newly delivered Amazon orders to the persistent history.
+
+        Deduplicated across the whole history by order id so a re-detected
+        delivery on a later scan doesn't produce a duplicate entry.
+        """
+        orders = data.get(AMAZON_DELIVERED_ORDERS) or []
+        if not orders:
+            return
+
+        order_tracking = data.get(AMAZON_ORDER_TRACKING) or {}
+        existing_orders = {
+            record.get("order")
+            for record in self._history
+            if record.get("carrier") == "amazon"
+        }
+
+        for order_id in orders:
+            if order_id in existing_orders:
+                continue
+            self._history.append(
+                {
+                    "carrier": "amazon",
+                    "number": order_tracking.get(order_id),
+                    "order": order_id,
+                    "delivered": today_iso,
+                    "first_seen": None,
+                }
+            )
+            existing_orders.add(order_id)
+
+    def _backfill_history(self, data: dict, today_iso: str) -> None:
+        """One-time backfill of history from already-delivered tracking data.
+
+        Deliveries that happened before this history feature was enabled
+        never went through the in-transit -> delivered transition that
+        normally creates a history record, so they'd be permanently
+        missing. This runs exactly once (guarded by the persisted
+        "history_backfilled" flag) and seeds the history from any
+        currently-known "Delivered" entries the universal scan found (the
+        shipper exports them separately as universal_delivered_details --
+        the card-facing list drops delivered items) so the history section
+        isn't empty just because the feature shipped after the delivery
+        happened.
+
+        Amazon orders are intentionally NOT backfilled here: Amazon order
+        detection is today-only (see _record_amazon_delivered_history /
+        the Amazon shipper), so there is no historical data to draw from.
+        """
+        if self._history_backfilled:
+            return
+
+        existing_numbers = {record.get("number") for record in self._history}
+        delivered_items = list(data.get("universal_delivered_details") or [])
+        # Fallback for setups/tests that still carry Delivered entries in the
+        # card-facing list.
+        delivered_items += [
+            item
+            for item in data.get("universal_tracking_details") or []
+            if item.get("status") == "Delivered"
+        ]
+        for item in delivered_items:
+            number = item.get("number")
+            if not number or number in existing_numbers:
+                continue
+
+            last_update = item.get("last_update") or ""
+            delivered = last_update[:10]
+            try:
+                datetime.date.fromisoformat(delivered)
+            except ValueError:
+                delivered = today_iso
+
+            self._history.append(
+                {
+                    "carrier": item.get("carrier"),
+                    "number": number,
+                    "delivered": delivered,
+                    "first_seen": None,
+                    "history": item.get("history") or [],
+                }
+            )
+            existing_numbers.add(number)
+
+        self._history_backfilled = True
+
+    def _finalize_history(self, data: dict, today_iso: str) -> None:
+        """Prune expired history entries, sort newest first, expose via data."""
+        cutoff = (
+            datetime.date.fromisoformat(today_iso)
+            - datetime.timedelta(days=HISTORY_RETENTION_DAYS)
+        ).isoformat()
+        self._history = [
+            record for record in self._history if record.get("delivered", "") >= cutoff
+        ]
+        self._history.sort(key=lambda record: record.get("delivered", ""), reverse=True)
+
+        data["packages_history"] = len(self._history)
+        data["packages_history_details"] = list(self._history)
+
+    def _derive_17track_delivered_counts(self, data: dict, today_iso: str) -> None:
+        """Derive per-carrier delivered counts from today's history records.
+
+        17track mode skips the per-carrier email status sensors, so the
+        *_delivered counts come from the persistent delivery history
+        instead. Runs every cycle so the counts reset naturally at
+        midnight when today_iso changes.
+        """
+        for prefix in ("ups", "usps", "fedex", "gls", "dhl"):
+            data[f"{prefix}_delivered"] = sum(
+                1
+                for record in self._history
+                if record.get("carrier") == prefix
+                and record.get("delivered") == today_iso
+            )
+
+    async def _process_manual_tracking(
+        self, data: dict, config: dict, today_iso: str
+    ) -> None:
+        """Enrich manually-added shipments and fold them into the active list.
+
+        Uses 17track, exactly like automatically-discovered ones. Delivered
+        manual entries transition into the persistent history
+        store and drop out of the manual list, mirroring the automatic
+        in-transit -> delivered transition in _apply_tracking_state.
+        """
+        if not self._manual_tracking:
+            return
+        api_key = config.get(const.CONF_17TRACK_API_KEY)
+        if not api_key:
+            return
+
+        numbers = list(self._manual_tracking.keys())
+        found = {
+            n: self._manual_tracking[n].get("carrier") or "unknown" for n in numbers
+        }
+        shipper = UniversalTrackingShipper(self.hass, config)
+        enriched = await shipper._enrich_with_17track(numbers, found)  # noqa: SLF001
+
+        active_list = data.setdefault("universal_tracking_details", [])
+        for detail in enriched:
+            number = detail["number"]
+            manual_meta = self._manual_tracking.get(number, {})
+            detail["source"] = "manual"
+            if manual_meta.get("retailer"):
+                detail["retailer"] = manual_meta["retailer"]
+            if manual_meta.get("memo"):
+                detail["memo"] = manual_meta["memo"]
+
+            if detail.get("status_code") == 40:
+                self._history.append(
+                    {
+                        "carrier": detail.get("carrier"),
+                        "number": number,
+                        "delivered": today_iso,
+                        "first_seen": manual_meta.get("added"),
+                        "history": detail.get("history") or [],
+                    }
+                )
+                del self._manual_tracking[number]
+            else:
+                active_list.append(detail)
+                # active_details' count was already fixed by process_batch
+                # before manual entries existed -- bump it so the
+                # universal_packages sensor state matches its own
+                # tracking_details attribute list length.
+                data["universal_packages"] = data.get("universal_packages", 0) + 1
+
+    async def _async_load_tracking(self) -> None:
+        """Load persisted in-transit tracking state from storage."""
+        stored = await self._store.async_load()
+        if stored and isinstance(stored.get("in_transit"), dict):
+            self._in_transit_tracking = stored["in_transit"]
+            _LOGGER.debug(
+                "Loaded %d tracked prefix(es) from storage",
+                len(self._in_transit_tracking),
+            )
+        if stored and isinstance(stored.get("history"), list):
+            self._history = stored["history"]
+            _LOGGER.debug(
+                "Loaded %d delivered package history record(s) from storage",
+                len(self._history),
+            )
+        if stored and isinstance(stored.get("history_backfilled"), bool):
+            self._history_backfilled = stored["history_backfilled"]
+        if stored and isinstance(stored.get("manual"), dict):
+            self._manual_tracking = stored["manual"]
+            _LOGGER.debug(
+                "Loaded %d manually-added tracking number(s) from storage",
+                len(self._manual_tracking),
+            )
+
+    async def _async_save_tracking(self) -> None:
+        """Persist current in-transit tracking state and history to storage."""
+        await self._store.async_save(
+            {
+                "in_transit": self._in_transit_tracking,
+                "history": self._history,
+                "history_backfilled": self._history_backfilled,
+                "manual": self._manual_tracking,
+            }
+        )
 
     def _aggregate_package_counts(self, data: dict) -> None:
         """Aggregate global transit and delivered counts from all shippers."""
@@ -446,7 +943,104 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
         return transit
 
-    async def _binary_sensor_update(self):
+    async def _fetch_dhl_brief(self, hass: HomeAssistant, data: dict) -> None:
+        """Fetch DHL Briefankündigung letters and update data dict."""
+        if not self.config_entry:
+            return
+
+        tokens = self.config_entry.data.get(CONF_DHL_BRIEF_TOKENS)
+        if not tokens:
+            _LOGGER.warning("DHL Briefankündigung: keine Tokens gespeichert")
+            return
+
+        client = DHLBriefankundigungClient(hass, tokens)
+        letters = await client.fetch_letters()
+
+        # Persist any refreshed/rotated tokens IMMEDIATELY, before the
+        # no-letters early return below. DHL's login (Azure AD B2C) rotates the
+        # refresh token on every refresh and invalidates the previous one, so a
+        # rotated token MUST be saved even on the common "no letters" day --
+        # otherwise the next scan reuses the now-dead token and login/token
+        # returns HTTP 400, permanently breaking the feature within hours.
+        self._persist_dhl_tokens(client.tokens, tokens)
+
+        # DHL login dead -> surface a repair issue (Settings > Repairs) so the
+        # user is prompted to re-authenticate instead of silently losing the
+        # feature. Cleared automatically once a fetch succeeds again.
+        if client.auth_failed:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                "dhl_brief_auth_failed",
+                is_fixable=True,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="dhl_brief_auth_failed",
+                data={"entry_id": self.config_entry.entry_id},
+            )
+            data["dhl_brief_anzahl"] = 0
+            data["dhl_brief_letters"] = []
+            return
+
+        # Auth works -> clear any previously raised repair issue.
+        ir.async_delete_issue(hass, DOMAIN, "dhl_brief_auth_failed")
+
+        if not letters:
+            data["dhl_brief_anzahl"] = 0
+            data["dhl_brief_letters"] = []
+            return
+
+        # Image storage: <ha_config>/www/mail_and_packages/dhl_letters/
+        letters_dir = (
+            Path(hass.config.path()) / "www" / "mail_and_packages" / "dhl_letters"
+        )
+
+        letter_details: list[dict] = []
+
+        for letter in letters:
+            letter_id = str(letter.get("id", letter.get("adviceId", "")))
+            # Keep the announced delivery date as an attribute on each letter
+            raw_date = (
+                letter.get("plannedDeliveryDate")
+                or letter.get("deliveryDate")
+                or letter.get("date")
+                or letter.get("expectedDelivery")
+            )
+
+            image_url = (
+                letter.get("imageUrl")
+                or letter.get("image_url")
+                or letter.get("previewUrl")
+            )
+            image_path: str | None = None
+            if image_url and letter_id:
+                save_path = str(letters_dir / f"{letter_id}.jpg")
+                image_path = await client.fetch_and_decrypt_image(image_url, save_path)
+
+            letter_details.append(
+                {
+                    "id": letter_id,
+                    "date": raw_date,
+                    "image_path": image_path,
+                }
+            )
+
+        data["dhl_brief_anzahl"] = len(letters)
+        data["dhl_brief_letters"] = letter_details
+
+        # Tokens may have rotated again during image download; persist once more.
+        self._persist_dhl_tokens(client.tokens, tokens)
+
+    def _persist_dhl_tokens(self, new_tokens: dict, old_tokens: dict) -> None:
+        """Save rotated DHL Briefankündigung tokens back to the config entry."""
+        if not self.config_entry or new_tokens == old_tokens:
+            return
+        new_entry_data = dict(self.config_entry.data)
+        new_entry_data[CONF_DHL_BRIEF_TOKENS] = new_tokens
+        self.hass.config_entries.async_update_entry(
+            self.config_entry, data=new_entry_data
+        )
+
+    async def _binary_sensor_update(self):  # noqa: C901
         """Update binary sensor states."""
         # USPS uses ATTR_USPS_IMAGE instead of the old ATTR_IMAGE_NAME
         _LOGGER.debug("Data: %s", self._data)
@@ -516,6 +1110,8 @@ class MailDataUpdateCoordinator(DataUpdateCoordinator):
 
                 if custom_img_key and self.config.get(custom_img_key):
                     none_image = self.config.get(custom_img_file_key)
+                elif base_name == "post_de":
+                    none_image = f"{Path(__file__).parent}/mail_none.gif"
                 else:
                     none_image = (
                         f"{Path(__file__).parent}/no_deliveries_{base_name}.jpg"

@@ -36,10 +36,16 @@
           "generic_custom_img": "Použiť vlastný obrázok všeobecný 'bez dodávky'?",
           "generate_grid": "Vytvoriť mriežku obrázkov pre modely videnia LLM",
           "allow_forwarded_emails": "Povoliť preposielané e-maily okrem predvolenej hodnoty služby (napr. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Počet dní dozadu na kontrolu e-mailov o balíkoch (minimum 1, predvolené 3)",
+          "amazon_enabled": "Povoliť senzory balíkov Amazon",
+          "seventeen_track_api_key": "API kľúč 17track.net (voliteľné)",
+          "dhl_brief_enabled": "Povoliť náhľad listov DHL"
         },
         "description": "Dokončite konfiguráciu prispôsobením nasledujúcich položiek na základe štruktúry e-mailu a inštalácie Home Assistant.\n\nPodrobnosti nájdete na [Pošta a balíky integrácia](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) možnosti si pozrite v časti [konfigurácia, šablóny a automatizácie](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) na GitHube.",
-        "title": "Pošta a balíky (krok 2 z 2)"
+        "title": "Pošta a balíky (krok 2 z 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Voliteľné. S API kľúčom 17track.net poskytuje 17track smerodajný stav pre všetky zistené sledovacie čísla (okrem Amazonu) — detekcia stavu na základe e-mailov dopravcu sa potom preskočí."
+        }
       },
       "config_3": {
         "data": {
@@ -80,10 +86,16 @@
           "generic_custom_img": "Použiť vlastný obrázok všeobecný 'bez dodávky'?",
           "generate_grid": "Vytvoriť mriežku obrázkov pre modely videnia LLM",
           "allow_forwarded_emails": "Povoliť preposielané e-maily okrem predvolenej hodnoty služby (napr. no-reply@usps.com)",
-          "custom_days": "Days back to check for package emails (minimum 1, default 3)"
+          "custom_days": "Počet dní dozadu na kontrolu e-mailov o balíkoch (minimum 1, predvolené 3)",
+          "amazon_enabled": "Povoliť senzory balíkov Amazon",
+          "seventeen_track_api_key": "API kľúč 17track.net (voliteľné)",
+          "dhl_brief_enabled": "Povoliť náhľad listov DHL"
         },
         "description": "Dokončite konfiguráciu prispôsobením nasledujúceho na základe štruktúry vášho e-mailu a inštalácie Home Assistant.\n\nPre podrobnosti o možnostiach [integrácie Mail a Packages](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) si prečítajte [sekciu o konfigurácii, šablónach a automatizáciách](https://github.com/moralmunky/Home-Assistant-Mail-And-Packages/wiki/Configuration-and-Email-Settings#configuration) na GitHub.\n\nAk používate preposlané e-maily od Amazonu, oddelte každú adresu čiarkou alebo zadajte (none) na vymazanie tohto nastavenia.",
-        "title": "Pošta a balíky (krok 2 z 2)"
+        "title": "Pošta a balíky (krok 2 z 2)",
+        "data_description": {
+          "seventeen_track_api_key": "Voliteľné. S API kľúčom 17track.net poskytuje 17track smerodajný stav pre všetky zistené sledovacie čísla (okrem Amazonu) — detekcia stavu na základe e-mailov dopravcu sa potom preskočí."
+        }
       },
       "reconfig_3": {
         "data": {
@@ -114,10 +126,14 @@
       },
       "reconfig_storage": {
         "data": {
-          "storage": "Adresár na ukladanie obrázkov"
+          "storage": "Adresár na ukladanie obrázkov",
+          "dhl_brief_reauth": "Znovu overiť náhľad listov DHL"
         },
         "description": "Prosím, zadajte adresár, v ktorom chcete ukladať svoje obrázky.\nPredvolená hodnota je automaticky vyplnená.",
-        "title": "Miesto ukladania obrázkov"
+        "title": "Miesto ukladania obrázkov",
+        "data_description": {
+          "dhl_brief_reauth": "Nechajte nezaškrtnuté, ak chcete zachovať existujúce prihlásenie DHL. Zaškrtnite len vtedy, ak sa chcete znova prihlásiť do DHL (napr. po vypršaní alebo zrušení tokenu)."
+        }
       },
       "config_forwarded_emails": {
         "data": {
@@ -197,6 +213,53 @@
         "password": "Password",
         "oauth2_microsoft": "OAuth2 - Microsoft (Outlook/Exchange)",
         "oauth2_google": "OAuth2 - Google (Gmail)"
+      }
+    }
+  },
+  "issues": {
+    "dhl_brief_auth_failed": {
+      "title": "Náhľad listov DHL: prihlásenie vypršalo",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Znovu overiť náhľad listov DHL",
+            "description": "Vaše prihlásenie do DHL vypršalo, takže nie je možné načítať nové oznámenia o listoch.\n\n1. Otvorte tento odkaz a prihláste sa do DHL: {auth_url}\n2. Po prihlásení budete presmerovaní na stránku, ktorá zostane prázdna — to je v poriadku.\n3. Skopírujte adresu tejto stránky (začína na dhllogin://) a vložte ju nižšie.",
+            "data": {
+              "dhl_brief_code": "Prihlasovací kód DHL alebo URL presmerovania"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Tento kód sa nepodarilo použiť. Prihláste sa znova."
+        }
+      }
+    },
+    "seventeen_track_auth_failed": {
+      "title": "17track.net: kľúč API odmietnutý",
+      "fix_flow": {
+        "step": {
+          "reauth": {
+            "title": "Aktualizujte svoj kľúč API 17track.net",
+            "description": "Váš kľúč API 17track.net bol odmietnutý, takže už nie je možné zisťovať stav zásielok.\n\nZískajte kľúč na 17track.net (Môj účet > Nastavenia zabezpečenia > Kľúč API) a vložte ho nižšie.",
+            "data": {
+              "seventeen_track_api_key": "Kľúč API 17track.net"
+            }
+          }
+        },
+        "error": {
+          "invalid_auth": "Zadajte platný kľúč API 17track.net."
+        }
+      }
+    },
+    "auth_failed": {
+      "title": "Overenie Mail and Packages zlyhalo",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Znovu overiť poštový server",
+            "description": "Overenie k vášmu poštovému serveru IMAP zlyhalo. Kliknutím na odoslať spustíte proces opätovného overenia."
+          }
+        }
       }
     }
   }

@@ -14,7 +14,18 @@ from . import MailAndPackagesConfigEntry
 from .const import CONF_AMAZON_FWDS, CONF_FORWARDED_EMAILS
 
 _LOGGER = logging.getLogger(__name__)
-REDACT_KEYS = {CONF_PASSWORD, CONF_USERNAME, CONF_AMAZON_FWDS, CONF_FORWARDED_EMAILS}
+REDACT_KEYS = {
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    CONF_AMAZON_FWDS,
+    CONF_FORWARDED_EMAILS,
+    "token",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "dhl_brief_tokens",
+    "seventeen_track_api_key",
+}
 
 
 async def async_get_config_entry_diagnostics(

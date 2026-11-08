@@ -22,6 +22,64 @@ from tests.const import FAKE_CONFIG_DATA_NO_RND
 
 
 @pytest.mark.asyncio
+async def test_card_contract_attribute_shapes(
+    hass, mock_update, entity_registry: er.EntityRegistry
+):
+    """Pin the sensor attribute shapes the companion Lovelace card reads.
+
+    The card lives in a separate repo and consumes these attributes directly.
+    Nothing validates that contract at runtime -- renaming a key here just
+    makes the card render an empty section, with no error anywhere. This test
+    is the missing schema check: it fails loudly on the producing side.
+
+    Keep in sync with the card's reader code when the contract changes on
+    purpose.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="imap.test.email",
+        data=FAKE_CONFIG_DATA_NO_RND,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    for entity_entry in entity_registry.entities.get_entries_for_config_entry_id(
+        entry.entry_id
+    ):
+        if entity_entry.disabled_by:
+            entity_registry.async_update_entity(
+                entity_entry.entity_id, disabled_by=None
+            )
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    history_entity_id = resolve_entity_id(
+        entity_registry, entry.entry_id, "sensor", "packages_history"
+    )
+    history_state = hass.states.get(history_entity_id) if history_entity_id else None
+    assert history_state is not None, "packages_history sensor missing"
+    assert "history" in history_state.attributes, (
+        "card reads `history` off packages_history"
+    )
+    history = history_state.attributes["history"]
+    assert isinstance(history, list)
+    for record in history:
+        # The card keys its archive rows off these; a rename breaks it silently.
+        for key in ("carrier", "order", "delivered"):
+            assert key in record, f"history record lost `{key}`: {record}"
+
+    amazon_entity_id = resolve_entity_id(
+        entity_registry, entry.entry_id, "sensor", "amazon_packages_delivered"
+    )
+    amazon_state = hass.states.get(amazon_entity_id) if amazon_entity_id else None
+    if amazon_state is not None:
+        assert "order" in amazon_state.attributes, (
+            "card reads `order` off amazon_packages_delivered"
+        )
+
+
 async def test_sensor(hass, mock_update, entity_registry: er.EntityRegistry):
     """Test the setup and state of standard sensors."""
     entry = MockConfigEntry(
@@ -32,6 +90,18 @@ async def test_sensor(hass, mock_update, entity_registry: er.EntityRegistry):
 
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Enable all disabled entities so we can check their states
+    for entity_entry in entity_registry.entities.get_entries_for_config_entry_id(
+        entry.entry_id
+    ):
+        if entity_entry.disabled_by:
+            entity_registry.async_update_entity(
+                entity_entry.entity_id, disabled_by=None
+            )
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
 
     assert "mail_and_packages" in hass.config.components
@@ -45,141 +115,144 @@ async def test_sensor(hass, mock_update, entity_registry: er.EntityRegistry):
     assert state
 
     # Make sure the rest of the sensors are importing our test data
-    state = s("mail_usps_mail")
+    state = s("usps_mail")
     assert state
     assert state.state == "6"
 
     assert state.attributes["image"] == "mail_today.gif"
 
-    state = s("mail_usps_delivered")
+    state = s("usps_delivered")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["92123456789012345"]
 
-    state = s("mail_usps_delivering")
+    state = s("usps_delivering")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["92123456789012345"]
 
-    state = s("mail_usps_packages")
+    state = s("usps_packages")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["92123456789012345"]
 
-    state = s("mail_ups_delivered")
+    state = s("ups_delivered")
     assert state
     assert state.state == "1"
 
-    state = s("mail_ups_delivering")
-    assert state
-    assert state.state == "1"
-    assert state.attributes["tracking_#"] == ["1Z123456789"]
-
-    state = s("mail_ups_packages")
+    state = s("ups_delivering")
     assert state
     assert state.state == "1"
     assert state.attributes["tracking_#"] == ["1Z123456789"]
 
-    state = s("mail_fedex_delivered")
+    state = s("ups_packages")
+    assert state
+    assert state.state == "1"
+    assert state.attributes["tracking_#"] == ["1Z123456789"]
+
+    state = s("fedex_delivered")
     assert state
     assert state.state == "0"
 
-    state = s("mail_fedex_delivering")
+    state = s("fedex_delivering")
     assert state
     assert state.state == "2"
     assert state.attributes["tracking_#"] == ["1234567890"]
 
-    state = s("mail_fedex_packages")
+    state = s("fedex_packages")
     assert state
     assert state.state == "2"
     assert state.attributes["tracking_#"] == ["1234567890"]
 
-    state = s("mail_amazon_packages")
+    state = s("amazon_packages")
     assert state
     assert state.state == "7"
     assert state.attributes["order"] == ["#123-4567890"]
 
-    state = s("mail_amazon_delivered")
+    state = s("amazon_delivered")
     assert state
     assert state.state == "2"
     assert state.attributes["order"] == ["#123-4567890"]
 
-    state = s("mail_dhl_delivered")
+    state = s("dhl_delivered")
     assert state
     assert state.state == "0"
 
-    state = s("mail_dhl_delivering")
+    state = s("dhl_delivering")
     assert state
     assert state.state == "1"
     assert state.attributes["tracking_#"] == ["1234567890"]
 
-    state = s("mail_dhl_packages")
+    state = s("dhl_packages")
     assert state
     assert state.state == "2"
     assert state.attributes["tracking_#"] == ["1234567890"]
 
-    state = s("mail_auspost_delivered")
+    state = s("auspost_delivered")
     assert state
     assert state.state == "2"
 
-    state = s("mail_auspost_delivering")
+    state = s("auspost_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_auspost_packages")
+    state = s("auspost_packages")
     assert state
     assert state.state == "3"
 
-    state = s("mail_poczta_polska_delivering")
+    state = s("poczta_polska_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_poczta_polska_packages")
+    state = s("poczta_polska_packages")
     assert state
     assert state.state == "1"
 
-    state = s("mail_inpost_pl_delivered")
+    state = s("inpost_pl_delivered")
     assert state
     assert state.state == "2"
 
-    state = s("mail_inpost_pl_delivering")
+    state = s("inpost_pl_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_inpost_pl_packages")
+    state = s("inpost_pl_packages")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["520113017830399002575123"]
 
-    state = s("mail_dpd_com_pl_delivered")
+    state = s("dpd_com_pl_delivered")
     assert state
     assert state.state == "2"
 
-    state = s("mail_dpd_com_pl_delivering")
+    state = s("dpd_com_pl_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_dpd_com_pl_packages")
+    state = s("dpd_com_pl_packages")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["13490015284111"]
 
-    state = s("mail_gls_delivered")
+    state = s("gls_delivered")
     assert state
     assert state.state == "2"
 
-    state = s("mail_gls_delivering")
+    state = s("gls_delivering")
     assert state
     assert state.state == "1"
 
-    state = s("mail_gls_packages")
+    state = s("gls_packages")
     assert state
     assert state.state == "3"
     assert state.attributes["tracking_#"] == ["51687952111"]
 
-    state = s("packages_delivered")
+    state = s("zpackages_delivered")
     assert state
     assert state.state == "7"
+
+    state = s("packages_history")
+    assert state, "packages_history entity missing from registry"
 
 
 @pytest.mark.parametrize(
@@ -447,6 +520,47 @@ async def test_packages_sensor_attributes_edge_cases(hass):
     )
     attrs_otp = sensor_otp.extra_state_attributes
     assert attrs_otp["code"] == ["654321"]
+
+
+@pytest.mark.asyncio
+async def test_packages_history_sensor_state_and_attributes(hass):
+    """packages_history sensor exposes count as state and history as attribute."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_HOST: "test"})
+    coordinator = MagicMock()
+    history_records = [
+        {
+            "carrier": "ups",
+            "number": "1Z123",
+            "delivered": "2026-07-12",
+            "first_seen": "2026-07-10",
+        },
+        {
+            "carrier": "amazon",
+            "number": "TBA123456789",
+            "order": "123-4567890-1234567",
+            "delivered": "2026-07-10",
+            "first_seen": None,
+        },
+    ]
+    coordinator.data = {
+        "packages_history": 2,
+        "packages_history_details": history_records,
+    }
+
+    sensor_desc = MagicMock(key="packages_history")
+    sensor_desc.name = "Mail Packages History"
+    sensor = PackagesSensor(
+        entry,
+        sensor_desc,
+        coordinator,
+    )
+
+    assert sensor.native_value == 2
+    attrs = sensor.extra_state_attributes
+    assert attrs["history"] == history_records
+    # Newest-first ordering is the coordinator's responsibility; the sensor
+    # simply passes the list through unchanged.
+    assert attrs["history"][0]["delivered"] == "2026-07-12"
 
 
 @pytest.mark.asyncio
