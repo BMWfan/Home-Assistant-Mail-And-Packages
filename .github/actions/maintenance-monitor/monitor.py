@@ -235,7 +235,7 @@ def feed_snapshot(source, fetch):
                 link = element.get("href", "")
                 break
         title = feed_value(entry, "title")
-        if source["url"].startswith("https://www.python.org") and re.search(
+        if urlparse(source["url"]).hostname == "www.python.org" and re.search(
             r"alpha|beta|candidate|\drc\d|\db\d|\da\d", title, re.IGNORECASE
         ):
             continue
