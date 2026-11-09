@@ -1,0 +1,14 @@
+version: 1
+project: Home-Assistant-Mail-And-Packages
+mode: report
+create_issues: false
+delegate: false
+sources:
+  - id: ha-core
+    kind: release
+    repository: home-assistant/core
+    relevance: Integration setup, config entries, sensors and cameras
+  - id: ha-developer-news
+    kind: feed
+    url: https://contributors.home-assistant.io/blog/rss.xml
+    relevance: Official platform deprecations and integration API changes

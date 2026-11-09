@@ -1,0 +1,5 @@
+extend = "../pyproject.toml"
+
+[lint]
+# Self-contained standard-library suite also runs without the integration pytest stack.
+ignore = ["PT009", "PT027", "D101", "D102", "D103"]
