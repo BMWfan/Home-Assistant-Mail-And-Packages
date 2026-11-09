@@ -266,6 +266,8 @@ def build_report(config, previous, fetch, now=None):
         "mode": "report",
         "observed_at": observed,
         "project": config.get("project", ""),
+        "project_sha": os.environ.get("GITHUB_SHA", "unknown_local_checkout"),
+        "human_review": "not_recorded",
         "sources": [],
         "findings": [],
         "errors": [],
@@ -314,6 +316,8 @@ def build_report(config, previous, fetch, now=None):
                 "identity": identity,
                 "seen": sorted(seen | fingerprints)[-2000:],
                 "last_success": observed,
+                "versions": [record["version"] for record in records],
+                "revisions": [record["revision"] for record in records],
             }
             report["sources"].append(
                 {"id": source["id"], "status": "ok", "observations": len(records)}
