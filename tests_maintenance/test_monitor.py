@@ -143,6 +143,7 @@ class MonitorTests(unittest.TestCase):
         data = b'<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>API deprecation</title><id>entry-1</id><updated>now</updated><link rel="alternate" href="https://developers.home-assistant.io/blog/2026/11/01/change"/></entry></feed>'
         report, _ = m.build_report(configuration(source), None, lambda url: data)
         self.assertEqual(report["findings"][0]["title"], "API deprecation")
+        self.assertEqual(report["findings"][0]["priority"], "high")
         self.assertEqual(report["findings"][0]["revision"], "now")
 
     def test_advisory_is_not_claimed_as_installed_exposure(self):

@@ -299,6 +299,11 @@ def build_report(config, previous, fetch, now=None):
                             "decision": "defer",
                             "priority": "high"
                             if source["kind"] == "advisory"
+                            or re.search(
+                                r"deprecat|breaking|remov",
+                                record["title"],
+                                re.IGNORECASE,
+                            )
                             else "normal",
                             "relevance": source.get(
                                 "relevance", "Requires project-specific review"
