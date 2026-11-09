@@ -30,7 +30,7 @@ ALLOWED_FEEDS = {
 class NoRedirect(HTTPRedirectHandler):
     """Never forward API credentials to redirect destinations."""
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: PLR0917 - urllib override signature
+    def redirect_request(self, *_args, **_kwargs):
         """Reject redirects before issuing another request."""
         raise SourceError("unexpected_redirect")
 
