@@ -10,9 +10,14 @@ on:
 
 permissions: read-all
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         python-version: ["3.14"]
@@ -25,6 +30,8 @@ jobs:
 
       - name: 📥 Checkout the repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: 🛠️ Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -35,9 +42,14 @@ jobs:
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           enable-cache: true
+          cache-dependency-glob: "requirements*.txt"
+
+      - name: 🔎 Check changed spec artifacts
+        if: github.event_name == 'pull_request'
+        run: python check_spec_artifacts.py --base-ref "${{ github.event.pull_request.base.sha }}"
 
       - name: 📦 Install tox
-        run: uv pip install --system tox tox-gh-actions
+        run: uv pip install --system tox==4.32.0 tox-gh-actions==3.5.0
 
       - name: 🏃 Run tox
         run: tox

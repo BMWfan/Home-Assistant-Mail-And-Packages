@@ -2,6 +2,7 @@
 
 import datetime
 import errno
+import os
 import time
 from pathlib import Path
 from unittest import mock
@@ -752,37 +753,22 @@ def mock_copyfile():
 
 @pytest.fixture
 def mock_listdir():
-    """Fixture to mock listdir."""
-    with patch("os.listdir") as mock_listdir:
-        mock_listdir.return_value = [
-            "testfile.gif",
-            "anotherfakefile.mp4",
-            "lastfile.txt",
-        ]
+    """Spy on directory listings without replacing their results."""
+    with patch("os.listdir", wraps=os.listdir) as mock_listdir:
         yield mock_listdir
 
 
 @pytest.fixture
 def mock_listdir_nogif():
-    """Fixture to mock listdir."""
-    with patch("os.listdir") as mock_listdir_nogif:
-        mock_listdir_nogif.return_value = [
-            "testfile.jpg",
-            "anotherfakefile.mp4",
-            "lastfile.txt",
-        ]
+    """Spy on directory listings without replacing their results."""
+    with patch("os.listdir", wraps=os.listdir) as mock_listdir_nogif:
         yield mock_listdir_nogif
 
 
 @pytest.fixture
 def mock_listdir_noimgs():
-    """Fixture to mock listdir."""
-    with patch("os.listdir") as mock_listdir_noimgs:
-        mock_listdir_noimgs.return_value = [
-            "testfile.xls",
-            "anotherfakefile.mp4",
-            "lastfile.txt",
-        ]
+    """Spy on directory listings without replacing their results."""
+    with patch("os.listdir", wraps=os.listdir) as mock_listdir_noimgs:
         yield mock_listdir_noimgs
 
 
