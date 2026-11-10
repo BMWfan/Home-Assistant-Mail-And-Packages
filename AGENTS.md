@@ -202,7 +202,8 @@ All pull request titles must follow the Conventional Commits specification (e.g.
 
 Any substantial change to integration behavior, configuration schema,
 persistence/storage, or release packaging must record, before merge, in the
-relevant `specs/NNN-*.md` + `specs/NNN-verification.md` pair (new work) or
+relevant legacy `specs/NNN-*.md` + `specs/NNN-verification.md` pair or new
+`specs/NNN-slug/` bundle (see section 6), or
 the existing SPEC-001 artifacts / the PR description (small fixes):
 
 - **(a) Latest stable Home Assistant release.** The exact HA version used
@@ -224,11 +225,11 @@ exact HA version tested, the upstream/fork commit SHAs reviewed, official
 links consulted, the adopt/adapt/defer/reject decision, which tests were run,
 and known limitations.
 
-For **larger or more substantive work**, use the existing two-file
-`specs/NNN-*.md` (requirements/design/plan/tasks) + `specs/NNN-verification.md`
-(evidence) layout already established by SPEC-001. Do not introduce a new or
-incompatible spec layout, and do not self-approve acceptance criteria or
-implementation status — human review and manual merge remain required.
+For **larger or more substantive work**, follow the S/M/L artifact rules in
+section 6. Preserve active legacy SPEC-001 through SPEC-008 files and references;
+new specifications use `specs/NNN-slug/`. The changed-artifact check accepts both
+formats. Do not self-approve acceptance criteria or implementation status —
+human review and manual merge remain required.
 
 Scheduled/automated monitoring of upstream HA releases or the canonical
 upstream repository is a **proposal only**: it is not implemented, and
@@ -236,7 +237,44 @@ remains disabled pending explicit human approval. No auto-merge, autonomous
 repair loop, or automated documentation edit based on such monitoring is
 authorized by this policy.
 
-## 6. Pull Request & Contribution Guidelines
+## 6. Specification-Driven Development
+
+Use lightweight, risk-proportionate specifications rather than a full document suite for every change. Follow the [NetClaw `specs/NNN-slug/` example](https://github.com/automateyournetwork/netclaw/blob/main/specs/072-hud-2-org-chart/spec.md), adapted as follows:
+
+- **S — small fix:** issue, focused pull request, regression test, and human review. No standalone SPEC for a trivial fix, documentation edit, CI rerun, or review comment.
+- **M — bounded feature:** one `spec.md` with the problem, scope and non-goals, requirements, acceptance criteria, dependencies, compatibility risks, documentation impact, rollback, and approval gate. Add a task checklist.
+- **L — architecture, security, or data migration:** `spec.md`, `plan.md`, and `tasks.md`, plus explicit verification and migration/rollback evidence. Split implementation into small pull requests where useful. `verification.md` is required for L; research notes and interface contracts are optional when there is real uncertainty or a cross-project interface.
+
+Create new feature specifications at `specs/NNN-short-slug/`, with the number assigned once. A SPEC describes one coherent, independently reviewable change and may be implemented by multiple focused PRs; each PR links the SPEC and relevant task IDs. Keep existing SPEC-001 through SPEC-008 issue links, artifact paths, verification evidence, and in-flight work intact. Do not renumber or move active artifacts to adopt the new layout; any migration requires a separately reviewed plan and reference updates. The changed-spec checker supports both formats: legacy pairs retain their section checks; new folders require `spec.md` and `tasks.md`. If either `plan.md` or `verification.md` is present, both are required. S/M/L classification and acceptance quality still require human review. Do not create a separate project constitution.
+
+Use the gates **Specify → Clarify → Plan → Tasks → Analyze → Implement → Verify**. Get human approval of significant scope before implementation. During Analyze and Verify, explicitly review test, security, and documentation impact; update affected docs or record why none are affected. Preserve stable entity and unique IDs, stored tracking history, and existing user data. No production Home Assistant testing, live credentials, autonomous repair loops, or automatic merges.
+
+### Compatibility and verification
+
+- For every behavior or API change, identify the latest applicable **stable Home Assistant Core release** and its supported Python version; review its release notes, API changes, and deprecations before implementation and again during verification. Do not rely on dev-only APIs. Record the release/version reviewed and the compatibility result in the SPEC or PR.
+- Check the current Actions runs for the PR and report the actual coverage. The current CI workflow has a Python **3.14-only** matrix and runs `tox` (`lint`, `mypy`, `py314`) with read-only Ruff checks and a dependency audit before pytest, then coverage upload; the Validation workflow runs HACS and Hassfest checks. Do not imply that Actions tests multiple Python or Core versions unless the workflow matrix does. Update the documented matrix when CI changes.
+- Keep HA tests isolated and deterministic; use fixtures, never production instances or live accounts. Verify focused tests and relevant Actions jobs, and distinguish automated evidence from manual or not-run checks.
+- For every SPEC and substantive integration PR, review the [companion card repository](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages-Custom-Card) contract and link relevant card issues/PRs. Check entity registry auto-discovery, entity IDs/platforms, sensor attributes, universal and 17TRACK shipment structures, OTP/Hub pickup-code mapping, delivery photos, DHL letter previews and image URLs, scan button/service, and status/last-updated data. Preserve backwards compatibility or coordinate an explicitly versioned change across both repositories. Use the disposable HA development environment with both repositories when feasible; add fixture/contract and browser/E2E checks proportionate to risk. State which checks actually ran.
+
+### Roadmap links and workflow
+
+The roadmap is [issue #2](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/2). Existing feature issues remain the references for their respective SPECs:
+
+- [SPEC-001 — Test environment and CI (#3)](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/3) — implementation remains in [PR #12](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/pull/12).
+- [SPEC-002 — Coordinator and lifecycle (#4)](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/4)
+- [SPEC-003 — Tracking persistence and migration (#5)](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/5)
+- [SPEC-004 — Tracking and 17TRACK (#6)](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/6)
+- [SPEC-005 — Entities and device registry (#7)](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/7)
+- [SPEC-006 — Config flow and repairs (#8)](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/8)
+- [SPEC-007 — Custom Card and automation events (#9)](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/9)
+- [SPEC-008 — Release quality and distribution (#10)](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/issues/10)
+
+Use the GitHub Copilot Coding Agent for assigned work in this repository. Open a draft PR against the roadmap's `test/all-features` branch, keep unrelated work and PR #12 separate, wait for Actions and an independent review, and merge only after owner approval. Do not start a separate Codex session, change production, or make releases without owner approval. The card-side counterpart to SPEC-007 is [companion issue #17](https://github.com/BMWfan/Home-Assistant-Mail-And-Packages-Custom-Card/issues/17).
+
+
+---
+
+## 7. Pull Request & Contribution Guidelines
 
 ### A. Pre-submission Checklist
 1. **Formatting & Linting**: `ruff check --fix . && ruff format .`

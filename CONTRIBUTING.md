@@ -11,13 +11,16 @@ Contributing to this project should be as easy and transparent as possible, whet
 
 Github is used to host code, to track issues and feature requests, as well as accept pull requests.
 
-Pull requests are the best way to propose changes to the codebase.
+Pull requests are the best way to propose changes to the codebase. Read
+[AGENTS.md](AGENTS.md) for the proportional S/M/L specification workflow,
+compatibility and cross-repository contract requirements.
 
-1. Fork the repo and create your branch from `dev`.
-2. If you've changed something, update the documentation.
-3. Make sure your code lints (using black).
-4. Test you contribution.
-5. Issue that pull request!
+1. Branch from the target named in the issue or by the maintainer; roadmap work
+   targets `test/all-features`. Stack dependent work on its reviewed prerequisite.
+2. Update affected documentation and use the S/M/L artifacts in `AGENTS.md`.
+3. Run relevant tests and read-only Ruff/mypy checks through tox as described below.
+4. Open a draft PR, report actual CI evidence, obtain independent review and merge
+   only with owner approval. No production tests, autonomous merge or release.
 
 ## Any contributions you make will be under the MIT Software License
 
@@ -42,10 +45,6 @@ Report a bug by [opening a new issue](../../issues/new/choose); it's that easy!
 
 People *love* thorough bug reports. I'm not even kidding.
 
-## Use a Consistent Coding Style
-
-Use [black](https://github.com/ambv/black) to make sure the code follows the style.
-
 ## Run tests and validation
 
 Use Python 3.14, matching CI. From the repository root, create and activate a
@@ -64,7 +63,7 @@ installed distributions, including Home Assistant and the test dependencies.
 The pytest environment disables external sockets, allowing only loopback access
 for tests. For focused runs, use `tox -e py314 -- tests/test_init.py --no-cov`
 or run Ruff directly with `ruff check --no-fix .` and `ruff format --check .`.
-For a pull-request base SHA, validate changed SPEC-001 artifacts locally with
+For a pull-request base SHA, validate changed legacy or folder-based specification artifacts locally with
 `python check_spec_artifacts.py --base-ref <PR-base-sha>`.
 HACS and hassfest validation run in the **Validation** GitHub Actions workflow;
 start it from the Actions tab with **Run workflow** when needed.
@@ -76,8 +75,9 @@ persistence, see the permanent **SDD-Light review policy** in `AGENTS.md`
 (section 5.1): review the current stable Home Assistant release/quality-scale
 guidance, canonical upstream changes since the last-reviewed SHA, and
 fork-specific contracts with isolated tests, and record the exact versions,
-SHAs, decisions, and test results in the PR or in `specs/NNN-*.md` +
-`specs/NNN-verification.md`. Small fixes only need a short proportional
+SHAs, decisions, and test results in the PR, the active legacy
+`specs/NNN-*.md` + `specs/NNN-verification.md` pair, or a new `specs/NNN-slug/`
+bundle. Preserve active artifact paths; use the S/M/L rules in section 6. Small fixes only need a short proportional
 checklist in the PR description.
 
 ## License
