@@ -6,12 +6,18 @@ pytest
 pytest-aiohttp
 pytest-asyncio
 pytest-cov
-pytest-homeassistant-custom-component
-homeassistant
+pytest-timeout==2.4.0
+pytest-xdist==3.8.0
+pytest-socket==0.8.1
+pip-audit==2.10.1
+requests-mock==1.12.1
+respx==0.23.1
+syrupy==6.1.1
+paho-mqtt==2.1.0
+homeassistant==2026.11.0
 freezegun
 cython
 PyTurboJPEG
-tox<4
-ruff>=0.15.0
-pycares>=4.11.0,<5.0.0  # Pin <5.0.0 for aiodns compatibility, >=4.11.0 for py3.13
+ruff==0.15.0
+pycares>=5.0.0,<6.0.0  # Required by Home Assistant 2026.11's aiodns dependency
 mypy
