@@ -1,10 +1,16 @@
 """Test the Mail and Packages diagnostics."""
 
+from types import SimpleNamespace
+
 import pytest
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.mail_and_packages.const import CONF_AMAZON_FWDS, DOMAIN
+from custom_components.mail_and_packages.const import (
+    CONF_AMAZON_FWDS,
+    CONF_FORWARDED_EMAILS,
+    DOMAIN,
+)
 from custom_components.mail_and_packages.diagnostics import (
     async_get_config_entry_diagnostics,
     async_get_device_diagnostics,
@@ -53,10 +59,6 @@ async def test_device_diagnostics(hass, mock_update):
 @pytest.mark.asyncio
 async def test_device_diagnostics_redacts_dynamic_tracking_and_order_fields(hass):
     """Tracking and order details must never leak into exported diagnostics."""
-    from types import SimpleNamespace
-
-    from custom_components.mail_and_packages.const import CONF_FORWARDED_EMAILS
-
     data = {
         "dhl_tracking_number": "JD123456789",
         "amazon_order_id": "123-4567890-1234567",
@@ -66,9 +68,7 @@ async def test_device_diagnostics_redacts_dynamic_tracking_and_order_fields(hass
         "status": "ok",
     }
     entry = SimpleNamespace(
-        runtime_data=SimpleNamespace(
-            coordinator=SimpleNamespace(data=data)
-        )
+        runtime_data=SimpleNamespace(coordinator=SimpleNamespace(data=data))
     )
 
     result = await async_get_device_diagnostics(hass, entry, None)
@@ -85,12 +85,8 @@ async def test_device_diagnostics_redacts_dynamic_tracking_and_order_fields(hass
 @pytest.mark.asyncio
 async def test_device_diagnostics_handles_empty_coordinator_data(hass):
     """An empty coordinator response produces safe empty diagnostics."""
-    from types import SimpleNamespace
-
     entry = SimpleNamespace(
-        runtime_data=SimpleNamespace(
-            coordinator=SimpleNamespace(data={})
-        )
+        runtime_data=SimpleNamespace(coordinator=SimpleNamespace(data={}))
     )
 
     assert await async_get_device_diagnostics(hass, entry, None) == {}
