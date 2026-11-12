@@ -48,3 +48,49 @@ async def test_device_diagnostics(hass, mock_update):
     result = await async_get_device_diagnostics(hass, entry, None)
 
     assert result == FAKE_UPDATE_DATA_REDACTED
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_redacts_dynamic_tracking_and_order_fields(hass):
+    """Tracking and order details must never leak into exported diagnostics."""
+    from types import SimpleNamespace
+
+    from custom_components.mail_and_packages.const import CONF_FORWARDED_EMAILS
+
+    data = {
+        "dhl_tracking_number": "JD123456789",
+        "amazon_order_id": "123-4567890-1234567",
+        "amazon_order_status": "Out for delivery",
+        CONF_FORWARDED_EMAILS: "private@example.test",
+        "mail_count": 3,
+        "status": "ok",
+    }
+    entry = SimpleNamespace(
+        runtime_data=SimpleNamespace(
+            coordinator=SimpleNamespace(data=data)
+        )
+    )
+
+    result = await async_get_device_diagnostics(hass, entry, None)
+
+    assert result["dhl_tracking_number"] == "**REDACTED**"
+    assert result["amazon_order_id"] == "**REDACTED**"
+    assert result["amazon_order_status"] == "**REDACTED**"
+    assert result[CONF_FORWARDED_EMAILS] == "**REDACTED**"
+    assert result["mail_count"] == 3
+    assert result["status"] == "ok"
+    assert data["dhl_tracking_number"] == "JD123456789"
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_handles_empty_coordinator_data(hass):
+    """An empty coordinator response produces safe empty diagnostics."""
+    from types import SimpleNamespace
+
+    entry = SimpleNamespace(
+        runtime_data=SimpleNamespace(
+            coordinator=SimpleNamespace(data={})
+        )
+    )
+
+    assert await async_get_device_diagnostics(hass, entry, None) == {}
