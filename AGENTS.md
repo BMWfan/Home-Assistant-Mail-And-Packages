@@ -123,3 +123,8 @@ permissions:
 All pull request titles must follow the Conventional Commits specification (e.g., `feat: ...`, `fix: ...`, `ci: ...`).
 - Workflow checks: Managed via the `Semantic PR Check` action in `.github/workflows/semantic-pr.yaml`.
 - Auto-labeling: Handled automatically by the built-in autolabeler in `.github/release-drafter.yml`.
+
+
+## Token-efficient Codex execution
+
+Follow [scoped SDD-Light guidance](.github/SDD-LIGHT.md) for focused retrieval, compact [handoffs](.github/spec-templates/handoff.md) and [actual-token measurement](.github/spec-templates/token-benchmark.md). This supplements all existing specifications, CI, security, cross-repository compatibility and owner release/merge gates; never sacrifice verification to reduce tokens.
