@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": "verify-reflexion-rollout-in-target-repo",
+    "tags": [
+      "reflexion",
+      "ruff",
+      "ci",
+      "imap"
+    ],
+    "trigger": "A Reflexion Engine rollout from another repository fails destination CI.",
+    "evidence": "https://github.com/BMWfan/Home-Assistant-Mail-And-Packages/pull/24",
+    "action": "Run the destination repository's Ruff lint and format checks at the pinned versions. Read the tox environment summaries separately: lint failed while 522 tests passed. For ESEARCH warnings, model new_tag as synchronous and give Command a real event loop.",
+    "status": "candidate",
+    "supersedes": null
+  }
+]

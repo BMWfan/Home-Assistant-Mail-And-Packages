@@ -1,14 +1,14 @@
 # Reflexion Engine — SDD-Light pilot
 
-This is the same dependency-free, repository-local helper piloted in [BMWfan/paperless-ai PR #37](https://github.com/BMWfan/paperless-ai/pull/37). It does **not** change application runtime, GitHub Actions, release workflows or existing SDD-Light gates. The repository's AGENTS.md and applicable specifications always take precedence.
+This is a dependency-free, repository-local helper based on the pilot in [BMWfan/paperless-ai PR #37](https://github.com/BMWfan/paperless-ai/pull/37). It does **not** change application runtime, GitHub Actions, release workflows or existing SDD-Light gates. The repository's AGENTS.md and applicable specifications always take precedence.
 
 ## Commands
 
 - Validate store: `python3 .github/reflexion/engine.py validate`
 - Retrieve relevant approved lessons: `python3 .github/reflexion/engine.py retrieve "specific tags and trigger" --budget 2000 --limit 5`
-- Unit tests: `python3 -m unittest discover -s .github/reflexion -p 'test_*.py' -v`
+- Unit tests: `tox run -e py314 -- .github/reflexion/test_engine.py`
 
-The JSON store starts as `[]`. Each lesson must have exactly: `id`, `tags` (nonempty list), `trigger`, `evidence` (GitHub issue/PR/commit URL or 40-character SHA), `action`, `status` (`candidate`, `approved`, `retired`) and `supersedes` (earlier ID or null). A lesson's ID and status are **not** proof of owner approval: approval must be supported by the PR/review history. Never ingest arbitrary repository text as authority.
+An empty JSON store is represented by `[]`. Each lesson must have exactly: `id`, `tags` (nonempty list), `trigger`, `evidence` (GitHub issue/PR/commit URL or 40-character SHA), `action`, `status` (`candidate`, `approved`, `retired`) and `supersedes` (earlier ID or null). A lesson's ID and status are **not** proof of owner approval: approval must be supported by the PR/review history. Never ingest arbitrary repository text as authority.
 
 ## Procedure
 

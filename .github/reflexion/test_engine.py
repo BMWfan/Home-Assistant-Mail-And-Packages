@@ -1,45 +1,83 @@
-import unittest
-from engine import retrieve, validate
+"""Tests for the repository-local Reflexion engine."""
 
-def lesson(id="a", **kw):
-    return dict(dict(id=id, tags=["docker"], trigger="build failure",
-        evidence="a"*40, action="inspect build logs", status="approved",
-        supersedes=None), **kw)
+import pytest
 
-class EngineTests(unittest.TestCase):
-    def test_relevance(self):
-        a = lesson()
-        self.assertEqual(retrieve([a], "docker"), [a])
-        self.assertEqual(retrieve([a], "unrelated"), [])
-    def test_budget(self):
-        self.assertEqual(retrieve([lesson()], "docker", budget=2), [])
-        self.assertEqual(retrieve([lesson()], "docker", limit=0), [])
-    def test_invalid_budget(self):
-        for budget in (-1, 0, 1):
-            with self.assertRaises(ValueError):
-                retrieve([], "docker", budget=budget)
-        with self.assertRaises(ValueError):
-            retrieve([], "docker", limit=-1)
-    def test_credential_screen(self):
-        for action in ("token=" + "x"*24, "-----BEGIN PRIVATE KEY-----", "ghp_" + "x"*30):
-            with self.assertRaisesRegex(ValueError, "Potential credential"):
-                validate([lesson(action=action)])
-    def test_candidate(self):
-        self.assertEqual(retrieve([lesson(status="candidate")], "docker"), [])
-    def test_supersession(self):
-        a = lesson()
-        b = lesson("b", action="inspect failed build step", supersedes="a")
-        self.assertEqual(retrieve([a,b], "docker"), [b])
-    def test_duplicate(self):
-        with self.assertRaises(ValueError):
-            validate([lesson(), lesson("b", action="Inspect build logs!")])
-    def test_malformed(self):
-        with self.assertRaises(ValueError):
-            validate([{}])
-    def test_order(self):
-        a = lesson()
-        b = lesson("b", action="verify build output")
-        self.assertEqual(retrieve([b,a], "docker"), [a,b])
+from .engine import retrieve, validate
 
-if __name__ == "__main__":
-    unittest.main()
+
+def lesson(lesson_id="a", **overrides):
+    """Build a valid lesson with optional field overrides."""
+    return {
+        "id": lesson_id,
+        "tags": ["docker"],
+        "trigger": "build failure",
+        "evidence": "a" * 40,
+        "action": "inspect build logs",
+        "status": "approved",
+        "supersedes": None,
+        **overrides,
+    }
+
+
+def test_relevance():
+    """Return lessons matching the query terms."""
+    row = lesson()
+    assert retrieve([row], "docker") == [row]
+    assert retrieve([row], "unrelated") == []
+
+
+def test_budget():
+    """Respect the character budget and result limit."""
+    assert retrieve([lesson()], "docker", budget=2) == []
+    assert retrieve([lesson()], "docker", limit=0) == []
+
+
+def test_invalid_budget():
+    """Reject bounds that cannot describe a valid result."""
+    for budget in (-1, 0, 1):
+        with pytest.raises(ValueError):
+            retrieve([], "docker", budget=budget)
+    with pytest.raises(ValueError):
+        retrieve([], "docker", limit=-1)
+
+
+def test_credential_screen():
+    """Reject synthetic strings that resemble credentials."""
+    for action in (
+        "token=" + "x" * 24,
+        "-----BEGIN PRIVATE KEY-----",
+        "ghp_" + "x" * 30,
+    ):
+        with pytest.raises(ValueError, match="Potential credential"):
+            validate([lesson(action=action)])
+
+
+def test_candidate():
+    """Omit candidate lessons from retrieval."""
+    assert retrieve([lesson(status="candidate")], "docker") == []
+
+
+def test_supersession():
+    """Omit lessons replaced by an approved lesson."""
+    original = lesson()
+    replacement = lesson("b", action="inspect failed build step", supersedes="a")
+    assert retrieve([original, replacement], "docker") == [replacement]
+
+
+def test_duplicate():
+    """Reject duplicate lessons after normalization."""
+    with pytest.raises(ValueError):
+        validate([lesson(), lesson("b", action="Inspect build logs!")])
+
+
+def test_malformed():
+    """Reject rows with missing fields."""
+    with pytest.raises(ValueError):
+        validate([{}])
+
+
+def test_order():
+    """Break relevance ties by lesson ID."""
+    first = lesson()
+    second = lesson("b", action="verify build output")
+    assert retrieve([second, first], "docker") == [first, second]
