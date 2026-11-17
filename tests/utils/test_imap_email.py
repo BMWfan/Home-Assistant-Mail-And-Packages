@@ -943,7 +943,7 @@ async def test_email_search_multisearch():
 
     mock_protocol = AsyncMock()
     mock_protocol.execute.return_value = mock_res
-    mock_protocol.new_tag.return_value = "1"
+    mock_protocol.new_tag = MagicMock(return_value="1")
     mock_protocol.loop = asyncio.get_running_loop()
     mock_account.protocol = mock_protocol
 
@@ -1223,6 +1223,8 @@ async def test_execute_single_search_esearch_failure():
     mock_account.has_capability = MagicMock(return_value=True)
 
     # Mock protocol execution to raise AioImapException
+    mock_account.protocol.new_tag = MagicMock(return_value="1")
+    mock_account.protocol.loop = asyncio.get_running_loop()
     mock_account.protocol.execute.side_effect = AioImapException("ESEARCH failed")
 
     res = await _execute_single_search(mock_account, "ALL")
@@ -1453,6 +1455,8 @@ async def test_execute_single_search_esearch_timeout_error():
     mock_imap = AsyncMock()
     mock_imap._folders = ["INBOX", "Junk"]
     mock_imap.has_capability = MagicMock(return_value=True)
+    mock_imap.protocol.new_tag = MagicMock(return_value="1")
+    mock_imap.protocol.loop = asyncio.get_running_loop()
     mock_imap.protocol.execute.side_effect = TimeoutError()
     with pytest.raises(TimeoutError):
         await _execute_single_search(mock_imap, "SEARCH_QUERY")
