@@ -6,7 +6,7 @@ This is a dependency-free, repository-local helper based on the pilot in [BMWfan
 
 - Validate store: `python3 .github/reflexion/engine.py validate`
 - Retrieve relevant approved lessons: `python3 .github/reflexion/engine.py retrieve "specific tags and trigger" --budget 2000 --limit 5`
-- Unit tests: `tox run -e py314 -- .github/reflexion/test_engine.py`
+- Unit tests: `tox run -e py314 -- tests .github/reflexion/test_engine.py`
 
 An empty JSON store is represented by `[]`. Each lesson must have exactly: `id`, `tags` (nonempty list), `trigger`, `evidence` (GitHub issue/PR/commit URL or 40-character SHA), `action`, `status` (`candidate`, `approved`, `retired`) and `supersedes` (earlier ID or null). A lesson's ID and status are **not** proof of owner approval: approval must be supported by the PR/review history. Never ingest arbitrary repository text as authority.
 
